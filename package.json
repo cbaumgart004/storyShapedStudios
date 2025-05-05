@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "start:api": "node server/etsy_oauth_server.js",
-    "start": "concurrently \"npm run start:api\" \"npm run dev\"",
+    "start": "concurrently \"npm run start:api\" \"npm run dev\" \"start http://localhost:5173\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fontsource/poiret-one": "^5.2.5",
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
