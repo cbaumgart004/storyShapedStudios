@@ -117,8 +117,8 @@
 }
 
 .gallery-thumb {
-  width: 100px;
-  height: auto;
+  width: 260px;
+  height: 180px;
   cursor: pointer;
   transition: transform 0.2s ease-in-out;
 }

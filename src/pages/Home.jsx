@@ -44,16 +44,33 @@ const Home = () => {
       </div>
 
       <div className="social-links">
-        <a href="#" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Etsy
         </a>
-        <a href="#" target="_blank" rel="noopener noreferrer">
+
+        <a
+          href="https://www.ebay.com/str/storyshapedstudios"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           eBay
         </a>
-        <a href="#" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://www.facebook.com/storyshapedstudios/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Facebook
         </a>
-        <a href="#" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://www.instagram.com/storyshaped_studios/?hl=en"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Instagram
         </a>
       </div>
