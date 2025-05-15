@@ -42,15 +42,26 @@
   }
 }
 
+.border-wrapper {
+  position: relative;
+  width: fit-content;
+  margin: 2rem auto;
+  padding: 3rem;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .tagline-box {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 1rem;
-  border: 2px solid #230cb8;
   padding: 1.5rem;
   background-color: rgba(35, 12, 184, 0.1);
-  box-shadow: 0 0 10px #230cb8, 0 0 20px #230cb8;
   max-width: 850px;
 }
 

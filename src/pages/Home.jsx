@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import '@/styles/ComingSoon.css'
 import banner from '@/assets/coming-soon/Banner.jpg'
+import border from '@/assets/coming-soon/Border.png'
 
-const galleryImports = import.meta.glob('@/assets/coming-soon/*.{jpg,jpeg}', {
+const galleryImports = import.meta.glob('@/assets/coming-soon/*.jpg', {
   eager: true,
 })
 const galleryImages = Object.values(galleryImports).map((mod) => mod.default)
@@ -26,14 +27,19 @@ const Home = () => {
         alt="StoryShaped Studios Banner"
       />
 
-      <div className="tagline-box">
-        <div className="tagline-content">
-          <h1 className="glow-title">Coming Soon</h1>
-          <p className="tagline">
-            Welcome to StoryShaped Studios, your source for Uranium Glass. This
-            website is currently under construction. In the meantime, feel free
-            to visit any of our online shops.
-          </p>
+      <div
+        className="border-wrapper"
+        style={{ backgroundImage: `url(${border})` }}
+      >
+        <div className="tagline-box">
+          <div className="tagline-content">
+            <h1 className="glow-title">Coming Soon</h1>
+            <p className="tagline">
+              Welcome to StoryShaped Studios, your source for Uranium Glass.
+              This website is currently under construction. In the meantime,
+              feel free to visit any of our online shops.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -46,6 +52,9 @@ const Home = () => {
         </a>
         <a href="#" target="_blank" rel="noopener noreferrer">
           Facebook
+        </a>
+        <a href="#" target="_blank" rel="noopener noreferrer">
+          Instagram
         </a>
       </div>
 
