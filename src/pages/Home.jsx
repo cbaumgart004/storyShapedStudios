@@ -4,6 +4,10 @@ import React, { useState } from 'react'
 import '@/styles/ComingSoon.css'
 import banner from '@/assets/coming-soon/Banner.jpg'
 import border from '@/assets/coming-soon/Border.png'
+import facebookIcon from '@/assets/coming-soon/facebook.png'
+import etsyIcon from '@/assets/coming-soon/etsy.png'
+import ebayIcon from '@/assets/coming-soon/ebay.png'
+import instagramIcon from '@/assets/coming-soon/instagram.png'
 
 const galleryImports = import.meta.glob('@/assets/coming-soon/*.jpg', {
   eager: true,
@@ -49,7 +53,7 @@ const Home = () => {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Etsy
+          <img src={etsyIcon} alt="Etsy" className="social-icon" />
         </a>
 
         <a
@@ -57,21 +61,21 @@ const Home = () => {
           target="_blank"
           rel="noopener noreferrer"
         >
-          eBay
+          <img src={ebayIcon} alt="eBay" className="social-icon" />
         </a>
         <a
           href="https://www.facebook.com/storyshapedstudios/"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Facebook
+          <img src={facebookIcon} alt="Facebook" className="social-icon" />
         </a>
         <a
           href="https://www.instagram.com/storyshaped_studios/?hl=en"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Instagram
+          <img src={instagramIcon} alt="Instagram" className="social-icon" />
         </a>
       </div>
 
