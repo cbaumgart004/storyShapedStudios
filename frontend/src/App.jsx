@@ -2,9 +2,9 @@
 
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
-import Home from '@/pages/Home'
-import About from '@/pages/About'
-import Shop from '@/pages/Shop'
+import Home from '@/pages/Home' // ✅ with alias (recommended)
+import About from '@/pages/About' // ✅ with alias (recommended)
+import Shop from '@/pages/Shop' // ✅ with alias (recommended)
 
 console.log('🌿 App loaded')
 
