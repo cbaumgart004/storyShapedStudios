@@ -39,9 +39,9 @@ const Home = () => {
           <div className="tagline-content">
             <h1 className="glow-title">Coming Soon</h1>
             <p className="tagline">
-              Welcome to StoryShaped Studios, your source for Uranium Glass.
-              This website is currently under construction. In the meantime,
-              feel free to visit any of our online shops.
+              StoryShaped Studios is glowing to life--one piece of Uranium Glass
+              at a time. Jewelry with a histrory, a heartbeat, and just a little
+              bit of magic. Coming Soon.
             </p>
           </div>
         </div>
