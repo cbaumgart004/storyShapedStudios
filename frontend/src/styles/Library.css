@@ -210,9 +210,18 @@
 
 .lib-entry {
   scroll-margin-top: 80px; /* so anchored headings clear the sticky nav */
-  padding: 1.6rem 0 2rem;
-  border-bottom: 1px solid var(--line);
   max-width: 78ch;
+  margin: 0 0 1.5rem;
+  padding: 1.6rem clamp(1.2rem, 2.5vw, 2rem) 1.8rem;
+  background: color-mix(in srgb, var(--void-2) 60%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--frame-glow);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.lib-entry:target,
+.lib-entry:hover {
+  border-color: var(--accent);
 }
 .lib-entry h2 {
   font-family: 'Poiret One', sans-serif;
@@ -220,6 +229,8 @@
   font-size: clamp(1.3rem, 2.4vw, 1.9rem);
   letter-spacing: 0.03em;
   margin: 0 0 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
   color: var(--accent);
   text-shadow: var(--glow-1);
 }

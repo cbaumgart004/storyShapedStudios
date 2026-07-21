@@ -8,6 +8,7 @@ import Home from '@/pages/Home'
 import MeetTheArtist from '@/pages/MeetTheArtist'
 import Shop from '@/pages/Shop'
 import Library from '@/pages/Library'
+import Glossary from '@/pages/Glossary'
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/library" element={<Library />} />
+          <Route path="/glossary" element={<Glossary />} />
         </Routes>
       </Router>
     </UvModeProvider>

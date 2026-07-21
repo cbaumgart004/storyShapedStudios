@@ -14,17 +14,10 @@ import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { API_BASE } from '@/lib/api'
+import { slugify } from '@/lib/librarySlug'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
-
-function slugify(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-}
 
 // Split the markdown into { id, title, body } sections on each "## " heading.
 function parseSections(md) {
@@ -102,6 +95,16 @@ export default function Library() {
       active = false
     }
   }, [])
+
+  // When arriving with a hash (e.g. /library#what-is-uranium-glass from the
+  // Glossary index), scroll that entry's header into view once content renders.
+  useEffect(() => {
+    if (status !== 'ready') return
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    if (!id) return
+    const el = document.getElementById(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [status])
 
   const recordView = (id) => {
     // Optimistic bump so the UI responds instantly.
