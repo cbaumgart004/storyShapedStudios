@@ -13,6 +13,7 @@ import ReactMarkdown from 'react-markdown'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
+import { API_BASE } from '@/lib/api'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
@@ -62,7 +63,8 @@ export default function Library() {
   const [sections, setSections] = useState([])
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [query, setQuery] = useState('')
-  const [views, setViews] = useState(readViews)
+  const [views, setViews] = useState(readViews) // localStorage seed for instant paint
+  const serverViews = useRef(false) // true once the backend counts load
   const contentRef = useRef(null)
 
   useEffect(() => {
@@ -83,12 +85,48 @@ export default function Library() {
     }
   }, [])
 
+  // Pull global view counts from the backend; fall back to localStorage on error.
+  useEffect(() => {
+    let active = true
+    fetch(`${API_BASE}/api/library/views`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((counts) => {
+        if (!active || !counts || typeof counts !== 'object') return
+        serverViews.current = true
+        setViews(counts)
+      })
+      .catch(() => {
+        /* backend/DB unavailable — keep the localStorage counts */
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   const recordView = (id) => {
+    // Optimistic bump so the UI responds instantly.
     setViews((prev) => {
       const next = { ...prev, [id]: (prev[id] || 0) + 1 }
-      window.localStorage.setItem(VIEWS_KEY, JSON.stringify(next))
+      if (!serverViews.current) {
+        window.localStorage.setItem(VIEWS_KEY, JSON.stringify(next))
+      }
       return next
     })
+
+    if (!serverViews.current) return
+    // Persist to the backend and reconcile with the authoritative count.
+    fetch(`${API_BASE}/api/library/views/${encodeURIComponent(id)}`, {
+      method: 'POST',
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.count === 'number') {
+          setViews((prev) => ({ ...prev, [id]: data.count }))
+        }
+      })
+      .catch(() => {
+        /* ignore — optimistic value stands */
+      })
   }
 
   const goTo = (id) => {
