@@ -3,6 +3,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { UvModeProvider } from '@/context/UvMode'
+import ScrollToTop from '@/components/ScrollToTop'
 import Home from '@/pages/Home'
 import MeetTheArtist from '@/pages/MeetTheArtist'
 import Shop from '@/pages/Shop'
@@ -12,6 +13,7 @@ function App() {
   return (
     <UvModeProvider>
       <Router>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />

@@ -3,7 +3,7 @@
 // story in a text body, then the cabinet photo. Wrapped in .sss-home[data-mode]
 // so it inherits the shared daylight/blacklight design tokens, nav, and footer.
 
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
@@ -20,11 +20,6 @@ const photos = [artist1, artist2, artist3]
 
 export default function MeetTheArtist() {
   const { mode } = useUvMode()
-
-  // Land at the top when navigating in (e.g. from the Home feature link).
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [])
 
   return (
     <div className="sss-home" data-mode={mode}>
