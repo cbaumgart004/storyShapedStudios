@@ -6,9 +6,11 @@ This website hosts information about Uranium Glass, and serves as a locally host
 marketplace with a complete inventory system that updates components used in crafting
 sales items, and serves as the source of truth via API for Etsy and eBay.
 
-Current stage: early. The live site is a "Coming Soon" landing page. The shop/inventory/
-orders UI is scaffolded but not yet routed, and most backend content routes are not yet
-mounted. PostgreSQL is planned but not present.
+Current stage: early but live. The home page (`/`) is the live StoryShaped Studios site
+with a site-wide daylight/blacklight UV toggle, and a searchable Library knowledge base
+(`/library`) is live. Shop/orders UI is partially scaffolded. Content routes are mounted
+at `/api`. Postgres (via Neon) now backs Library view counts; the broader inventory
+schema is still to come.
 
 ## Existing Documentation
 
@@ -31,10 +33,13 @@ Prefer these as the source of truth; do not duplicate them here.
 
 | Component | Responsibility | Location |
 |---|---|---|
-| Web UI | React storefront: landing, shop, orders. Only `/`, `/about`, `/shop`, `/test` are routed today. | `frontend/src/` (`App.jsx`, `pages/`, `components/shop/`) |
-| Landing page | Currently-shipping "Coming Soon" page + assets | `frontend/src/pages/ComingSoon.jsx`, `styles/ComingSoon.css`, `assets/coming-soon/` |
+| Web UI | React storefront. Routed today: `/`, `/about`, `/shop`, `/library`. | `frontend/src/` (`App.jsx`, `pages/`, `components/`) |
+| Home page | Live landing page + daylight/blacklight UV toggle | `frontend/src/pages/Home.jsx`, `styles/Home.css` |
+| Library | Searchable knowledge base from Markdown, with a running index and view counts | `frontend/src/pages/Library.jsx`, `public/library.md`, `public/library-media/`, `scripts/docx_to_library_md.py` |
+| Shared UI | Site header/footer + UV-mode context reused across pages | `frontend/src/components/Site{Header,Footer}.jsx`, `context/UvMode.jsx`, `lib/api.js` |
 | OAuth / marketplace API | Etsy + eBay OAuth flows and token validation | `backend/server/server.js` |
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |
+| Database | Postgres (Neon) — Library view counts now; inventory later | `backend/server/utils/db.js`, `routes/libraryViews.js` |
 | Token storage | File-based persistence of Etsy/eBay access tokens | `backend/server/utils/*TokenStorage.js` |
 
 ## API Endpoints (backend, port 3000)
@@ -61,9 +66,14 @@ Content routes, aggregated by `routes/index.js` and mounted at `/api`:
 | GET | `/api/about` | `routes/about.js` |
 | GET | `/api/faqs` | `routes/faqs.js` |
 | GET | `/api/mock/etsy/mock-listing` | `routes/mockListing.js` |
+| GET | `/api/library/views` | `routes/libraryViews.js` — all view counts as `{ slug: count }` |
+| POST | `/api/library/views/:slug` | `routes/libraryViews.js` — increment one entry, returns `{ slug, count }` |
 
 Each content router uses `/` internally; the path segment (`/listings`, `/sales`, …)
 comes from the mount in `index.js`. Any other path returns `404 { error: 'Route not found.' }`.
+
+`/api/library/*` needs `DATABASE_URL` (Neon). Without it the backend degrades gracefully:
+`GET` returns `{}`, `POST` returns `503`. The frontend falls back to `localStorage`.
 
 ## External Systems
 
@@ -71,6 +81,7 @@ comes from the mount in `index.js`. Any other path returns `404 { error: 'Route 
 |---|---|
 | Etsy API | OAuth (`/auth/etsy`, `/oauth/etsy-callback`), token validate; product/listing source of truth |
 | eBay API | OAuth (`/auth/ebay`, `/oauth/ebay-callback`), token validate; sandbox/production via `EBAY_ENVIRONMENT`; dummy listing endpoint |
+| Neon (Postgres) | Serverless Postgres via `DATABASE_URL`; backs Library view counts, planned inventory DB |
 
 ## Important Constraints
 
@@ -82,15 +93,20 @@ comes from the mount in `index.js`. Any other path returns `404 { error: 'Route 
 
 - Business behavior: `backend/server/server.js` + `backend/server/routes/`.
 - Marketplace data: Etsy and eBay APIs (this app brokers OAuth + acts as intended source of truth).
-- Database schema: none yet (PostgreSQL planned).
+- Database schema: Postgres (Neon), currently just `library_views (slug, count)`, auto-created
+  by `routes/libraryViews.js`; no migration tooling yet.
 - API contracts: `backend/server/routes/` (per-router files).
-- Deployment configuration: frontend targets Vercel (see commit history); not documented here.
+- Deployment: frontend on Vercel (needs `VITE_API_URL` = backend origin, and a SPA rewrite
+  via `frontend/vercel.json`); backend on Railway (needs `DATABASE_URL`). Both auto-deploy
+  from `main` — after merging, confirm Railway picked up the new commit.
 
 ## Known Traps
 
 - Each content router in `routes/` uses `/` internally and gets its path segment from the
   mount in `index.js`. When adding a new content route, add it to `index.js` (don't repeat
   the segment inside the router file, or you'll get a doubled path like `/api/x/x`).
-- `server.js` calls `open()` on all auth/validate URLs at boot — starting the backend will
-  try to launch browser tabs.
-- Scaffolded `pages/Shop/*` and `pages/Orders/*` exist but are not referenced by the router.
+- `server.js` opens auth/validate URLs in a browser at boot, but only in local dev — it
+  skips this when `NODE_ENV=production` or `RAILWAY_ENVIRONMENT` is set.
+- Scaffolded `pages/Orders/*` exists but is not referenced by the router.
+- Frontend↔backend base URL comes from `VITE_API_URL` (`lib/api.js`), baked in at Vite
+  build time — it must include the scheme (`https://…`) and needs a redeploy to change.
