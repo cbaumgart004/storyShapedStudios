@@ -3,15 +3,12 @@
 // Signature: the UV (blacklight) toggle flips the whole page between
 // daylight (pale vaseline glass) and blacklight (full uranium glow).
 
-import React, { useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
+import { useUvMode } from '@/context/UvMode'
+import SiteHeader from '@/components/SiteHeader'
+import SiteFooter from '@/components/SiteFooter'
 import '@/styles/Home.css'
-
-import logo from '/assets/StoryShapedStudiosLogo_GmailOptimized.png'
-import etsyIcon from '@/assets/coming-soon/etsy.png'
-import ebayIcon from '@/assets/coming-soon/ebay.png'
-import facebookIcon from '@/assets/coming-soon/facebook.png'
-import instagramIcon from '@/assets/coming-soon/instagram.png'
 
 // Pull the real product photography from the assets folder.
 const photoImports = import.meta.glob('@/assets/coming-soon/PSX_*.jpg', {
@@ -27,42 +24,12 @@ const featured = [
   { name: 'The Drop', tag: 'Art Deco · c.1930s' },
 ]
 
-const socials = [
-  { href: 'https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt', icon: etsyIcon, label: 'Etsy' },
-  { href: 'https://www.ebay.com/str/storyshapedstudios', icon: ebayIcon, label: 'eBay' },
-  { href: 'https://www.facebook.com/storyshapedstudios/', icon: facebookIcon, label: 'Facebook' },
-  { href: 'https://www.instagram.com/storyshaped_studios/?hl=en', icon: instagramIcon, label: 'Instagram' },
-]
-
 const Home = () => {
-  const [mode, setMode] = useState('blacklight')
-  const lit = mode === 'blacklight'
-  const toggle = () => setMode(lit ? 'daylight' : 'blacklight')
+  const { mode, lit, toggle } = useUvMode()
 
   return (
     <div className="sss-home" data-mode={mode}>
-      <header className="sss-nav">
-        <Link to="/" className="sss-brand">
-          <img src={logo} alt="StoryShaped Studios" />
-          <span>StoryShaped Studios</span>
-        </Link>
-
-        <nav className="sss-navlinks">
-          <Link to="/shop">Collection</Link>
-          <a href="#glow">The Glow</a>
-          <Link to="/about">Our Story</Link>
-          <button
-            type="button"
-            className="uv-toggle"
-            onClick={toggle}
-            aria-pressed={lit}
-            title="Toggle blacklight"
-          >
-            <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
-            <span className="uv-switch" aria-hidden="true" />
-          </button>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main>
         {/* ---------------- HERO ---------------- */}
@@ -147,18 +114,7 @@ const Home = () => {
         </section>
       </main>
 
-      {/* ---------------- FOOTER ---------------- */}
-      <footer className="sss-footer">
-        <img className="mark" src={logo} alt="StoryShaped Studios" />
-        <div className="footer-socials">
-          {socials.map((s) => (
-            <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer">
-              <img src={s.icon} alt={s.label} />
-            </a>
-          ))}
-        </div>
-        <p className="footer-note">StoryShaped Studios · Crafted with love and light</p>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

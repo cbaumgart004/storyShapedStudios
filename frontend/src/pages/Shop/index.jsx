@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import EtsyItemCard from '@/components/shop/EtsyItemCard'
 import EbayItemCard from '@/components/shop/EbayItemCard' // You'll create this next
+import { API_BASE } from '@/lib/api'
 
 const Shop = () => {
   console.log('🌿 Shop page loaded')
@@ -11,13 +12,13 @@ const Shop = () => {
 
   useEffect(() => {
     // Fetch Etsy mock listing
-    fetch('http://localhost:3000/api/etsy/mock-listing')
+    fetch(`${API_BASE}/api/etsy/mock-listing`)
       .then((res) => res.json())
       .then((data) => setEtsyListing(data))
       .catch((err) => console.error('Failed to fetch Etsy listing:', err))
 
     // Fetch eBay dummy listing
-    fetch('http://localhost:3000/api/ebay/dummy-listing')
+    fetch(`${API_BASE}/api/ebay/dummy-listing`)
       .then((res) => res.json())
       .then((data) => setEbayListings(data.itemSummaries || []))
       .catch((err) => console.error('Failed to fetch eBay listings:', err))
