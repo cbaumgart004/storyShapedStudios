@@ -3,7 +3,7 @@
 // story in a text body, then the cabinet photo. Wrapped in .sss-home[data-mode]
 // so it inherits the shared daylight/blacklight design tokens, nav, and footer.
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
@@ -20,6 +20,11 @@ const photos = [artist1, artist2, artist3]
 
 export default function MeetTheArtist() {
   const { mode } = useUvMode()
+
+  // Land at the top when navigating in (e.g. from the Home feature link).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   return (
     <div className="sss-home" data-mode={mode}>
@@ -51,7 +56,6 @@ export default function MeetTheArtist() {
 
         {/* ---------------- TEXT BODY ---------------- */}
         <section className="section artist-body">
-          <p className="eyebrow">The Story</p>
           <p>
             I specialize in handmade <b>uranium glass</b> jewelry as well as the
             repair and restoration of antique and vintage uranium glass jewelry

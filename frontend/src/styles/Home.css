@@ -108,6 +108,9 @@ body {
   gap: 0.7rem;
   text-decoration: none;
   color: var(--bone);
+  /* Brand takes up to half the navbar; nav links keep the rest as pages grow. */
+  max-width: 50%;
+  min-width: 0;
 }
 .sss-brand img {
   width: 40px;
@@ -517,11 +520,31 @@ body {
   padding: clamp(3rem, 6vw, 5rem) 1.5rem 2.5rem;
   border-top: 1px solid var(--line);
 }
+/* Horizontal brand lockup: square mark + wordmark, so the footer brand reads
+   as a wide rectangle without stretching the square logo. */
+.footer-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.8rem, 2.5vw, 1.6rem);
+  width: min(80%, 640px);
+  margin: 0 auto 1.8rem;
+}
 .sss-footer img.mark {
-  width: 84px;
-  height: 84px;
+  width: clamp(64px, 11vw, 96px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 auto;
   filter: drop-shadow(var(--glow-1));
-  margin-bottom: 1.4rem;
+}
+.footer-wordmark {
+  font-family: 'Poiret One', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: clamp(1.15rem, 3.6vw, 2rem);
+  line-height: 1.05;
+  color: var(--bone);
+  text-shadow: var(--glow-1);
 }
 .footer-socials {
   display: flex;

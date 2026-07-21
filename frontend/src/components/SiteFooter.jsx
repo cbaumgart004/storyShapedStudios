@@ -19,7 +19,10 @@ const socials = [
 export default function SiteFooter() {
   return (
     <footer className="sss-footer">
-      <img className="mark" src={logo} alt="StoryShaped Studios" />
+      <div className="footer-brand">
+        <img className="mark" src={logo} alt="" />
+        <span className="footer-wordmark">StoryShaped Studios</span>
+      </div>
       <div className="footer-socials">
         {socials.map((s) => (
           <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer">
