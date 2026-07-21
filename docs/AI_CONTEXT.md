@@ -33,10 +33,10 @@ Prefer these as the source of truth; do not duplicate them here.
 
 | Component | Responsibility | Location |
 |---|---|---|
-| Web UI | React storefront. Routed today: `/`, `/meet-the-artist`, `/shop`, `/library`. | `frontend/src/` (`App.jsx`, `pages/`, `components/`) |
+| Web UI | React storefront. Routed today: `/`, `/meet-the-artist`, `/shop`, `/library`, `/library/:slug`, `/glossary`. | `frontend/src/` (`App.jsx`, `pages/`, `components/`) |
 | Home page | Live landing page + daylight/blacklight UV toggle | `frontend/src/pages/Home.jsx`, `styles/Home.css` |
 | Meet the Artist | Artist bio page (scaffold): 3 images + text body, shared nav/footer | `frontend/src/pages/MeetTheArtist.jsx`, `styles/MeetTheArtist.css` |
-| Library | Searchable knowledge base from Markdown, with a running index and view counts | `frontend/src/pages/Library.jsx`, `public/library.md`, `public/library-media/`, `scripts/docx_to_library_md.py` |
+| Library | Searchable knowledge base from Markdown. Index + per-article pages: `/library` lists all entries, `/library/:slug` shows one article on its own shareable URL; shared shell (search + Most-viewed + Contents rail) with copy-link + view counts | `frontend/src/pages/Library.jsx`, `public/library.md`, `public/library-media/`, `scripts/docx_to_library_md.py` |
 | Shared UI | Site header/footer + UV-mode context reused across pages | `frontend/src/components/Site{Header,Footer}.jsx`, `context/UvMode.jsx`, `lib/api.js` |
 | OAuth / marketplace API | Etsy + eBay OAuth flows and token validation | `backend/server/server.js` |
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |

@@ -1,14 +1,26 @@
 // src/pages/Library.jsx
-// Searchable Uranium Glass knowledge base. Content comes from /library.md
-// (frontend/public/library.md) and is parsed client-side into sections keyed by
-// their "## " headings. Layout: sticky sidebar (search + running index +
-// most-viewed) beside a wide content column. View counts persist in
-// localStorage so the most-consulted entries surface to the top.
+// Searchable Uranium Glass knowledge base, structured as an index + per-article
+// pages. Content comes from /library.md (frontend/public/library.md), parsed
+// client-side into sections keyed by their "## " headings.
+//
+// Routing (see App.jsx):
+//   /library         -> index: hero + a browsable list of every entry
+//   /library/<slug>  -> that ONE article on its own shareable page
+// Both render the same shell: a persistent sidebar (search + Most viewed +
+// Contents rail) beside a single content column, so the reader can always hop
+// between articles. Rendering one article at a time keeps the DOM small and
+// removes any need for deep-link scrolling — each entry IS its own short page.
+//
+// Every entry carries "Copy link" affordances (a button on the article and an
+// icon in the Contents rail). Legacy /library#<slug> hash links (older shared /
+// Glossary links) redirect to /library/<slug>. View counts persist in Neon via
+// the backend, falling back to localStorage.
 //
 // Wrapped in .sss-home[data-mode] so it inherits Home's daylight/blacklight
 // design tokens, nav, and footer.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
@@ -18,6 +30,33 @@ import { slugify } from '@/lib/librarySlug'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
+
+// Copy text to the clipboard, with a fallback for non-secure contexts where
+// navigator.clipboard is unavailable.
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    /* fall through to the execCommand path */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'absolute'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}
 
 // Split the markdown into { id, title, body } sections on each "## " heading.
 function parseSections(md) {
@@ -53,12 +92,15 @@ const mdComponents = {
 
 export default function Library() {
   const { mode } = useUvMode()
+  const { slug } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [sections, setSections] = useState([])
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [query, setQuery] = useState('')
   const [views, setViews] = useState(readViews) // localStorage seed for instant paint
-  const serverViews = useRef(false) // true once the backend counts load
-  const contentRef = useRef(null)
+  const [copiedId, setCopiedId] = useState(null) // entry showing copied feedback
+  const serverViews = React.useRef(false) // true once the backend counts load
 
   useEffect(() => {
     let active = true
@@ -96,17 +138,7 @@ export default function Library() {
     }
   }, [])
 
-  // When arriving with a hash (e.g. /library#what-is-uranium-glass from the
-  // Glossary index), scroll that entry's header into view once content renders.
-  useEffect(() => {
-    if (status !== 'ready') return
-    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
-    if (!id) return
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [status])
-
-  const recordView = (id) => {
+  const recordView = useCallback((id) => {
     // Optimistic bump so the UI responds instantly.
     setViews((prev) => {
       const next = { ...prev, [id]: (prev[id] || 0) + 1 }
@@ -130,12 +162,35 @@ export default function Library() {
       .catch(() => {
         /* ignore — optimistic value stands */
       })
-  }
+  }, [])
 
-  const goTo = (id) => {
-    recordView(id)
-    const el = document.getElementById(id)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Legacy /library#<slug> hash links (older shared / Glossary links) → redirect
+  // to the article's own page so there's a single canonical URL per entry.
+  useEffect(() => {
+    if (slug || !location.hash) return
+    const target = decodeURIComponent(location.hash.replace(/^#/, ''))
+    if (target) navigate(`/library/${encodeURIComponent(target)}`, { replace: true })
+  }, [slug, location.hash, navigate])
+
+  const current = useMemo(
+    () => (slug ? sections.find((s) => s.id === slug) : null),
+    [slug, sections]
+  )
+
+  // Count a visit whenever a valid article page is shown.
+  useEffect(() => {
+    if (status === 'ready' && current) recordView(current.id)
+  }, [status, current, recordView])
+
+  const goTo = (id) => navigate(`/library/${encodeURIComponent(id)}`)
+
+  const copyLink = async (id) => {
+    const url = `${window.location.origin}/library/${encodeURIComponent(id)}`
+    const ok = await copyToClipboard(url)
+    if (ok) {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1600)
+    }
   }
 
   const q = query.trim().toLowerCase()
@@ -154,6 +209,16 @@ export default function Library() {
       .slice(0, 5)
   }, [sections, views])
 
+  // Previous / next entry in library order, for sequential reading.
+  const { prev, next } = useMemo(() => {
+    if (!current) return { prev: null, next: null }
+    const i = sections.findIndex((s) => s.id === current.id)
+    return {
+      prev: i > 0 ? sections[i - 1] : null,
+      next: i >= 0 && i < sections.length - 1 ? sections[i + 1] : null,
+    }
+  }, [current, sections])
+
   return (
     <div className="sss-home library-page" data-mode={mode}>
       <SiteHeader />
@@ -165,7 +230,7 @@ export default function Library() {
 
       {status === 'ready' && (
         <div className="lib-shell">
-          {/* ---------- Sidebar: search + running index ---------- */}
+          {/* ---------- Sidebar: search + most viewed + Contents rail ---------- */}
           <aside className="lib-side">
             <div className="lib-side-inner">
               <label className="lib-search">
@@ -206,8 +271,26 @@ export default function Library() {
                 <ol>
                   {filtered.map((s) => (
                     <li key={s.id}>
-                      <button type="button" onClick={() => goTo(s.id)}>
+                      <button
+                        type="button"
+                        className={`lib-toc-link${
+                          current && current.id === s.id ? ' is-active' : ''
+                        }`}
+                        onClick={() => goTo(s.id)}
+                        aria-current={
+                          current && current.id === s.id ? 'page' : undefined
+                        }
+                      >
                         {s.title}
+                      </button>
+                      <button
+                        type="button"
+                        className="lib-toc-copy"
+                        onClick={() => copyLink(s.id)}
+                        aria-label={`Copy link to “${s.title}”`}
+                        title="Copy link to this entry"
+                      >
+                        {copiedId === s.id ? '✓' : '🔗'}
                       </button>
                     </li>
                   ))}
@@ -219,28 +302,104 @@ export default function Library() {
             </div>
           </aside>
 
-          {/* ---------- Content ---------- */}
-          <main className="lib-main" ref={contentRef}>
-            <header className="lib-hero">
-              <p className="eyebrow">Knowledge Base</p>
-              <h1>Uranium Glass Library</h1>
-              <p className="lib-hero-sub">
-                {sections.length} entries on identifying, dating, and caring for
-                uranium glass jewelry.
-              </p>
-            </header>
+          {/* ---------- Content: index (no slug) or a single article ---------- */}
+          <main className="lib-main">
+            {/* ---- Index landing ---- */}
+            {!slug && (
+              <>
+                <header className="lib-hero">
+                  <p className="eyebrow">Knowledge Base</p>
+                  <h1>Uranium Glass Library</h1>
+                  <p className="lib-hero-sub">
+                    {sections.length} entries on identifying, dating, and caring
+                    for uranium glass jewelry. Pick an entry to begin.
+                  </p>
+                </header>
 
-            {filtered.map((s) => (
-              <article key={s.id} id={s.id} className="lib-entry">
-                <h2>{s.title}</h2>
-                <ReactMarkdown components={mdComponents}>{s.body}</ReactMarkdown>
+                <ol className="lib-index-list">
+                  {sections.map((s) => (
+                    <li key={s.id}>
+                      <Link
+                        to={`/library/${encodeURIComponent(s.id)}`}
+                        className="lib-index-link"
+                      >
+                        {s.title}
+                      </Link>
+                      <button
+                        type="button"
+                        className="lib-toc-copy"
+                        onClick={() => copyLink(s.id)}
+                        aria-label={`Copy link to “${s.title}”`}
+                        title="Copy link to this entry"
+                      >
+                        {copiedId === s.id ? '✓' : '🔗'}
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+
+            {/* ---- Single article ---- */}
+            {slug && current && (
+              <article className="lib-entry lib-entry--solo" id={current.id}>
+                <Link to="/library" className="lib-back">
+                  ← Library
+                </Link>
+                <div className="lib-entry-head">
+                  <h2>{current.title}</h2>
+                  <button
+                    type="button"
+                    className="lib-copy"
+                    onClick={() => copyLink(current.id)}
+                    aria-label={`Copy link to “${current.title}”`}
+                    title="Copy link to this entry"
+                  >
+                    <span aria-hidden="true">🔗</span>
+                    {copiedId === current.id ? 'Copied!' : 'Copy link'}
+                  </button>
+                </div>
+                <ReactMarkdown components={mdComponents}>
+                  {current.body}
+                </ReactMarkdown>
+
+                <nav className="lib-prevnext" aria-label="More entries">
+                  {prev ? (
+                    <Link
+                      to={`/library/${encodeURIComponent(prev.id)}`}
+                      className="lib-prevnext-link lib-prevnext-prev"
+                    >
+                      <span className="lib-prevnext-dir">← Previous</span>
+                      <span className="lib-prevnext-title">{prev.title}</span>
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  {next ? (
+                    <Link
+                      to={`/library/${encodeURIComponent(next.id)}`}
+                      className="lib-prevnext-link lib-prevnext-next"
+                    >
+                      <span className="lib-prevnext-dir">Next →</span>
+                      <span className="lib-prevnext-title">{next.title}</span>
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                </nav>
               </article>
-            ))}
+            )}
 
-            {filtered.length === 0 && (
-              <p className="lib-msg">
-                Nothing matches “{query}”. Try a different term.
-              </p>
+            {/* ---- Unknown slug ---- */}
+            {slug && !current && (
+              <div className="lib-notfound">
+                <p className="lib-msg">
+                  That entry doesn’t exist (it may have been renamed).
+                </p>
+                <Link to="/library" className="lib-back">
+                  ← Back to the Library
+                </Link>
+              </div>
             )}
           </main>
         </div>

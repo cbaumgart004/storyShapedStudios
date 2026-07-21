@@ -147,10 +147,14 @@
 }
 .lib-toc li {
   counter-increment: toc;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
 }
-.lib-toc li button {
+.lib-toc-link {
+  flex: 1;
+  min-width: 0;
   display: block;
-  width: 100%;
   text-align: left;
   border: none;
   background: none;
@@ -164,7 +168,7 @@
   border-radius: 4px;
   transition: color 0.2s, background 0.2s;
 }
-.lib-toc li button::before {
+.lib-toc-link::before {
   content: counter(toc, decimal-leading-zero);
   position: absolute;
   left: 0.2rem;
@@ -174,9 +178,36 @@
   color: var(--accent);
   opacity: 0.7;
 }
-.lib-toc li button:hover {
+.lib-toc-link:hover {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+/* The entry currently open on its own page. */
+.lib-toc-link.is-active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+/* Per-entry copy-link icon in the Contents rail. */
+.lib-toc-copy {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.3rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.2s, background 0.2s;
+}
+.lib-toc li:hover .lib-toc-copy,
+.lib-toc-copy:focus-visible {
+  opacity: 1;
+}
+.lib-toc-copy:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .lib-toc-empty {
   color: var(--muted);
@@ -219,20 +250,69 @@
   box-shadow: var(--frame-glow);
   transition: border-color 0.25s, box-shadow 0.25s;
 }
-.lib-entry:target,
 .lib-entry:hover {
   border-color: var(--accent);
+}
+/* A single-article page: it's the whole column, so give it room to breathe. */
+.lib-entry--solo {
+  max-width: 80ch;
+}
+
+/* Back-to-index link above a solo article. */
+.lib-back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  transition: color 0.2s;
+}
+.lib-back:hover {
+  color: var(--accent);
+}
+
+/* Entry header: title + per-entry share button share the divider row. */
+.lib-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line);
 }
 .lib-entry h2 {
   font-family: 'Poiret One', sans-serif;
   font-weight: 700;
   font-size: clamp(1.3rem, 2.4vw, 1.9rem);
   letter-spacing: 0.03em;
-  margin: 0 0 1rem;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid var(--line);
+  margin: 0;
   color: var(--accent);
   text-shadow: var(--glow-1);
+}
+.lib-copy {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.lib-copy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow-1);
 }
 .lib-entry p {
   color: var(--bone);
@@ -250,6 +330,95 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: var(--frame-glow);
+}
+
+/* ---------- Index landing: browsable list of every entry ---------- */
+.lib-index-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 78ch;
+  counter-reset: idx;
+}
+.lib-index-list li {
+  counter-increment: idx;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--line);
+}
+.lib-index-list li:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.lib-index-link {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  position: relative;
+  padding: 0.85rem 0.4rem 0.85rem 2.6rem;
+  color: var(--bone);
+  text-decoration: none;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  transition: color 0.2s;
+}
+.lib-index-link::before {
+  content: counter(idx, decimal-leading-zero);
+  position: absolute;
+  left: 0.4rem;
+  top: 0.9rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  opacity: 0.7;
+}
+.lib-index-link:hover {
+  color: var(--accent);
+}
+
+/* ---------- Prev / next between articles ---------- */
+.lib-prevnext {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+.lib-prevnext-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 48%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  text-decoration: none;
+  color: var(--bone);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.lib-prevnext-next {
+  text-align: right;
+  margin-left: auto;
+}
+.lib-prevnext-link:hover {
+  border-color: var(--accent);
+  box-shadow: var(--glow-1);
+}
+.lib-prevnext-dir {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.lib-prevnext-title {
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.lib-notfound {
+  padding: 2rem 0;
 }
 
 /* ---------- Responsive ---------- */

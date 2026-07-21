@@ -3,8 +3,9 @@
 // "Glossary of Terms" reference (see src/data/glossaryTerms.js), plus a curated
 // index into the Library. The search box filters term titles, definitions, and
 // sub-definitions live; a category rail jumps to each section. Library links
-// point at /library#<slug> (shared slugify) so the Library scrolls to that
-// article's header on arrival. Wrapped in .sss-home[data-mode] to inherit
+// point at /library/<slug> (shared slugify) — each Library entry's own
+// shareable URL — so the Library scrolls to that article on arrival. Wrapped
+// in .sss-home[data-mode] to inherit
 // Home's daylight/blacklight design tokens.
 
 import React, { useMemo, useState } from 'react'
@@ -62,7 +63,7 @@ const LIBRARY_INDEX = [
   },
 ]
 
-const libLink = (title) => `/library#${slugify(title)}`
+const libLink = (title) => `/library/${slugify(title)}`
 const termId = (term) => `term-${slugify(term)}`
 
 function matches(term, q) {
