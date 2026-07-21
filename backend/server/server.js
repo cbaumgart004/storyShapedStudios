@@ -256,7 +256,14 @@ app.listen(PORT, () => {
     console.log('✅ eBay token found in storage.')
   }
 
-  urls.forEach((url) =>
-    open(url).catch(() => console.warn(`⚠️ Could not open ${url}`))
-  )
+  // Auto-open the auth/validate URLs only during local dev. On a hosted,
+  // headless environment (Railway sets RAILWAY_ENVIRONMENT) there is no
+  // browser to open and this is pointless.
+  const isLocalDev =
+    process.env.NODE_ENV !== 'production' && !process.env.RAILWAY_ENVIRONMENT
+  if (isLocalDev) {
+    urls.forEach((url) =>
+      open(url).catch(() => console.warn(`⚠️ Could not open ${url}`))
+    )
+  }
 })
