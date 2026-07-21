@@ -31,7 +31,7 @@ const Test = () => {
 function App() {
   return (
     <Router>
-      {process.env.NODE_ENV !== 'production' && <NavBar />}
+      {import.meta.env.DEV && <NavBar />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />

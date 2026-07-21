@@ -1,7 +1,7 @@
 import express from 'express'
 const router = express.Router()
 
-router.get('/about', (req, res) => {
+router.get('/', (req, res) => {
   res.json({ message: '📖 About route is working!' })
 })
 

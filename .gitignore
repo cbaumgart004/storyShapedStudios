@@ -1,4 +1,4 @@
-# dependencies
+﻿# dependencies
 node_modules/
 
 # build
@@ -15,3 +15,8 @@ logs/
 .vscode/
 .idea/
 .DS_Store
+
+# Generated Claude context
+.claude/context/repo-map.md
+.claude/context/recent-changes.md
+.claude/settings.local.json

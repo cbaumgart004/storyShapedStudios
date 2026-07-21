@@ -16,6 +16,7 @@ import {
   loadToken as loadEbayToken,
 } from './utils/ebayTokenStorage.js'
 import ebayDummyListing from './routes/ebayDummyListing.js'
+import apiRoutes from './routes/index.js'
 
 // Path setup for future flexibility
 const __filename = fileURLToPath(import.meta.url)
@@ -33,6 +34,9 @@ app.use(cors())
 
 // Externalized eBay dummy listing route
 app.use(ebayDummyListing)
+
+// Content routes: /api/mock, /api/listings, /api/sales, /api/about, /api/faqs
+app.use('/api', apiRoutes)
 
 const CLIENT_ID_ETSY = process.env.ETSY_CLIENT_ID
 const CLIENT_SECRET_ETSY = process.env.ETSY_CLIENT_SECRET
