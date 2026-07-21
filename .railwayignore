@@ -1,0 +1,9 @@
+frontend/
+docs/
+.git/
+.vs/
+.boards/
+.claude/
+node_modules/
+dist/
+*.log

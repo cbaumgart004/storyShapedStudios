@@ -9,47 +9,48 @@ content and allow the user to add/modify entries over time.
 
 ## Branch
 
-`library`
+Shipped via PR #1 (merged to `main`). Docs/config follow-up in PR #2
+(`docs/library-deploy-notes`).
 
 ## Current State
 
-- Library is live at `/library`: searchable, with a running numbered index
-  (table of contents), inline photos, and a "Most Viewed" panel.
+- Library is **live in production** at `/library`: searchable, with a running
+  numbered index, inline photos, and a "Most Viewed" panel.
 - Content is Markdown at `frontend/public/library.md` (35 entries), served at
-  runtime — editable without a rebuild. Photos extracted to
-  `frontend/public/library-media/` (82 images), served at `/library-media/...`.
-- Daylight/blacklight UV toggle now persists site-wide (localStorage) via a
-  shared `UvModeProvider`; Home's nav/footer were extracted into
-  `components/SiteHeader.jsx` + `SiteFooter.jsx` and reused on the Library page.
-- Backend deploys successfully on Railway.
+  runtime — editable without a rebuild. Photos in `frontend/public/library-media/`.
+- Daylight/blacklight UV toggle persists site-wide (localStorage) via a shared
+  `UvModeProvider`; Home's nav/footer are shared `SiteHeader`/`SiteFooter`.
+- View counts **persist globally in Neon Postgres** via the Railway backend
+  (`/api/library/views`), verified end-to-end in production. Frontend falls back
+  to localStorage if the API is unavailable.
 
 ## Relevant Files
 
-- `frontend/src/pages/Library.jsx` — parses the markdown into sections, search,
-  index, and view tracking.
-- `frontend/src/styles/Library.css` — sidebar + content layout on Home's tokens.
-- `frontend/src/context/UvMode.jsx` — site-wide daylight/blacklight state.
-- `frontend/src/components/SiteHeader.jsx`, `SiteFooter.jsx` — shared branding.
-- `scripts/docx_to_library_md.py` — re-run to regenerate `library.md` + images
-  from an updated Word doc (underlined lines become `##` headers).
+- `frontend/src/pages/Library.jsx`, `styles/Library.css` — the page.
+- `frontend/src/context/UvMode.jsx`, `components/Site{Header,Footer}.jsx`,
+  `lib/api.js` — shared UI + backend base URL.
+- `backend/server/routes/libraryViews.js`, `utils/db.js` — view-count API + DB.
+- `scripts/docx_to_library_md.py` — regenerate `library.md` + images from an
+  updated Word doc (underlined lines become `##` headers).
 
 ## Decisions Already Made
 
-- Library content lives as editable Markdown in `public/`, fetched at runtime
-  (no rebuild to edit), rather than baked into JSX.
-- "Most Viewed" counts are per-visitor in `localStorage` for now — no backend
-  persistence yet.
+- Library content lives as editable Markdown in `public/`, fetched at runtime.
+- Persistence uses **Neon Postgres** (free tier), which also becomes the planned
+  inventory DB. `library_views (slug, count)` auto-creates on first request.
 
 ## Validation Performed
 
-- `npm run build` passes; verified in-browser: search filters index + content,
-  index jumps to entries, Most Viewed surfaces top entries, UV toggle persists
-  across Library ↔ Home navigation and page reload.
+- Production round-trip verified: page → Railway backend → Neon → back to page
+  (Most Viewed reflects DB counts). `npm run build` passes. SPA rewrite works.
 
 ## Next Steps
 
-1. Decide where to persist global view counts (see options in commit discussion);
-   candidate: a shared store when PostgreSQL/backend persistence lands.
+1. **Reconnect Railway ↔ GitHub** (auto-deploy is currently disconnected — the
+   backend was last deployed manually via `railway up` from the repo root).
+   Until reconnected, backend changes do NOT auto-deploy on merge to `main`;
+   run `railway up` from the repo root, or fix the Railway GitHub App
+   (github.com/settings/installations → Railway → grant repo access).
 2. Add an in-app editor so the user can add/modify entries (currently done by
    editing `library.md`).
 3. Significant UI + branding pass across the site.
@@ -58,3 +59,8 @@ content and allow the user to add/modify entries over time.
 
 - Git Bash mangles a leading-slash arg (e.g. `/library-media`) into a Windows
   path; run the converter with `MSYS_NO_PATHCONV=1` (or from PowerShell).
+- `railway up` must run from the **repo root** (backend service root directory
+  is `backend/`); deploying from inside `backend/` fails with "Failed to read
+  app source directory". `.railwayignore` keeps that upload small.
+- `VITE_API_URL` on Vercel must include the scheme (`https://…`) and is baked in
+  at build time — needs a redeploy to change.
