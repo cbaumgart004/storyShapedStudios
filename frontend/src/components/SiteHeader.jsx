@@ -23,8 +23,7 @@ export default function SiteHeader() {
       <nav className="sss-navlinks">
         <Link to="/shop">Collection</Link>
         <Link to="/library">Library</Link>
-        <a href="/#glow">The Glow</a>
-        <Link to="/about">Our Story</Link>
+        <Link to="/meet-the-artist">Meet the Artist</Link>
         <button
           type="button"
           className="uv-toggle"
