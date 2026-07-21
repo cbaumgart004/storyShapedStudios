@@ -486,6 +486,31 @@ body {
   transform: translateX(6px);
 }
 
+/* ============================ MEET THE ARTIST ============================ */
+.artist-feature {
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.artist-feature h2 {
+  font-family: 'Poiret One', sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  letter-spacing: 0.06em;
+  margin: 0 0 1.2rem;
+  color: var(--bone);
+}
+.artist-feature p {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 0 0 2rem;
+  max-width: 46ch;
+}
+
 /* ============================ FOOTER ============================ */
 .sss-footer {
   text-align: center;

@@ -112,6 +112,23 @@ const Home = () => {
             </div>
           </div>
         </section>
+
+        <div className="deco-divider" aria-hidden="true" />
+
+        {/* ---------------- MEET THE ARTIST ---------------- */}
+        <section className="section">
+          <div className="artist-feature">
+            <p className="eyebrow">The Maker</p>
+            <h2>Meet the Artist</h2>
+            <p>
+              Every piece is hand-set by a single maker. Step behind the
+              workbench and discover the story behind the glow.
+            </p>
+            <Link to="/meet-the-artist" className="btn btn-primary">
+              Meet the Artist
+            </Link>
+          </div>
+        </section>
       </main>
 
       <SiteFooter />
