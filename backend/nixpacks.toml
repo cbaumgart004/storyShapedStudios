@@ -1,0 +1,6 @@
+# Nixpacks was building the backend with an empty start phase and failing
+# with "No start command could be found" — it was not detecting the
+# package.json start script. Declare the start command explicitly here;
+# Nixpacks reads nixpacks.toml from the build context at build time.
+[start]
+cmd = "node server/server.js"
