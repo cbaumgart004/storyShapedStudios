@@ -2,19 +2,24 @@
 
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { UvModeProvider } from '@/context/UvMode'
 import Home from '@/pages/Home'
 import About from '@/pages/About'
 import Shop from '@/pages/Shop'
+import Library from '@/pages/Library'
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/shop" element={<Shop />} />
-      </Routes>
-    </Router>
+    <UvModeProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/library" element={<Library />} />
+        </Routes>
+      </Router>
+    </UvModeProvider>
   )
 }
 
