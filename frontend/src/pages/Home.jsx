@@ -29,7 +29,7 @@ const Home = () => {
 
   return (
     <div className="sss-home" data-mode={mode}>
-      <SiteHeader />
+      <SiteHeader featured />
 
       <main>
         {/* ---------------- HERO ---------------- */}

@@ -142,6 +142,71 @@ body {
   text-shadow: var(--glow-1);
 }
 
+/* ==================== SOCIAL STRIP (under the nav) ==================== */
+/* Non-sticky bar directly beneath the navbar. Two variants:
+   - default (compact): a slim icon strip on every non-home page.
+   - .is-featured (home): a big, bold "Connect or Shop the Collection Now"
+     highlight band. The footer keeps its own separate social lockup. */
+.sss-social-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: color-mix(in srgb, var(--void) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.sss-social-head {
+  margin: 0;
+  font-family: 'Poiret One', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-align: center;
+  color: var(--accent);
+  text-shadow: var(--glow-1);
+}
+.sss-social-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1.1rem, 4vw, 1.8rem);
+}
+.sss-social-bar a {
+  display: inline-flex;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+.sss-social-bar a:hover,
+.sss-social-bar a:focus-visible {
+  transform: translateY(-2px);
+  filter: drop-shadow(var(--glow-1));
+}
+.sss-social-bar img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* Featured (home): bigger, bolder highlight band with the call-to-action head. */
+.sss-social-bar.is-featured {
+  gap: clamp(0.8rem, 2vw, 1.2rem);
+  padding: clamp(1.1rem, 3.5vw, 2rem) 1rem;
+  background:
+    radial-gradient(120% 160% at 50% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent), transparent 62%),
+    color-mix(in srgb, var(--void) 82%, transparent);
+}
+.sss-social-bar.is-featured .sss-social-head {
+  font-size: clamp(1.1rem, 3.4vw, 1.85rem);
+}
+.sss-social-bar.is-featured .sss-social-icons {
+  gap: clamp(1.6rem, 5vw, 2.8rem);
+}
+.sss-social-bar.is-featured img {
+  width: clamp(42px, 8vw, 56px);
+  height: clamp(42px, 8vw, 56px);
+}
+
 /* UV toggle */
 .uv-toggle {
   display: inline-flex;
@@ -624,15 +689,44 @@ body {
     margin-right: auto;
   }
 }
+/* Tidy the nav on tablets/phones: let it wrap into two tidy rows (brand on top,
+   links + toggle centered below) instead of cramming everything into one line. */
+@media (max-width: 760px) {
+  .sss-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.65rem;
+    padding: 0.7rem 1rem;
+  }
+  .sss-brand {
+    max-width: none;
+  }
+  .sss-navlinks {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.65rem 1.05rem;
+  }
+  .sss-navlinks a {
+    font-size: 0.76rem;
+    letter-spacing: 0.1em;
+  }
+  /* Keep the blacklight toggle compact but fully labelled so it reads cleanly. */
+  .uv-toggle {
+    font-size: 0.64rem;
+    padding: 0.32rem 0.5rem 0.32rem 0.7rem;
+  }
+  .sss-social-bar img {
+    width: 22px;
+    height: 22px;
+  }
+}
 @media (max-width: 620px) {
   .piece-grid {
     grid-template-columns: 1fr;
     max-width: 380px;
   }
   .sss-brand span {
-    display: none;
-  }
-  .uv-toggle span.uv-label {
     display: none;
   }
 }
