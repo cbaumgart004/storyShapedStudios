@@ -4,84 +4,102 @@ Last updated: 2026-07-21
 
 ## Objective
 
-Set up the Library (Uranium Glass knowledge base) from existing Word-document
-content and allow the user to add/modify entries over time.
+Phase 1 of a self-built inventory system (like the app "Trunk"): track sellable
+items and the raw crafting components/supplies used to make them, auto-decrement
+components when an item's quantity changes, and surface low-stock components.
+This is the foundation later phases (live Etsy/eBay sync, low-stock email,
+UV-paired photos, TinaCMS for marketing content) build on.
 
 ## Branch
 
-Shipped via PR #1 (merged to `main`). Docs/config follow-up in PR #2
-(`docs/library-deploy-notes`).
+Not yet branched/committed — implemented on top of `main`.
 
 ## Current State
 
-- Library is **live in production** at `/library`: searchable, with a running
-  numbered index, inline photos, and a "Most Viewed" panel.
-- Content is Markdown at `frontend/public/library.md` (35 entries), served at
-  runtime — editable without a rebuild. Photos in `frontend/public/library-media/`.
-- Daylight/blacklight UV toggle persists site-wide (localStorage) via a shared
-  `UvModeProvider`; Home's nav/footer are shared `SiteHeader`/`SiteFooter`.
-- View counts **persist globally in Neon Postgres** via the Railway backend
-  (`/api/library/views`), verified end-to-end in production. Frontend falls back
-  to localStorage if the API is unavailable.
-- Library is now an **index + per-article pages** (branch `library-mk2`):
-  - `/library` — index: hero + a browsable numbered list of every entry.
-  - `/library/<slug>` — that ONE article on its own **shareable URL**.
-  - Both render the same shell: a persistent sidebar (search + Most-viewed +
-    Contents rail) beside a single content column, so the reader can hop
-    between articles from any page. The open article is marked active in the
-    rail; each article has prev/next links and a "← Library" back link.
-  - Rendering one article at a time (instead of all 35 in one long column)
-    keeps the DOM small and **removed the fragile deep-link scroll code** —
-    each entry IS its own short page, so there's nothing to scroll to.
-  - Copy-link affordances: a "Copy link" button on the article + a 🔗 icon per
-    entry in the Contents rail and the index list (writes
-    `<origin>/library/<slug>`, shows a ✓/"Copied!" confirmation).
-  - Legacy `/library#<slug>` hash links (older shared / Glossary links)
-    **redirect** to `/library/<slug>`; the Glossary index now links to the path
-    form directly. View counts still persist to Neon (localStorage fallback).
+- New backend inventory API at `/api/inventory/*` (`backend/server/routes/inventory.js`,
+  mounted via `routes/index.js`), following the existing `ensureTable()`/`hasDb`
+  degrade-gracefully pattern from `routes/libraryViews.js`.
+- Four new Postgres tables (auto-created, no migration tool): `inventory_items`,
+  `inventory_components`, `inventory_bom`, `inventory_adjustments`.
+- Quantity changes go through a single transactional endpoint,
+  `PATCH /api/inventory/items/:id/quantity` — locks the item row, applies the
+  delta, logs an `inventory_adjustments` row, and (only on a **decrease**)
+  prorates linked components down per the BOM. Low-stock components (at/below
+  `low_stock_threshold`) trigger `backend/server/utils/notifyLowStock.js`,
+  currently a `console.warn` stub.
+- New minimal admin page at `/admin/inventory`
+  (`frontend/src/pages/Admin/Inventory.jsx`) — tables for items/components,
+  inline quantity adjust, and a per-item BOM editor. Deliberately separate
+  from the existing empty `Shop`/`Orders` scaffolding (public storefront
+  concern, not touched).
+- `frontend/src/lib/api.js` gained a small `apiFetch()` JSON helper alongside
+  the existing `API_BASE` export.
 
 ## Relevant Files
 
-- `frontend/src/pages/Library.jsx`, `styles/Library.css` — the page.
-- `frontend/src/context/UvMode.jsx`, `components/Site{Header,Footer}.jsx`,
-  `lib/api.js` — shared UI + backend base URL.
-- `backend/server/routes/libraryViews.js`, `utils/db.js` — view-count API + DB.
-- `scripts/docx_to_library_md.py` — regenerate `library.md` + images from an
-  updated Word doc (underlined lines become `##` headers).
+- `backend/server/routes/inventory.js`, `utils/notifyLowStock.js` — the API + notify hook.
+- `backend/server/routes/index.js` — mounts `inventory` at `/inventory`.
+- `frontend/src/pages/Admin/Inventory.jsx`, `styles/AdminInventory.css` — the admin page.
+- `frontend/src/lib/api.js` — `apiFetch` helper.
+- `frontend/src/App.jsx` — `/admin/inventory` route.
 
 ## Decisions Already Made
 
-- Library content lives as editable Markdown in `public/`, fetched at runtime.
-- Persistence uses **Neon Postgres** (free tier), which also becomes the planned
-  inventory DB. `library_views (slug, count)` auto-creates on first request.
+- **One quantity endpoint, not separate sale/adjust routes** — `reason` field
+  distinguishes them; mechanics (lock, decrement, log, prorate) are identical,
+  and a future Etsy/eBay webhook can reuse the same endpoint.
+- **No DB-level `CHECK (quantity >= 0)`** — a hard floor would roll back a
+  whole sale transaction on bookkeeping drift. Negative/low stock is a signal
+  (surfaced via `/components/low-stock`), not a blocking rule.
+- **A quantity *increase* does not consume components** — only a *decrease*
+  prorates the BOM down. Restocking a finished item is "more pre-made stock
+  arrived," not an assembly event. Flagged for the user to confirm before any
+  future "record a production run" workflow is built.
+- **Component deletion cascades its BOM links silently** (`ON DELETE CASCADE`)
+  rather than blocking with a 409 — acceptable for Phase 1, cheap to tighten
+  later if it causes accidental recipe breakage.
+- **TinaCMS is for marketing content only**, not inventory data — inventory
+  gets this purpose-built admin UI instead, because Tina's commit-per-edit
+  model is a poor fit for stock counts that change on every sale. (TinaCMS
+  itself is not wired up yet — see Next Steps.)
 
 ## Validation Performed
 
-- Production round-trip verified: page → Railway backend → Neon → back to page
-  (Most Viewed reflects DB counts). `npm run build` passes. SPA rewrite works.
+- Backend routes and frontend page/route written to match existing
+  conventions (verified by reading `db.js`, `libraryViews.js`, `routes/index.js`,
+  `App.jsx`, `lib/api.js` directly). Manual end-to-end exercise of the new
+  routes/UI against a live `DATABASE_URL` is still needed — see Next Steps.
 
 ## Next Steps
 
-1. **Reconnect Railway ↔ GitHub** (auto-deploy is currently disconnected — the
-   backend was last deployed manually via `railway up` from the repo root).
-   Until reconnected, backend changes do NOT auto-deploy on merge to `main`;
-   run `railway up` from the repo root, or fix the Railway GitHub App
-   (github.com/settings/installations → Railway → grant repo access).
-2. **Protect all Library text + images as copyrighted / private IP.** Treat the
-   knowledge base and photos as the studio's proprietary content: add a visible
-   © / all-rights-reserved notice, per-image copyright, and light safeguards
-   (e.g. disable right-click-save / drag on library images). Scope + how strong
-   the safeguards should be is still TBD.
-3. **Social sharing for each article** (Facebook, Twitter/X, email, Instagram).
-   Copy-link exists now; add share buttons/intents on each `/library/<slug>`
-   page. Caveat: rich link previews want per-URL Open Graph meta
-   (`og:title`/`og:image`/`og:description`), and this is a Vite SPA with no SSR
-   — crawlers won't see client-set meta tags. Plan a **prerender** step (e.g.
-   `vite-plugin-ssg`/prerender, or per-route static HTML) so shared links show
-   proper previews. The per-article page structure makes this straightforward.
-4. Add an in-app editor so the user can add/modify entries (currently done by
-   editing `library.md`).
-5. Significant UI + branding pass across the site.
+1. **Manually verify end-to-end** against a real `DATABASE_URL`: create an
+   item + component, link them via BOM, adjust quantity down, confirm the
+   component decrements and `low-stock` surfaces correctly; confirm the app
+   still boots cleanly with `DATABASE_URL` unset. Run `npm run build`
+   (frontend) to confirm no build breakage.
+2. **Add admin auth** before real stock data goes live — `/api/inventory/*`
+   and `/admin/inventory` are currently open to anyone with the URL. A
+   minimal shared-secret `ADMIN_TOKEN` header check would be sufficient; no
+   full auth system needed yet.
+3. **Wire the `notifyLowStock` hook to real email** (provider TBD — e.g.
+   Resend or SMTP via nodemailer) instead of `console.warn`.
+4. **Live Etsy/eBay sync** (GET/PUT/PATCH) so this site is the quantity
+   source of truth across all 3 platforms. Needs write-scope credentials
+   (Etsy `listings_w`, eBay `sell.inventory`) — unconfirmed whether these
+   exist yet; check before starting. Existing OAuth in `server.js` is
+   read-only today and token storage is flat-file (not persistent on
+   Railway) — both need upgrading as part of this phase.
+5. **UV/blacklight paired-photo toggle** — today `UvMode` only drives CSS
+   filters; true paired daylight/UV photos need a new data model (no
+   existing convention to build on).
+6. **TinaCMS for marketing content** (Home, About, FAQs, Meet the Artist) —
+   port the schema/config pattern from the user's `LiveSpiritSeedsMk2` repo
+   (`tina/config.ts`, `docs/adr/0002-tinacms-content-management.md`,
+   `docs/tinacms-vite-playbook.md` there), which is Vite/React-compatible.
+   Explicitly does not cover inventory data.
+7. Reconnect Railway ↔ GitHub auto-deploy (still disconnected as of the
+   Library work — see prior notes); until then, `railway up` from the repo
+   root to deploy backend changes.
 
 ## Do Not Repeat
 
@@ -92,3 +110,7 @@ Shipped via PR #1 (merged to `main`). Docs/config follow-up in PR #2
   app source directory". `.railwayignore` keeps that upload small.
 - `VITE_API_URL` on Vercel must include the scheme (`https://…`) and is baked in
   at build time — needs a redeploy to change.
+- In `routes/inventory.js`, `GET /components/low-stock` must be declared
+  before `GET /components/:id`, or Express matches it as the `:id` param.
+- Postgres `NUMERIC` values come back from `pg` as strings — `Number(...)`
+  before doing arithmetic on component quantities/BOM ratios.

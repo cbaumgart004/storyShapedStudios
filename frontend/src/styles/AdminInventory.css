@@ -1,0 +1,153 @@
+/* src/styles/AdminInventory.css
+   Minimal internal admin tool — deliberately plain, not a branded page. */
+
+.admin-inventory {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+}
+
+.ai-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.ai-header .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: #777;
+  margin: 0 0 0.25rem;
+}
+
+.ai-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.ai-back-link {
+  font-size: 0.9rem;
+  color: #555;
+  text-decoration: none;
+}
+
+.ai-back-link:hover {
+  text-decoration: underline;
+}
+
+.ai-error {
+  background: #fdecea;
+  border: 1px solid #f5c2c0;
+  color: #7a1f1f;
+  padding: 0.6rem 0.9rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.ai-section {
+  margin-bottom: 3rem;
+}
+
+.ai-section h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.ai-table th,
+.ai-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #e5e5e5;
+  font-size: 0.9rem;
+}
+
+.ai-table input[type='number'] {
+  width: 80px;
+}
+
+.ai-delta-input {
+  width: 70px;
+  margin-right: 0.4rem;
+}
+
+.ai-low-stock {
+  background: #fff6e5;
+}
+
+.ai-low-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: #e08a00;
+  color: #fff;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-bom-row td {
+  background: #fafafa;
+}
+
+.ai-bom-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.ai-bom-list li {
+  padding: 0.2rem 0;
+}
+
+.ai-remove-link {
+  margin-left: 0.6rem;
+  background: none;
+  border: none;
+  color: #a33;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.ai-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ai-inline-form input,
+.ai-inline-form select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.ai-inline-form button,
+.ai-table button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.ai-inline-form button:hover,
+.ai-table button:hover {
+  background: #333;
+}

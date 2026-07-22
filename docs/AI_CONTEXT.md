@@ -40,7 +40,9 @@ Prefer these as the source of truth; do not duplicate them here.
 | Shared UI | Site header/footer + UV-mode context reused across pages | `frontend/src/components/Site{Header,Footer}.jsx`, `context/UvMode.jsx`, `lib/api.js` |
 | OAuth / marketplace API | Etsy + eBay OAuth flows and token validation | `backend/server/server.js` |
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |
-| Database | Postgres (Neon) — Library view counts now; inventory later | `backend/server/utils/db.js`, `routes/libraryViews.js` |
+| Inventory API | Items, components/supplies, bill-of-materials (BOM), and quantity-adjustment (with component decrement + low-stock detection) — Phase 1 of the self-built inventory system | `backend/server/routes/inventory.js`, `utils/notifyLowStock.js` |
+| Admin UI (minimal) | Internal, unauthenticated page to manage items/components/BOM and adjust quantities | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
+| Database | Postgres (Neon) — Library view counts, inventory (items/components/BOM/adjustments) | `backend/server/utils/db.js`, `routes/libraryViews.js`, `routes/inventory.js` |
 | Token storage | File-based persistence of Etsy/eBay access tokens | `backend/server/utils/*TokenStorage.js` |
 
 ## API Endpoints (backend, port 3000)
@@ -69,12 +71,22 @@ Content routes, aggregated by `routes/index.js` and mounted at `/api`:
 | GET | `/api/mock/etsy/mock-listing` | `routes/mockListing.js` |
 | GET | `/api/library/views` | `routes/libraryViews.js` — all view counts as `{ slug: count }` |
 | POST | `/api/library/views/:slug` | `routes/libraryViews.js` — increment one entry, returns `{ slug, count }` |
+| GET/POST | `/api/inventory/items`, `/api/inventory/items/:id` (PATCH/DELETE too) | `routes/inventory.js` — sellable items |
+| PATCH | `/api/inventory/items/:id/quantity` | `routes/inventory.js` — the only quantity-change entry point: `{ delta?, quantity?, reason? }`, runs as a transaction, decrements linked components (and logs an `inventory_adjustments` row) only when the change is a **decrease** |
+| GET/POST | `/api/inventory/components`, `/api/inventory/components/:id` (PATCH/DELETE too) | `routes/inventory.js` — raw components/supplies |
+| GET | `/api/inventory/components/low-stock` | `routes/inventory.js` — components at/below their threshold; **must stay registered before `/components/:id`** or Express matches `low-stock` as the id param |
+| GET/POST | `/api/inventory/items/:id/bom`, `DELETE /api/inventory/items/:id/bom/:componentId` | `routes/inventory.js` — bill-of-materials links (which components + qty go into one item) |
 
 Each content router uses `/` internally; the path segment (`/listings`, `/sales`, …)
 comes from the mount in `index.js`. Any other path returns `404 { error: 'Route not found.' }`.
 
-`/api/library/*` needs `DATABASE_URL` (Neon). Without it the backend degrades gracefully:
-`GET` returns `{}`, `POST` returns `503`. The frontend falls back to `localStorage`.
+`/api/library/*` and `/api/inventory/*` need `DATABASE_URL` (Neon). Without it the backend
+degrades gracefully: `GET` returns `{}`/`[]`, writes return `503`. The frontend falls back to
+`localStorage` for Library views; the inventory admin UI has no offline fallback.
+
+`/api/inventory/*` and `/admin/inventory` have **no authentication** — anyone with the URL can
+read/write inventory data. Acceptable while building out the CRUD/decrement logic, but flagged
+as a hard blocker before real stock data goes live (see Known Traps).
 
 ## External Systems
 
@@ -94,8 +106,9 @@ comes from the mount in `index.js`. Any other path returns `404 { error: 'Route 
 
 - Business behavior: `backend/server/server.js` + `backend/server/routes/`.
 - Marketplace data: Etsy and eBay APIs (this app brokers OAuth + acts as intended source of truth).
-- Database schema: Postgres (Neon), currently just `library_views (slug, count)`, auto-created
-  by `routes/libraryViews.js`; no migration tooling yet.
+- Database schema: Postgres (Neon). `library_views (slug, count)` plus the inventory tables
+  (`inventory_items`, `inventory_components`, `inventory_bom`, `inventory_adjustments`),
+  auto-created by `routes/libraryViews.js` / `routes/inventory.js`; no migration tooling yet.
 - API contracts: `backend/server/routes/` (per-router files).
 - Deployment: frontend on Vercel (needs `VITE_API_URL` = backend origin, and a SPA rewrite
   via `frontend/vercel.json`); backend on Railway (needs `DATABASE_URL`). Both auto-deploy
@@ -108,6 +121,15 @@ comes from the mount in `index.js`. Any other path returns `404 { error: 'Route 
   the segment inside the router file, or you'll get a doubled path like `/api/x/x`).
 - `server.js` opens auth/validate URLs in a browser at boot, but only in local dev — it
   skips this when `NODE_ENV=production` or `RAILWAY_ENVIRONMENT` is set.
-- Scaffolded `pages/Orders/*` exists but is not referenced by the router.
+- Scaffolded `pages/Orders/*` and `pages/Shop/{Category,ProductPage,Sales}.jsx` exist but are
+  empty and not referenced by the router — do not confuse with the inventory admin work, which
+  is deliberately separate (`pages/Admin/Inventory.jsx`).
 - Frontend↔backend base URL comes from `VITE_API_URL` (`lib/api.js`), baked in at Vite
   build time — it must include the scheme (`https://…`) and needs a redeploy to change.
+- In `routes/inventory.js`, `GET /components/low-stock` must be declared before
+  `GET /components/:id` or Express treats `low-stock` as an `:id`.
+- Postgres `NUMERIC` columns (component quantities, BOM ratios) come back from `pg` as JS
+  strings, not numbers — wrap in `Number(...)` before arithmetic (see the decrement transaction
+  in `routes/inventory.js`).
+- No auth exists on `/api/inventory/*` or `/admin/inventory` yet — do not treat this as
+  production-ready for real stock data until an admin-auth gate is added.
