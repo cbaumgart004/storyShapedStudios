@@ -14,7 +14,11 @@ logs/
 # IDE configs
 .vscode/
 .idea/
+.vs/
 .DS_Store
+
+# Python bytecode (scripts/)
+__pycache__/
 
 # Generated Claude context
 .claude/context/repo-map.md

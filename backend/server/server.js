@@ -256,14 +256,18 @@ app.listen(PORT, () => {
     console.log('✅ eBay token found in storage.')
   }
 
-  // Auto-open the auth/validate URLs only during local dev. On a hosted,
-  // headless environment (Railway sets RAILWAY_ENVIRONMENT) there is no
-  // browser to open and this is pointless.
+  // Auto-open the auth/validate URLs. Opt-in, because hitting these on every
+  // restart opens five browser tabs and fires live Etsy/eBay traffic — noise
+  // when the session is about anything other than OAuth. Set OAUTH_AUTO_OPEN=true
+  // when actually working on the marketplace flows. Never runs on a hosted,
+  // headless environment (Railway sets RAILWAY_ENVIRONMENT) — no browser there.
   const isLocalDev =
     process.env.NODE_ENV !== 'production' && !process.env.RAILWAY_ENVIRONMENT
-  if (isLocalDev) {
+  if (isLocalDev && process.env.OAUTH_AUTO_OPEN === 'true') {
     urls.forEach((url) =>
       open(url).catch(() => console.warn(`⚠️ Could not open ${url}`))
     )
+  } else if (isLocalDev) {
+    console.log('💤 Etsy/eBay auto-open off — set OAUTH_AUTO_OPEN=true to enable.')
   }
 })

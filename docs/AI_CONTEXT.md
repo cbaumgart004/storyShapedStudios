@@ -44,6 +44,7 @@ Prefer these as the source of truth; do not duplicate them here.
 | Admin UI (minimal) | Internal, unauthenticated page to manage items/components/BOM and adjust quantities | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
 | Database | Postgres (Neon) — Library view counts, inventory (items/components/BOM/adjustments) | `backend/server/utils/db.js`, `routes/libraryViews.js`, `routes/inventory.js` |
 | Token storage | File-based persistence of Etsy/eBay access tokens | `backend/server/utils/*TokenStorage.js` |
+| Asset pipeline | Downscales designer-supplied art to the sizes the site serves, before it lands in `public/assets/`. Output widths live in one `PRESETS` table | `scripts/resize_asset.py` |
 
 ## API Endpoints (backend, port 3000)
 
@@ -119,8 +120,10 @@ as a hard blocker before real stock data goes live (see Known Traps).
 - Each content router in `routes/` uses `/` internally and gets its path segment from the
   mount in `index.js`. When adding a new content route, add it to `index.js` (don't repeat
   the segment inside the router file, or you'll get a doubled path like `/api/x/x`).
-- `server.js` opens auth/validate URLs in a browser at boot, but only in local dev — it
-  skips this when `NODE_ENV=production` or `RAILWAY_ENVIRONMENT` is set.
+- `server.js` can open the auth/validate URLs in a browser at boot, but it is **opt-in**:
+  set `OAUTH_AUTO_OPEN=true` (local dev only). Left off, boot makes no outbound Etsy/eBay
+  calls — which is what you want unless the session is specifically about OAuth. It is
+  always skipped when `NODE_ENV=production` or `RAILWAY_ENVIRONMENT` is set.
 - Scaffolded `pages/Orders/*` and `pages/Shop/{Category,ProductPage,Sales}.jsx` exist but are
   empty and not referenced by the router — do not confuse with the inventory admin work, which
   is deliberately separate (`pages/Admin/Inventory.jsx`).
@@ -133,3 +136,8 @@ as a hard blocker before real stock data goes live (see Known Traps).
   in `routes/inventory.js`).
 - No auth exists on `/api/inventory/*` or `/admin/inventory` yet — do not treat this as
   production-ready for real stock data until an admin-auth gate is added.
+- The header logo (`public/assets/StoryShapedStudiosNeonGlow_Rect.png`) is neon art on an
+  **opaque black** background with no alpha channel. `.sss-brand img` relies on
+  `mix-blend-mode: screen` to drop that black against the dark nav, plus a
+  `[data-mode='daylight']` `hue-rotate` filter so the neon tracks the UV toggle. Swapping in a
+  transparent asset, or putting a light background behind the nav, breaks one or both.

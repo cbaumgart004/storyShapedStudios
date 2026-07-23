@@ -18,7 +18,9 @@ body {
   --uranium: #57ff5e;
   --uranium-dim: #2fae37;
   --halo: #b9ffbc;
-  --vaseline: #d4e85f;
+  /* Cool citron (h≈78°) rather than a warm golden yellow — daylight vaseline
+     glass reads green-leaning, and it keeps the two modes on one hue family. */
+  --vaseline: #c6e87a;
   --bone: #e9f2e7;
   --muted: #8fae8f;
   --line: rgba(87, 255, 94, 0.35);
@@ -38,19 +40,19 @@ body {
   transition: background 0.6s ease, color 0.6s ease;
 }
 
-/* daylight (vaseline glass in normal light — muted, warm, barely glowing) */
+/* daylight (vaseline glass in normal light — muted, cool, barely glowing) */
 .sss-home[data-mode='daylight'] {
-  --void: #17180f;
-  --void-2: #1f2013;
+  --void: #0f1512;
+  --void-2: #16201b;
   --accent: var(--vaseline);
-  --line: rgba(212, 232, 95, 0.28);
-  --glow-1: 0 0 1px rgba(212, 232, 95, 0.4);
-  --glow-strong: 0 0 1px rgba(212, 232, 95, 0.5);
+  --line: rgba(198, 232, 122, 0.28);
+  --glow-1: 0 0 1px rgba(198, 232, 122, 0.4);
+  --glow-strong: 0 0 1px rgba(198, 232, 122, 0.5);
   --frame-glow: inset 0 0 0 rgba(0, 0, 0, 0);
-  --bone: #efeede;
-  --muted: #b7b48f;
+  --bone: #e7f0e4;
+  --muted: #9db497;
   background:
-    radial-gradient(120% 90% at 50% -10%, rgba(212, 232, 95, 0.1), transparent 55%),
+    radial-gradient(120% 90% at 50% -10%, rgba(198, 232, 122, 0.1), transparent 55%),
     var(--void);
 }
 
@@ -112,16 +114,22 @@ body {
   max-width: 50%;
   min-width: 0;
 }
+/* The neon lockup carries the wordmark itself, so no separate brand text.
+   Source art is neon-on-opaque-black with no alpha: `screen` drops the black
+   box against the dark nav, and the per-mode filter shifts the neon green to
+   the daylight citron so the logo tracks the blacklight toggle. */
 .sss-brand img {
-  width: 40px;
-  height: 40px;
-  filter: drop-shadow(var(--glow-1));
+  /* The art frames the wordmark in a lot of deco border, so it needs real
+     height before "StoryShaped Studios" is legible in the bar. */
+  height: clamp(52px, 6.5vw, 68px);
+  width: auto;
+  max-width: 100%;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 7px rgba(87, 255, 94, 0.45));
+  transition: filter 0.6s ease;
 }
-.sss-brand span {
-  font-family: 'Poiret One', sans-serif;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  font-size: 0.82rem;
+.sss-home[data-mode='daylight'] .sss-brand img {
+  filter: hue-rotate(-42deg) saturate(0.85) brightness(0.9);
 }
 .sss-navlinks {
   display: flex;
@@ -726,7 +734,7 @@ body {
     grid-template-columns: 1fr;
     max-width: 380px;
   }
-  .sss-brand span {
-    display: none;
+  .sss-brand img {
+    height: 36px;
   }
 }
