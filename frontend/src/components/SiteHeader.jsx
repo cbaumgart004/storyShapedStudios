@@ -23,17 +23,20 @@ import { useUvMode } from '@/context/UvMode'
 import { connectSocials } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
 
-// `group` splits the row the way Whitney's notes do — the knowledge side and
-// the shop side — with a divider between them, as on the reference site.
+// Order matters on a phone: the row is a 3-up grid, so this list plus the UV
+// toggle at the end reads Home | Glossary | Images / Shop | Meet the Artist |
+// toggle. One link is always filtered out (the page you are on), so the six
+// routed pages become five links + the toggle = two full rows of three. A page
+// outside this list drops nothing and leaves a short third row — harmless.
 const NAV_LINKS = [
-  { to: '/', label: 'Home', group: 1 },
-  { to: '/library', label: 'Library', group: 1 },
-  { to: '/glossary', label: 'Glossary', group: 1 },
+  { to: '/', label: 'Home' },
+  { to: '/library', label: 'Library' },
+  { to: '/glossary', label: 'Glossary' },
   // No /images route exists yet, so this renders inert rather than as a dead
   // link. Give it a `to` and drop `soon` once the gallery page lands.
-  { to: '/images', label: 'Images', group: 1, soon: true },
-  { to: '/shop', label: 'Shop', group: 2 },
-  { to: '/meet-the-artist', label: 'Meet the Artist', group: 2 },
+  { to: '/images', label: 'Images', soon: true },
+  { to: '/shop', label: 'Shop' },
+  { to: '/meet-the-artist', label: 'Meet the Artist' },
 ]
 
 // Preview-only, on purpose (board #9/#22). The four utility icons stay VISIBLE
@@ -52,19 +55,20 @@ export default function SiteHeader({ featured = false }) {
   const links = NAV_LINKS.filter(
     (l) => !(l.to === pathname || (l.to !== '/' && pathname.startsWith(`${l.to}/`)))
   )
-  const groupOne = links.filter((l) => l.group === 1)
-  const groupTwo = links.filter((l) => l.group === 2)
-
-  const renderLink = (l) =>
-    l.soon ? (
-      <span key={l.label} className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
-        {l.label}
-      </span>
-    ) : (
-      <Link key={l.label} to={l.to}>
-        {l.label}
-      </Link>
-    )
+  // Every item sits in its own .sss-navitem cell. The pipe between items is
+  // that cell's right border, so it survives wrapping into rows and never
+  // strands a divider at the end of a line — a <span> pipe in the flow would.
+  const renderLink = (l) => (
+    <span key={l.label} className="sss-navitem">
+      {l.soon ? (
+        <span className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
+          {l.label}
+        </span>
+      ) : (
+        <Link to={l.to}>{l.label}</Link>
+      )}
+    </span>
+  )
 
   return (
     <>
@@ -75,25 +79,26 @@ export default function SiteHeader({ featured = false }) {
 
         <div className="sss-nav-bar">
           <nav className="sss-navlinks" aria-label="Primary">
-            {groupOne.map(renderLink)}
-            {groupOne.length > 0 && groupTwo.length > 0 && (
-              <span className="sss-nav-sep" aria-hidden="true" />
-            )}
-            {groupTwo.map(renderLink)}
+            {links.map(renderLink)}
+
+            {/* The toggle is the last cell of the link grid, so on a phone it
+                closes out row two rather than starting a row of its own. On
+                desktop a margin pushes it back to the right of the bar. */}
+            <span className="sss-navitem sss-navitem-toggle">
+              <button
+                type="button"
+                className="uv-toggle"
+                onClick={toggle}
+                aria-pressed={lit}
+                title="Toggle blacklight"
+              >
+                <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
+                <span className="uv-switch" aria-hidden="true" />
+              </button>
+            </span>
           </nav>
 
           <div className="sss-nav-utils">
-            <button
-              type="button"
-              className="uv-toggle"
-              onClick={toggle}
-              aria-pressed={lit}
-              title="Toggle blacklight"
-            >
-              <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
-              <span className="uv-switch" aria-hidden="true" />
-            </button>
-
             {/* Placeholders: the icons make the bar read finished, but none of
                 these features exist yet — search, accounts, the wishlist and
                 the cart are all still to build (board #22). They are real

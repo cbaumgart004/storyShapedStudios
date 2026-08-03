@@ -11,6 +11,20 @@ body {
   background: #060806;
 }
 
+/* Every page wraps itself in .sss-home, so this is the whole site's box model.
+   Without it, any rule pairing a width/max-width with padding renders that
+   padding OUTSIDE the width and overflows its container — it cost a review
+   round on the Library mobile layout (`.lib-shell` measured 415px inside a
+   383px page, eating the right gutter) and it had `.hero-figure` sticking 15px
+   past the hero's content box on either side. Deliberately not on `*` at the
+   document root: this keeps it to markup the site owns. */
+.sss-home,
+.sss-home *,
+.sss-home *::before,
+.sss-home *::after {
+  box-sizing: border-box;
+}
+
 /* ---- palette ----
    Two token sets, one per mode. Two things pick one: the page, via
    `[data-mode]`, and a single UvPhoto, via its own `.is-lit` class. A photo
@@ -150,11 +164,35 @@ body {
   justify-content: space-between;
   gap: clamp(0.8rem, 2vw, 2rem);
 }
+/* One cell per item, divided by pipes. The pipe is each cell's right border
+   rather than an element in the flow, so a row that wraps never ends on a
+   dangling divider. The UV toggle is the last cell (see SiteHeader). */
 .sss-navlinks {
   display: flex;
   align-items: center;
-  gap: clamp(0.9rem, 2.4vw, 2.1rem);
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.sss-navitem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem clamp(0.55rem, 1.4vw, 1.15rem);
+  border-right: 1px solid var(--line);
+}
+.sss-navitem:first-child {
+  padding-left: 0;
+}
+.sss-navitem:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+/* Desktop keeps the toggle over at the right of the bar, beside the icons,
+   which is where it has always sat. The phone grid below undoes this. */
+.sss-navitem-toggle {
+  margin-left: auto;
+  border-right: none;
 }
 .sss-nav-utils {
   display: flex;
@@ -914,22 +952,71 @@ body {
     flex-direction: column;
     gap: 0.6rem;
   }
+  /* Three even cells per row, so the links land as
+     Home | Glossary | Images  /  Shop | Meet the Artist | toggle,
+     with the icons on their own row underneath. */
   .sss-navlinks {
-    justify-content: center;
-    gap: 0.65rem 1.05rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 0.45rem;
+    width: 100%;
+  }
+  .sss-navitem {
+    padding: 0.1rem 0.35rem;
+    text-align: center;
+  }
+  /* Every cell keeps its pipe except the one closing a row. */
+  .sss-navitem:first-child,
+  .sss-navitem:last-child {
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+  .sss-navitem:nth-child(3n),
+  .sss-navitem:last-child {
+    border-right: none;
+  }
+  .sss-navitem-toggle {
+    margin-left: 0;
   }
   .sss-nav-utils {
     justify-content: center;
+  }
+  /* The icons are their own row here, so the pipe that separates them from the
+     toggle on desktop would sit stranded at the start of the line. */
+  .sss-nav-utils .sss-nav-sep {
+    display: none;
   }
   .sss-navlinks a,
   .sss-navlink-soon {
     font-size: 0.76rem;
     letter-spacing: 0.1em;
+    line-height: 1.25;
   }
-  /* Keep the blacklight toggle compact but fully labelled so it reads cleanly. */
+  /* The toggle now shares a row cell with the links, so it has to fit inside a
+     third of the bar — roughly 115px on a 360px phone. Keep the word (it names
+     the current mode) and take the space out of the tracking and the switch. */
   .uv-toggle {
-    font-size: 0.64rem;
-    padding: 0.32rem 0.5rem 0.32rem 0.7rem;
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+    gap: 0.3rem;
+    padding: 0.26rem 0.3rem 0.26rem 0.45rem;
+    max-width: 100%;
+  }
+  .uv-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .uv-switch {
+    width: 24px;
+    height: 13px;
+  }
+  .uv-switch::after {
+    width: 9px;
+    height: 9px;
+  }
+  .sss-home[data-mode='blacklight'] .uv-switch::after {
+    transform: translateX(11px);
   }
   .sss-social-bar img {
     width: 22px;

@@ -2,6 +2,8 @@
    Inherits the .sss-home[data-mode] design tokens from Home.css
    (--void, --void-2, --accent, --bone, --muted, --line, --glow-1, --frame-glow). */
 
+/* `.gl-shell` pairs `width: 100%` with horizontal padding and depends on the
+   border-box rule at the top of Home.css, same as `.lib-shell`. */
 .glossary-page {
   display: flex;
   flex-direction: column;

@@ -158,6 +158,28 @@ as a hard blocker before real stock data goes live (see Known Traps).
   toggle (board #24).
 - The nav's utility icons are behind `UTILITY_ICONS_VISIBLE` in `SiteHeader.jsx`, `true` only
   on the preview branch. It must be `false` on `main` until board #22 builds the features.
+- `Library.jsx`'s mobile affordances (search autocomplete, the two rail disclosures, the
+  "Back to Top" overlay) are gated by the `max-width: 820px` query in `Library.css`, not by
+  a JS breakpoint — `.lib-side-toggle` and `.lib-totop` are `display: none` above it and the
+  rails always render. Don't add a resize listener to "fix" the desktop behaviour; it is
+  deliberate. The `is-open` class on `.lib-side-browse` only has an effect inside that query.
+- Bare URLs in `public/library.md` are linked by `linkifyUrls()` in `Library.jsx`, which
+  wraps them in CommonMark `<...>` autolink syntax before react-markdown sees them. This is
+  deliberately not `remark-gfm` — that plugin would also turn on tables, task lists and
+  strikethrough and re-parse Whitney's prose. If you add real `[text](url)` links to
+  `library.md` they pass through untouched; the regex consumes them first.
+- **`box-sizing: border-box` is set once, on `.sss-home` and its subtree, at the top of
+  `Home.css`** — every page wraps itself in `.sss-home`, so that is the whole site. It is not
+  on `*` at the document root. Before it existed, any rule pairing a width with padding
+  overflowed its container: `.lib-shell` measured 415px inside a 383px page (eating the right
+  gutter on a phone) and `.hero-figure` ran 30px wider than the logo above it. Don't re-add
+  page-scoped copies of this rule.
+- The nav's pipes are the right border of each `.sss-navitem` cell, not elements in the flow,
+  so a wrapped row never ends on a stranded divider. Under 760px `.sss-navlinks` is a
+  3-column grid and the UV toggle is the last cell (`.sss-navitem-toggle`), which is why the
+  toggle is shrunk there — it has to fit a third of a 360px bar. Adding or removing a
+  `NAV_LINKS` entry changes how the rows fall: six routed pages minus the current one leaves
+  five links + toggle = two full rows of three.
 - The nav's four utility icons (search / sign in / wishlist / cart) are **placeholders** —
   `aria-disabled` buttons with no behaviour. None of those features exist anywhere in the app
   (board #22). Don't wire a click handler to one assuming a backend is there.

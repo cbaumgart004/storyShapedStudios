@@ -18,6 +18,15 @@
 //
 // Wrapped in .sss-home[data-mode] so it inherits Home's daylight/blacklight
 // design tokens, nav, and footer.
+//
+// On a phone the sidebar stacks above the article, so the three rails would
+// otherwise push the thing you came to read a screen and a half down. Three
+// mobile affordances handle that (board #25):
+//   * the search box offers an autocomplete list and jumps straight to an entry,
+//   * Most viewed + Contents collapse once an article is open, behind a toggle,
+//   * a floating "Back to top" overlay returns you to the search box.
+// All three are harmless on desktop: the toggle and the overlay are hidden by
+// the media query, and the sidebar is never collapsed above 820px.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
@@ -58,6 +67,33 @@ async function copyToClipboard(text) {
   }
 }
 
+// Whitney's source doc has bare URLs sitting in the prose, and CommonMark
+// leaves those as plain text — react-markdown only links them if remark-gfm's
+// autolink literals are enabled, which would also switch on tables, task lists
+// and strikethrough and change how the rest of her copy parses. Wrapping each
+// bare URL in CommonMark's own `<...>` autolink syntax gets the links without
+// the dependency or the parsing side effects.
+//
+// The first alternative swallows a URL that is already a markdown link target
+// or an autolink and hands it back untouched, so only genuinely bare URLs reach
+// the second. Consuming them rather than testing the preceding character means
+// a URL written inside plain parentheses — which Whitney does, citing sources —
+// still gets linked. `)` is excluded from the URL itself, so the closing paren
+// stays in the prose. No lookbehind: iOS Safari before 16.4 has none, and this
+// site is read on phones.
+const URL_SCAN =
+  /(\]\(\s*<?https?:\/\/[^\s)]+>?\s*\)|<https?:\/\/[^\s>]+>)|(https?:\/\/[^\s<>()[\]"']+)/g
+
+function linkifyUrls(md) {
+  return md.replace(URL_SCAN, (match, alreadyLinked, bare) => {
+    if (alreadyLinked) return alreadyLinked
+    // A URL that ends a sentence shouldn't drag the full stop into its href.
+    const trailing = bare.match(/[.,;:!?]+$/)
+    const href = trailing ? bare.slice(0, -trailing[0].length) : bare
+    return `<${href}>${trailing ? trailing[0] : ''}`
+  })
+}
+
 // Split the markdown into { id, title, body } sections on each "## " heading.
 function parseSections(md) {
   const withoutTitle = md.replace(/^#\s+.*(\r?\n)?/, '')
@@ -71,7 +107,7 @@ function parseSections(md) {
       let id = slugify(title)
       seen[id] = (seen[id] || 0) + 1
       if (seen[id] > 1) id = `${id}-${seen[id]}`
-      return { id, title, body: block.slice(m[0].length).trim() }
+      return { id, title, body: linkifyUrls(block.slice(m[0].length).trim()) }
     })
     .filter(Boolean)
 }
@@ -88,6 +124,21 @@ const mdComponents = {
   img: ({ node, ...props }) => (
     <img className="lib-img" loading="lazy" {...props} />
   ),
+  // Own class rather than styling `.lib-entry a`, which would also catch the
+  // "← Library" back link and the prev/next cards inside the same article.
+  a: ({ node, href = '', children, ...props }) => {
+    const external = /^https?:\/\//i.test(href)
+    return (
+      <a
+        className="lib-link"
+        href={href}
+        {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : null)}
+        {...props}
+      >
+        {children}
+      </a>
+    )
+  },
 }
 
 export default function Library() {
@@ -101,6 +152,13 @@ export default function Library() {
   const [views, setViews] = useState(readViews) // localStorage seed for instant paint
   const [copiedId, setCopiedId] = useState(null) // entry showing copied feedback
   const serverViews = React.useRef(false) // true once the backend counts load
+  const [suggestOpen, setSuggestOpen] = useState(false) // autocomplete visible
+  const [activeSuggestion, setActiveSuggestion] = useState(-1) // keyboard cursor
+  // Mobile: each rail collapses on its own, so opening the contents list
+  // doesn't drag Most viewed onto the screen with it.
+  const [featuredOpen, setFeaturedOpen] = useState(false)
+  const [contentsOpen, setContentsOpen] = useState(false)
+  const [showTop, setShowTop] = useState(false) // mobile: back-to-top visible
 
   useEffect(() => {
     let active = true
@@ -202,6 +260,96 @@ export default function Library() {
     )
   }, [q, sections])
 
+  // Autocomplete for the search box. Title matches rank above body-only matches,
+  // because a title hit is almost always the entry the reader meant.
+  const suggestions = useMemo(() => {
+    if (!q) return []
+    const byTitle = []
+    const byBody = []
+    for (const s of sections) {
+      if (s.title.toLowerCase().includes(q)) byTitle.push(s)
+      else if (s.body.toLowerCase().includes(q)) byBody.push(s)
+    }
+    return [...byTitle, ...byBody].slice(0, 8)
+  }, [q, sections])
+
+  // A fresh query means the old keyboard cursor is meaningless.
+  useEffect(() => setActiveSuggestion(-1), [q])
+
+  // Picking a suggestion opens that entry. The query is cleared on the way out:
+  // the box sits at the top of a phone screen, and leaving text in it reads as
+  // "you are still looking at filtered results" when you are now on an article.
+  const chooseSuggestion = (s) => {
+    setQuery('')
+    setSuggestOpen(false)
+    setActiveSuggestion(-1)
+    goTo(s.id)
+  }
+
+  const onSearchKeyDown = (e) => {
+    if (!suggestions.length) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSuggestOpen(true)
+      setActiveSuggestion((i) => (i + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSuggestOpen(true)
+      setActiveSuggestion((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+    } else if (e.key === 'Enter') {
+      // No cursor moved yet: Enter takes the top match, which is what a reader
+      // who typed and hit go expects.
+      const pick = suggestions[activeSuggestion] || suggestions[0]
+      e.preventDefault()
+      chooseSuggestion(pick)
+    } else if (e.key === 'Escape') {
+      setSuggestOpen(false)
+    }
+  }
+
+  // Opening an entry re-collapses both rails, so on a phone the article is what
+  // you land on rather than the bottom of a 35-item contents list.
+  useEffect(() => {
+    setFeaturedOpen(false)
+    setContentsOpen(false)
+  }, [slug])
+
+  // On the index there is nothing to collapse — the rails are the page.
+  const railShown = (open) => !slug || open
+
+  const renderRailToggle = (label, panelId, open, setOpen, count) =>
+    slug ? (
+      <button
+        type="button"
+        className="lib-side-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={panelId}
+      >
+        <span>
+          {label}
+          {count != null && <span className="lib-toc-count">{count}</span>}
+        </span>
+        <span className="lib-side-toggle-caret" aria-hidden="true">
+          {open ? '▲' : '▼'}
+        </span>
+      </button>
+    ) : null
+
+  useEffect(() => {
+    // Appears as soon as the page moves, not after some arbitrary distance —
+    // on a phone the search box is off screen almost immediately.
+    const onScroll = () => setShowTop(window.scrollY > 24)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const backToTop = () => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
+  }
+
   const mostViewed = useMemo(() => {
     return sections
       .filter((s) => views[s.id] > 0)
@@ -233,38 +381,112 @@ export default function Library() {
           {/* ---------- Sidebar: search + most viewed + Contents rail ---------- */}
           <aside className="lib-side">
             <div className="lib-side-inner">
-              <label className="lib-search">
-                <span className="lib-search-icon" aria-hidden="true">⌕</span>
-                <input
-                  type="search"
-                  placeholder="Search the library…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  aria-label="Search the library"
-                />
-              </label>
+              <div className="lib-search-wrap">
+                <label className="lib-search">
+                  <span className="lib-search-icon" aria-hidden="true">⌕</span>
+                  <input
+                    type="search"
+                    placeholder="Search the library…"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value)
+                      setSuggestOpen(true)
+                    }}
+                    onFocus={() => setSuggestOpen(true)}
+                    // Options preventDefault on mousedown, so the input keeps
+                    // focus through a click and this only fires on a real blur.
+                    onBlur={() => setSuggestOpen(false)}
+                    onKeyDown={onSearchKeyDown}
+                    aria-label="Search the library"
+                    role="combobox"
+                    aria-expanded={suggestOpen && suggestions.length > 0}
+                    aria-controls="lib-suggestions"
+                    aria-autocomplete="list"
+                    aria-activedescendant={
+                      activeSuggestion >= 0
+                        ? `lib-sug-${suggestions[activeSuggestion].id}`
+                        : undefined
+                    }
+                  />
+                </label>
 
-              {mostViewed.length > 0 && !q && (
-                <div className="lib-featured">
-                  <p className="eyebrow">Most viewed</p>
-                  <div className="lib-featured-list">
-                    {mostViewed.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        className="lib-chip"
-                        onClick={() => goTo(s.id)}
-                      >
-                        {s.title}
-                        <span className="lib-chip-count">{views[s.id]}</span>
-                      </button>
+                {suggestOpen && suggestions.length > 0 && (
+                  <ul className="lib-suggestions" id="lib-suggestions" role="listbox">
+                    {suggestions.map((s, i) => (
+                      <li key={s.id} role="presentation">
+                        <button
+                          type="button"
+                          id={`lib-sug-${s.id}`}
+                          role="option"
+                          aria-selected={i === activeSuggestion}
+                          className={`lib-suggestion${
+                            i === activeSuggestion ? ' is-active' : ''
+                          }`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => chooseSuggestion(s)}
+                        >
+                          {s.title}
+                        </button>
+                      </li>
                     ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Phone-only: with an article open each rail starts collapsed
+                  behind its own toggle, so the article is what you land on and
+                  either list can be opened without dragging the other along.
+                  Both toggles are hidden by the media query above 820px, where
+                  the sidebar is a column of its own and nothing collapses. */}
+              {mostViewed.length > 0 && !q && (
+                <>
+                  {renderRailToggle(
+                    'Most viewed',
+                    'lib-rail-featured',
+                    featuredOpen,
+                    setFeaturedOpen
+                  )}
+                  <div
+                    id="lib-rail-featured"
+                    className={`lib-side-browse${
+                      railShown(featuredOpen) ? ' is-open' : ''
+                    }`}
+                  >
+                    <div className="lib-featured">
+                      <p className="eyebrow lib-rail-heading">Most viewed</p>
+                      <div className="lib-featured-list">
+                        {mostViewed.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            className="lib-chip"
+                            onClick={() => goTo(s.id)}
+                          >
+                            {s.title}
+                            <span className="lib-chip-count">{views[s.id]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
+              {renderRailToggle(
+                'Contents',
+                'lib-rail-contents',
+                contentsOpen,
+                setContentsOpen,
+                filtered.length
+              )}
+              <div
+                id="lib-rail-contents"
+                className={`lib-side-browse${
+                  railShown(contentsOpen) ? ' is-open' : ''
+                }`}
+              >
               <nav className="lib-toc" aria-label="Contents">
-                <p className="eyebrow">
+                <p className="eyebrow lib-rail-heading">
                   Contents
                   <span className="lib-toc-count">{filtered.length}</span>
                 </p>
@@ -299,6 +521,7 @@ export default function Library() {
                   )}
                 </ol>
               </nav>
+              </div>
             </div>
           </aside>
 
@@ -403,6 +626,14 @@ export default function Library() {
             )}
           </main>
         </div>
+      )}
+
+      {/* Phone-only overlay (hidden by the media query on desktop, where the
+          sidebar is sticky and the search box never leaves the screen). */}
+      {showTop && (
+        <button type="button" className="lib-totop" onClick={backToTop}>
+          ↑ Back to Top
+        </button>
       )}
 
       <SiteFooter />

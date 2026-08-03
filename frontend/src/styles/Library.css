@@ -2,6 +2,10 @@
    Inherits the .sss-home[data-mode] design tokens from Home.css
    (--void, --void-2, --accent, --bone, --muted, --line, --glow-1). */
 
+/* Several rules here pair `width: 100%` with horizontal padding (.lib-shell,
+   .lib-side-toggle, .lib-suggestion) and rely on the border-box rule at the top
+   of Home.css to keep that padding inside the width. Without it .lib-shell
+   overflows its page and the right gutter disappears on a phone. */
 .library-page {
   display: flex;
   flex-direction: column;
@@ -50,6 +54,13 @@
   border-radius: 999px;
 }
 
+/* The wrapper owns the spacing and the positioning context, so the suggestion
+   list can hang off the box without shifting anything below it. */
+.lib-search-wrap {
+  position: relative;
+  margin-bottom: 1.6rem;
+  z-index: 5;
+}
 .lib-search {
   display: flex;
   align-items: center;
@@ -57,7 +68,6 @@
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.5rem 0.9rem;
-  margin-bottom: 1.6rem;
   background: color-mix(in srgb, var(--void-2) 70%, transparent);
   transition: border-color 0.25s, box-shadow 0.25s;
 }
@@ -82,6 +92,57 @@
 }
 .lib-search input::placeholder {
   color: var(--muted);
+}
+
+/* ---------- Search autocomplete ---------- */
+/* Absolute so an open list overlays the rails instead of pushing them down —
+   on a phone a list that reflows the page under your thumb is unusable. */
+.lib-suggestions {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--void-2);
+  box-shadow: var(--frame-glow), 0 10px 30px rgba(0, 0, 0, 0.55);
+}
+.lib-suggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--bone);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  padding: 0.55rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lib-suggestion:hover,
+.lib-suggestion.is-active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* ---------- Mobile: collapse the rails behind a toggle ---------- */
+/* Hidden above 820px, where the sidebar is its own column and nothing needs
+   collapsing; the media query at the bottom of this file turns it on. */
+.lib-side-toggle {
+  display: none;
+}
+.lib-side-toggle-caret {
+  font-size: 0.6rem;
+  color: var(--accent);
 }
 
 /* Most viewed */
@@ -326,6 +387,21 @@
 .lib-entry em {
   color: var(--muted);
 }
+/* Links inside an article body. Accent, so they shift with the UV toggle like
+   the headings do, and `anywhere` because Whitney's sources include bare URLs
+   long enough to push a phone layout sideways otherwise. */
+.lib-entry .lib-link {
+  color: var(--accent);
+  text-shadow: var(--glow-1);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  transition: color 0.6s ease, text-shadow 0.6s ease, border-color 0.25s ease;
+}
+.lib-entry .lib-link:hover,
+.lib-entry .lib-link:focus-visible {
+  border-bottom-color: var(--accent);
+}
 .lib-img {
   display: block;
   max-width: 100%;
@@ -425,22 +501,139 @@
   padding: 2rem 0;
 }
 
+/* ---------- Back to top (phone only) ---------- */
+/* Fixed overlay in the lower right. Only rendered once you have scrolled, and
+   only shown on the narrow layout — on desktop the sidebar is sticky, so the
+   search box never leaves the screen and this would be noise. */
+/* Fixed to the viewport, so it stays pinned to the lower right of whatever is
+   on screen rather than travelling with the page. The safe-area insets keep it
+   clear of the iOS home indicator and Android gesture bar. */
+.lib-totop {
+  display: none;
+  position: fixed;
+  right: calc(0.6rem + env(safe-area-inset-right, 0px));
+  bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  background: color-mix(in srgb, var(--void) 92%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: var(--glow-1);
+  box-shadow: var(--frame-glow), 0 6px 20px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 820px) {
+  /* One gutter for the whole phone layout, matching the nav's, so every block
+     lines up on both edges instead of each picking its own inset. */
   .lib-shell {
     grid-template-columns: 1fr;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
   .lib-side {
     position: static;
   }
+  /* padding-right existed to hold the desktop scrollbar off the border rule.
+     Both are gone here, and leaving it made the right gutter wider than the
+     left everywhere in the sidebar. */
   .lib-side-inner {
     max-height: none;
     border-right: none;
+    padding-right: 0;
+  }
+
+  /* No hover on a touch screen, so the rows need a visible division of their
+     own. Desktop keeps the hover-only treatment. */
+  .lib-suggestions {
+    padding: 0;
+  }
+  .lib-suggestion {
+    border-radius: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 0.75rem 0.8rem;
+  }
+  .lib-suggestions li:last-child .lib-suggestion {
+    border-bottom: none;
+  }
+  /* The rule under the sidebar belongs to the rails, not the sidebar — with
+     every rail collapsed there is nothing above the article to divide off.
+     Only the last open rail draws it, so two open rails don't stack rules. */
+  .lib-side-inner > .lib-side-browse.is-open:last-child {
     border-bottom: 1px solid var(--line);
     padding-bottom: 1.2rem;
   }
   .lib-toc ol {
     columns: 2;
     column-gap: 1.2rem;
+  }
+  /* 16px stops iOS zooming the page when the search box takes focus. */
+  .lib-search {
+    padding: 0.65rem 1rem;
+  }
+  .lib-search input {
+    font-size: 16px;
+  }
+  .lib-search-wrap {
+    margin-bottom: 1rem;
+  }
+
+  /* One per rail. With an article open each hides its own list; on the index
+     neither is rendered, because there the rails are the page. */
+  .lib-side-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    margin-bottom: 1.1rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .lib-side-browse:not(.is-open) {
+    display: none;
+  }
+  /* The toggle already names the rail, so the list's own eyebrow underneath it
+     would just say the same thing twice. Only suppressed where a toggle is
+     actually rendered — on the index the heading is the only label there is. */
+  .lib-side-toggle + .lib-side-browse .lib-rail-heading {
+    display: none;
+  }
+  .lib-side-toggle .lib-toc-count {
+    margin-left: 0.5rem;
+  }
+  /* Rails stack, so only the last one carries the rule off the article. */
+  .lib-side-browse.is-open {
+    margin-bottom: 0.4rem;
+  }
+
+  .lib-totop {
+    display: inline-flex;
+  }
+}
+
+/* Two columns of contents fit a tablet; on a phone they leave each entry title
+   wrapping over five or six lines, so drop back to one. */
+@media (max-width: 560px) {
+  .lib-toc ol {
+    columns: auto;
   }
 }

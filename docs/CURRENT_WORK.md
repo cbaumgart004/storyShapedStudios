@@ -1,13 +1,18 @@
 # Current Work
 
-Last updated: 2026-07-22
+Last updated: 2026-08-03
 
 ## Work Tracks
 
 | Track | Focus | Branch | Status |
 |---|---|---|---|
 | A | Inventory Phase 1 (items, components, BOM, decrement) | merged to `main` (`292741b`) | Built; needs end-to-end DB verification + admin auth |
-| B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` | In progress; 15 of 21 issues shipped |
+| B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #16 and #22 |
+| C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25 shipped |
+
+**One preview branch.** Whitney reviews a single preview site, so front-end work
+stacks onto `home-page-layout` rather than branching off `main` — do not cut a
+new branch from `main` for review work.
 
 ---
 
@@ -289,6 +294,71 @@ rules on `.piece-card img` and `.glow-story .story-img img` are still there).
   Collection" → `/shop`. The notes don't say.
 - **Which other images have both states shot** — determines how far `UvPhoto`
   spreads beyond the hero.
+
+---
+
+# Track C — Library Mobile Layout
+
+## Objective
+
+Make `/library` usable on a phone. The sidebar stacks above the article there,
+so opening an entry buried it under the search box, Most viewed and a 35-item
+Contents list. Frontend-only, `pages/Library.jsx` + `styles/Library.css`.
+
+## Branch
+
+`library-mobile-update`, cut from `home-page-layout` — see the one-preview-branch
+note at the top.
+
+## Current State
+
+**#25 and #26 shipped.**
+
+- **#26** — the 18 bare URLs in Whitney's article prose now render as links in
+  `var(--accent)`, so they track the UV toggle. `parseSections()` wraps each
+  bare URL in CommonMark's `<...>` autolink syntax rather than pulling in
+  `remark-gfm`, which would also enable tables/task-lists/strikethrough and
+  change how the rest of her copy parses.
+
+- The search box gained an autocomplete list (title matches before body-only
+  matches, 8 max) wired as a real combobox: arrows, Enter, Escape. It is
+  absolutely positioned so it overlays the rails instead of reflowing the page.
+  Rows carry a border on mobile, where there is no hover to distinguish them.
+- Most viewed and Contents are two independent disclosures. Both are expanded
+  with no toggles on `/library`; both start collapsed on `/library/:slug`,
+  whether the reader picked an entry or loaded the URL directly. Verified in
+  the browser at 400px for all three paths.
+- A fixed "Back to Top" overlay appears bottom-right as soon as the page scrolls.
+- **Fixed the real padding bug**: the project had no `box-sizing` reset, so
+  `width: 100%` + horizontal padding (`.lib-shell`, `.gl-shell`,
+  `.lib-side-toggle`, `.lib-suggestion`) pushed the right edge past the
+  viewport and ate the right gutter. `box-sizing: border-box` now applies once,
+  to `.sss-home` and its subtree, at the top of `Home.css` — every page wraps
+  itself in `.sss-home`, so that covers the site. It also fixed `.hero-figure`
+  on Home, which had been rendering 30px wider than the logo above it and 15px
+  past the hero's content box on either side. All four pages scanned clean for
+  overflow at 400px and 1400px.
+- **Nav rebuilt around `.sss-navitem` cells** whose right border draws a pipe
+  between items. Under 760px it is a 3-column grid: Home | Glossary | Images /
+  Shop | Meet the Artist | UV toggle / icons. Desktop keeps the toggle at the
+  right via `margin-left: auto`; its only change is pipes between every item
+  instead of only between the old link groups (the `group` field is gone).
+- Two adjacent fixes: 16px search input under 820px (stops iOS zoom-on-focus),
+  and one-column Contents under 560px.
+
+## Decisions Already Made
+
+- **The collapse is CSS, not a JS breakpoint.** Above 820px the toggle is
+  `display: none` and the rails always render, so desktop is untouched and
+  there is no resize listener to keep in sync.
+- **Back to Top is phone-only.** On desktop the sidebar is sticky, so the search
+  box never leaves the screen. Trivially widened if she wants it everywhere.
+- **Picking a suggestion clears the query** — stale text in a search box pinned
+  to the top of a phone screen reads as "still filtered".
+
+## Next Steps
+
+- Confirm on a real phone, ideally iOS Safari.
 
 ---
 
