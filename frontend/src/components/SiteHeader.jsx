@@ -4,54 +4,132 @@
 // .sss-home[data-mode] design tokens from Home.css, so render it inside a
 // <div className="sss-home" data-mode={mode}> wrapper.
 //
-// Pass `featured` on the home page to render the big, bold "Connect or Shop"
-// social band; every other page gets the compact strip.
+// Shape follows the reference site Whitney picked (satomikawakita.com): the
+// site title alone on the top line, then one row of links with the utility
+// icons pushed to the right. The neon logo lockup no longer appears in the bar
+// at all — on home it runs full size in the hero, and elsewhere the wordmark
+// carries the branding.
+//
+// The link matching the current page is dropped from the row, so the nav never
+// offers you the page you are already on.
+//
+// Pass `featured` on the home page to render the big, bold "Connect With Us"
+// social band; every other page gets the compact strip. The band is Facebook +
+// Instagram only — the footer keeps the full list with Etsy/eBay.
 
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
-import { socials } from '@/components/socials'
+import { connectSocials } from '@/components/socials'
+import { utilityIcons } from '@/components/navIcons'
 
-import logo from '/assets/StoryShapedStudiosNeonGlow_Rect.png'
+// `group` splits the row the way Whitney's notes do — the knowledge side and
+// the shop side — with a divider between them, as on the reference site.
+const NAV_LINKS = [
+  { to: '/', label: 'Home', group: 1 },
+  { to: '/library', label: 'Library', group: 1 },
+  { to: '/glossary', label: 'Glossary', group: 1 },
+  // No /images route exists yet, so this renders inert rather than as a dead
+  // link. Give it a `to` and drop `soon` once the gallery page lands.
+  { to: '/images', label: 'Images', group: 1, soon: true },
+  { to: '/shop', label: 'Shop', group: 2 },
+  { to: '/meet-the-artist', label: 'Meet the Artist', group: 2 },
+]
+
+// Preview-only, on purpose (board #9/#22). The four utility icons stay VISIBLE
+// on the `home-page-layout` preview branch so Whitney sees the finished bar,
+// but nothing behind them works yet — flip this to `false` in the commit that
+// merges this branch to `main`, since main is the live site. Flip it back (or
+// split it per icon) as #22 delivers search / sign in / wishlist / cart.
+const UTILITY_ICONS_VISIBLE = true
 
 export default function SiteHeader({ featured = false }) {
   const { lit, toggle } = useUvMode()
+  const { pathname } = useLocation()
+
+  // Hide the current page's own link. Library article URLs (/library/:slug)
+  // count as being on Library, hence the prefix check rather than equality.
+  const links = NAV_LINKS.filter(
+    (l) => !(l.to === pathname || (l.to !== '/' && pathname.startsWith(`${l.to}/`)))
+  )
+  const groupOne = links.filter((l) => l.group === 1)
+  const groupTwo = links.filter((l) => l.group === 2)
+
+  const renderLink = (l) =>
+    l.soon ? (
+      <span key={l.label} className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
+        {l.label}
+      </span>
+    ) : (
+      <Link key={l.label} to={l.to}>
+        {l.label}
+      </Link>
+    )
 
   return (
     <>
       <header className="sss-nav">
-        <Link to="/" className="sss-brand">
-          <img src={logo} alt="StoryShaped Studios" />
+        <Link to="/" className="sss-wordmark">
+          StoryShaped Studios
         </Link>
 
-        <nav className="sss-navlinks">
-          <Link to="/">Home</Link>
-          <Link to="/shop">Collection</Link>
-          <Link to="/library">Library</Link>
-          <Link to="/glossary">Glossary</Link>
-          <Link to="/meet-the-artist">Meet the Artist</Link>
-          <button
-            type="button"
-            className="uv-toggle"
-            onClick={toggle}
-            aria-pressed={lit}
-            title="Toggle blacklight"
-          >
-            <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
-            <span className="uv-switch" aria-hidden="true" />
-          </button>
-        </nav>
+        <div className="sss-nav-bar">
+          <nav className="sss-navlinks" aria-label="Primary">
+            {groupOne.map(renderLink)}
+            {groupOne.length > 0 && groupTwo.length > 0 && (
+              <span className="sss-nav-sep" aria-hidden="true" />
+            )}
+            {groupTwo.map(renderLink)}
+          </nav>
+
+          <div className="sss-nav-utils">
+            <button
+              type="button"
+              className="uv-toggle"
+              onClick={toggle}
+              aria-pressed={lit}
+              title="Toggle blacklight"
+            >
+              <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
+              <span className="uv-switch" aria-hidden="true" />
+            </button>
+
+            {/* Placeholders: the icons make the bar read finished, but none of
+                these features exist yet — search, accounts, the wishlist and
+                the cart are all still to build (board #22). They are real
+                buttons rather than links so nothing 404s, and they announce
+                themselves as unavailable. The divider goes with them. */}
+            {UTILITY_ICONS_VISIBLE && (
+              <>
+                <span className="sss-nav-sep" aria-hidden="true" />
+                {utilityIcons.map(({ label, Icon }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="sss-nav-util"
+                    aria-disabled="true"
+                    aria-label={`${label} — coming soon`}
+                    title={`${label} — coming soon`}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <Icon />
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
       </header>
 
       <section
         className={`sss-social-bar${featured ? ' is-featured' : ''}`}
-        aria-label="Connect or shop the collection"
+        aria-label="Connect with StoryShaped Studios"
       >
         {featured && (
-          <p className="sss-social-head">Shop the Collection</p>
+          <p className="sss-social-head">Connect With Us</p>
         )}
         <div className="sss-social-icons">
-          {socials.map((s) => (
+          {connectSocials.map((s) => (
             <a
               key={s.label}
               href={s.href}

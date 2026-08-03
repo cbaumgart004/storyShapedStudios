@@ -20,6 +20,11 @@ Prefer these as the source of truth; do not duplicate them here.
 - `docs/CURRENT_WORK.md` — active objective, current state, next steps.
 - `structure.txt` — annotated source tree.
 - `CLAUDE.md` — working rules and common commands.
+- Whitney's **"Website notes" Google Doc** — the design source of truth for the
+  splash/home redesign. Live and edited in place, so re-read it rather than
+  trusting a stale summary:
+  <https://docs.google.com/document/d/16BztwhEvCqGlkO16mVmG_yOBt_bPJ4P5_ei1MH6_dDc/edit?tab=t.0>
+  (Google login required — `WebFetch` returns 401; read it in the browser.)
 
 ## Layout & Entry Points
 
@@ -34,10 +39,10 @@ Prefer these as the source of truth; do not duplicate them here.
 | Component | Responsibility | Location |
 |---|---|---|
 | Web UI | React storefront. Routed today: `/`, `/meet-the-artist`, `/shop`, `/library`, `/library/:slug`, `/glossary`. | `frontend/src/` (`App.jsx`, `pages/`, `components/`) |
-| Home page | Live landing page + daylight/blacklight UV toggle | `frontend/src/pages/Home.jsx`, `styles/Home.css` |
+| Home page | Live landing page + daylight/blacklight UV toggle. Hero is the big neon logo, tagline, two CTAs, a paired daylight/blacklight photo and Whitney's credit; then the Our Story / A Space for Makers copy blocks | `frontend/src/pages/Home.jsx`, `components/UvPhoto.jsx`, `styles/Home.css` |
 | Meet the Artist | Artist bio page (scaffold): 3 images + text body, shared nav/footer | `frontend/src/pages/MeetTheArtist.jsx`, `styles/MeetTheArtist.css` |
 | Library | Searchable knowledge base from Markdown. Index + per-article pages: `/library` lists all entries, `/library/:slug` shows one article on its own shareable URL; shared shell (search + Most-viewed + Contents rail) with copy-link + view counts | `frontend/src/pages/Library.jsx`, `public/library.md`, `public/library-media/`, `scripts/docx_to_library_md.py` |
-| Shared UI | Site header/footer + UV-mode context reused across pages | `frontend/src/components/Site{Header,Footer}.jsx`, `context/UvMode.jsx`, `lib/api.js` |
+| Shared UI | Site header/footer + UV-mode context reused across pages. The nav is a text wordmark on its own line, then one row of links (current page's own link filtered out) with the UV toggle and four inert utility icons at the right. The social band under it is Facebook + Instagram only (`connectSocials`), while the footer keeps the full `socials` list | `frontend/src/components/Site{Header,Footer}.jsx`, `components/navIcons.jsx`, `components/socials.js`, `context/UvMode.jsx`, `lib/api.js` |
 | OAuth / marketplace API | Etsy + eBay OAuth flows and token validation | `backend/server/server.js` |
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |
 | Inventory API | Items, components/supplies, bill-of-materials (BOM), and quantity-adjustment (with component decrement + low-stock detection) — Phase 1 of the self-built inventory system | `backend/server/routes/inventory.js`, `utils/notifyLowStock.js` |
@@ -136,6 +141,35 @@ as a hard blocker before real stock data goes live (see Known Traps).
   in `routes/inventory.js`).
 - No auth exists on `/api/inventory/*` or `/admin/inventory` yet — do not treat this as
   production-ready for real stock data until an admin-auth gate is added.
+- `UvMode` itself only drives CSS custom properties and filters. For a piece photographed in
+  both states, use `components/UvPhoto.jsx` instead — it stacks the two photos and crossfades
+  between them, and takes asset paths *without* the width suffix
+  (`/assets/hero-necklace-daylight`), building the srcset from what `resize_asset.py` writes.
+  Neither state gets the daylight photo filter, on purpose. Each instance also carries its own
+  switch: state lives on the component's `.is-lit` class, not on `.sss-home[data-mode]`, and
+  flipping the site-wide toggle clears every per-image override.
+- The mode colour tokens in `Home.css` are declared on **two** selector pairs — `.sss-home` /
+  `.uv-photo.is-lit` for blacklight, `.sss-home[data-mode='daylight']` / `.uv-photo` for
+  daylight — so a single photo flipped on its own dresses its caption switch in its own state.
+  Adding a token to one mode means adding it to that one rule, not to a `.sss-home` block: the
+  page shell's layout properties were split into a separate `.sss-home` rule below the tokens
+  so `.uv-photo` could share them. `--accent`, `--bone` and `--muted` differ between the two
+  sets by hue, not just brightness — keep it that way, or text stops visibly changing with the
+  toggle (board #24).
+- The nav's utility icons are behind `UTILITY_ICONS_VISIBLE` in `SiteHeader.jsx`, `true` only
+  on the preview branch. It must be `false` on `main` until board #22 builds the features.
+- The nav's four utility icons (search / sign in / wishlist / cart) are **placeholders** —
+  `aria-disabled` buttons with no behaviour. None of those features exist anywhere in the app
+  (board #22). Don't wire a click handler to one assuming a backend is there.
+- Two traps with the neon logo art, which is opaque and has no alpha channel. It no longer
+  appears in the nav — only in the home hero — but the rules still apply wherever it is used:
+  - `mix-blend-mode: screen` needs **no ancestor opening a stacking context** between the
+    `<img>` and the element whose backdrop it blends with. A `position`/`z-index` on the
+    wrapper brings the black box back; put the z-index on the `<img>` (see `.hero-logo` /
+    `.hero-logo-wrap`).
+  - Don't add `filter: drop-shadow(...)` at large sizes. The silhouette is the whole opaque
+    rectangle, so the shadow outlines a box rather than the neon strokes. It passes unnoticed
+    at nav size; at 760px it is an obvious frame. The glow is baked into the artwork already.
 - The header logo (`public/assets/StoryShapedStudiosNeonGlow_Rect.png`) is neon art on an
   **opaque black** background with no alpha channel. `.sss-brand img` relies on
   `mix-blend-mode: screen` to drop that black against the dark nav, plus a

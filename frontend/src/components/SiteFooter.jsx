@@ -20,7 +20,7 @@ export default function SiteFooter() {
           </a>
         ))}
       </div>
-      <p className="footer-note">StoryShaped Studios · Crafted with love and light</p>
+      <p className="footer-note">StoryShaped Studios</p>
     </footer>
   )
 }

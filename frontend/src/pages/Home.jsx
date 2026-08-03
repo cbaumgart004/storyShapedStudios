@@ -8,7 +8,12 @@ import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
+import UvPhoto from '@/components/UvPhoto'
 import '@/styles/Home.css'
+
+// The rect neon lockup is the logo variant without "Uranium Glass Jewelry"
+// under it, which is the one Whitney wants carrying the hero (board #10).
+import heroLogo from '/assets/StoryShapedStudiosNeonGlow_Rect.png'
 
 // Pull the real product photography from the assets folder.
 const photoImports = import.meta.glob('@/assets/coming-soon/PSX_*.jpg', {
@@ -32,32 +37,95 @@ const Home = () => {
       <SiteHeader featured />
 
       <main>
-        {/* ---------------- HERO ---------------- */}
+        {/* ---------------- HERO ----------------
+            Order is Whitney's, from the notes doc: big logo, tagline, the two
+            CTAs, then the paired daylight/blacklight photo, then her credit. */}
         <section className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">Antique Uranium Glass</p>
-            <h1>
-              Worn by day.
-              <span className="lit">Alive by night.</span>
-            </h1>
-            <p className="hero-sub">
-              Hand-set Art Deco filigree cradling genuine uranium glass — pale
-              gold in the light, electric green the moment the blacklight hits.
-            </p>
-            <div className="hero-cta">
-              <Link to="/shop" className="btn btn-primary">
-                Enter the Collection
-              </Link>
-              <button type="button" className="btn btn-ghost" onClick={toggle}>
-                {lit ? 'See it by day' : 'See it glow'}
-              </button>
-            </div>
+          <h1 className="hero-logo-wrap">
+            <img className="hero-logo" src={heroLogo} alt="StoryShaped Studios" />
+          </h1>
+
+          <p className="hero-tagline">
+            The World&rsquo;s Largest Resource for Uranium Glass Jewelry
+          </p>
+
+          <div className="hero-actions">
+            <Link to="/library" className="btn btn-primary">
+              Learn about Uranium Glass
+            </Link>
+            <Link to="/shop" className="btn btn-ghost">
+              Shop the Collection
+            </Link>
           </div>
 
-          <figure className="hero-piece deco-corners">
-            <img src={photos[0]} alt="Uranium glass pendant from the collection" />
-            <figcaption>From the archive</figcaption>
+          {/* UvPhoto carries its own switch in the caption slot, so there is no
+              separate figcaption to fall out of sync with a per-image flip. */}
+          <figure className="hero-figure deco-corners">
+            <UvPhoto
+              daylight="/assets/hero-necklace-daylight"
+              blacklight="/assets/hero-necklace-blacklight"
+              alt="Antique uranium glass floral-drop necklace, shown in daylight and glowing under blacklight"
+              sizes="(max-width: 820px) 92vw, 760px"
+            />
           </figure>
+
+          <p className="hero-credit">
+            Created by Whitney Granger, internationally recognized uranium glass
+            jewelry artist and historian
+          </p>
+        </section>
+
+        <div className="deco-divider" aria-hidden="true" />
+
+        {/* ---------------- OUR STORY ----------------
+            Copy is Whitney's, verbatim from the notes doc. Her draft trails off
+            mid-word on a link ("More on Whitney's personal journey here (hy"),
+            so that fragment is not rendered; the link below points at the
+            Meet the Artist page, which is the assumed target. Confirm. */}
+        <section className="section" id="our-story">
+          <div className="prose-block">
+            <p className="eyebrow">Our Story</p>
+            <h2>Long before StoryShaped Studios existed</h2>
+            <p>
+              Long before StoryShaped Studios existed, artisans were crafting
+              jewelry from uranium glass. Whitney discovered that forgotten
+              history in 2018 through a Neiger Brothers necklace, and it was
+              love at first sight. Thousands of hours of research, an
+              international community of collectors, and a passion for
+              preserving these remarkable artifacts eventually led her to teach
+              herself jewelry making during the 2020 pandemic. What began as a
+              personal fascination grew into the world&rsquo;s leading authority
+              on uranium glass jewelry and beads. Today, StoryShaped Studios
+              preserves the history of uranium glass jewelry while creating
+              heirloom-quality pieces that carry that story forward.
+            </p>
+            <Link to="/meet-the-artist" className="prose-link">
+              More on Whitney&rsquo;s personal journey
+              <span className="arrow" aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </section>
+
+        <div className="deco-divider" aria-hidden="true" />
+
+        {/* ---------------- A SPACE FOR MAKERS ----------------
+            Copy verbatim from the notes doc. "Our Values" sits between this and
+            Our Story in Whitney's running order, but its body is still marked
+            "Text pending" (board #16), so it is not stubbed in here. */}
+        <section className="section" id="makers">
+          <div className="prose-block">
+            <p className="eyebrow">A Space for Makers</p>
+            <h2>Over 200 unique bead designs</h2>
+            <p>
+              StoryShaped Studios is the largest retailer of uranium glass beads
+              in the world, with over 200 unique bead designs both vintage and
+              newly made. All of our beads are the highest quality Czech glass.
+            </p>
+            <p>
+              We also specialize in uranium glass cabochons, pendants, and
+              faceted gems.
+            </p>
+          </div>
         </section>
 
         <div className="deco-divider" aria-hidden="true" />

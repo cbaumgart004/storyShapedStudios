@@ -13,3 +13,10 @@ export const socials = [
   { href: 'https://www.facebook.com/storyshapedstudios/', icon: facebookIcon, label: 'Facebook' },
   { href: 'https://www.instagram.com/storyshaped_studios/?hl=en', icon: instagramIcon, label: 'Instagram' },
 ]
+
+// Social-only subset for the band under the nav: Whitney's notes ask for
+// Facebook + Instagram there, no marketplace logos. The footer still shows the
+// full `socials` list, Etsy/eBay included.
+export const connectSocials = socials.filter(
+  (s) => s.label === 'Facebook' || s.label === 'Instagram'
+)

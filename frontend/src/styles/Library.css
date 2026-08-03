@@ -225,13 +225,17 @@
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--line);
 }
+/* Accent, not --bone, so the page title tracks the UV toggle the same way the
+   home page's headings do (board #24). Font untouched. */
 .lib-hero h1 {
   font-family: 'Poiret One', sans-serif;
   font-weight: 700;
   font-size: clamp(2rem, 4vw, 3.2rem);
   letter-spacing: 0.04em;
   margin: 0 0 0.6rem;
-  color: var(--bone);
+  color: var(--accent);
+  text-shadow: var(--glow-1);
+  transition: color 0.6s ease, text-shadow 0.6s ease;
 }
 .lib-hero-sub {
   color: var(--muted);
