@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socials } from '@/components/socials'
 
-import logo from '/assets/StoryShapedStudiosLogo_GmailOptimized.png'
+import logo from '/assets/StoryShapedStudiosNeonGlow_Rect.png'
 
 export default function SiteHeader({ featured = false }) {
   const { lit, toggle } = useUvMode()
@@ -22,7 +22,6 @@ export default function SiteHeader({ featured = false }) {
       <header className="sss-nav">
         <Link to="/" className="sss-brand">
           <img src={logo} alt="StoryShaped Studios" />
-          <span>StoryShaped Studios</span>
         </Link>
 
         <nav className="sss-navlinks">

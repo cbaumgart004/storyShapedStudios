@@ -1,6 +1,17 @@
 # Current Work
 
-Last updated: 2026-07-21
+Last updated: 2026-07-22
+
+## Work Tracks
+
+| Track | Focus | Branch | Status |
+|---|---|---|---|
+| A | Inventory Phase 1 (items, components, BOM, decrement) | merged to `main` (`292741b`) | Built; needs end-to-end DB verification + admin auth |
+| B | Splash page redesign (per Whitney's `Website notes.docx`) | `layout-updates` | In progress; 1 of 15 issues shipped |
+
+---
+
+# Track A — Inventory Phase 1
 
 ## Objective
 
@@ -12,7 +23,7 @@ UV-paired photos, TinaCMS for marketing content) build on.
 
 ## Branch
 
-Not yet branched/committed — implemented on top of `main`.
+Committed to `main` as `292741b` ("Inventory: Phase 1 foundation").
 
 ## Current State
 
@@ -91,7 +102,7 @@ Not yet branched/committed — implemented on top of `main`.
    Railway) — both need upgrading as part of this phase.
 5. **UV/blacklight paired-photo toggle** — today `UvMode` only drives CSS
    filters; true paired daylight/UV photos need a new data model (no
-   existing convention to build on).
+   existing convention to build on). Overlaps Track B issue #13.
 6. **TinaCMS for marketing content** (Home, About, FAQs, Meet the Artist) —
    port the schema/config pattern from the user's `LiveSpiritSeedsMk2` repo
    (`tina/config.ts`, `docs/adr/0002-tinacms-content-management.md`,
@@ -101,7 +112,64 @@ Not yet branched/committed — implemented on top of `main`.
    Library work — see prior notes); until then, `railway up` from the repo
    root to deploy backend changes.
 
-## Do Not Repeat
+---
+
+# Track B — Splash Page Redesign
+
+## Objective
+
+Rework the splash/home page to Whitney's spec in `Website notes.docx`: a
+two-row top bar, a utility bar (hamburger + search/login/wishlist/cart), a new
+hero lockup with tagline and CTAs, and three body sections (Our Story, Our
+Values, A Space for Makers). Frontend-only — no backend or schema impact.
+
+## Branch
+
+`layout-updates` (off `main`).
+
+## Tracker
+
+Local `.boards/` store — **Epic #2**, child issues **#3–#17**. Query with
+`scripts/boards.ps1 list` from the `boards-local` skill.
+
+## Current State
+
+- **#5 shipped** — daylight palette retuned from warm olive/gold to a cool
+  citron (`--vaseline` `#d4e85f` → `#c6e87a`, plus cooler `--void`, `--void-2`,
+  `--bone`, `--muted` in `styles/Home.css`).
+- New neon rect logo (`public/assets/StoryShapedStudiosNeonGlow_Rect.png`)
+  wired into `SiteHeader.jsx`, replacing the square mark + text wordmark. It
+  shifts green → citron with the UV toggle via `mix-blend-mode: screen` plus a
+  per-mode `hue-rotate` filter (see Known Traps in `AI_CONTEXT.md`).
+- Everything else in the epic is untouched.
+
+## Decisions Already Made
+
+- **Cool = greener, not lemon.** The daylight accent moved to h≈78° rather than
+  a golden yellow, keeping both modes in one hue family and matching how real
+  vaseline glass reads in daylight.
+- **The logo carries its own wordmark**, so the adjacent `<span>StoryShaped
+  Studios</span>` was removed from the header rather than duplicated.
+- **Footer keeps the old square mark** — the wide rect lockup doesn't fit the
+  centered footer brand. Header and footer logos currently differ; unresolved.
+
+## Next Steps
+
+Ready to pick up now: **#17** (A Space for Makers — copy is final), then the
+hero group **#10–#12** and the nav work **#3, #7, #9**.
+
+## Blocked / Waiting on Whitney
+
+- **#4** — where the Home button should live in the two-row bar (design call).
+- **#8** — final contents of the left hamburger menu (Services, Policies, …).
+- **#13** — the hero image asset was embedded in the .docx and was not
+  extracted; also needs a blacklight-state variant.
+- **#15 / #16** — Our Story and Our Values body copy, both marked "Text
+  pending" in the notes.
+
+---
+
+# Do Not Repeat (both tracks)
 
 - Git Bash mangles a leading-slash arg (e.g. `/library-media`) into a Windows
   path; run the converter with `MSYS_NO_PATHCONV=1` (or from PowerShell).
@@ -114,3 +182,9 @@ Not yet branched/committed — implemented on top of `main`.
   before `GET /components/:id`, or Express matches it as the `:id` param.
 - Postgres `NUMERIC` values come back from `pg` as strings — `Number(...)`
   before doing arithmetic on component quantities/BOM ratios.
+- Resize designer art with `python scripts/resize_asset.py SRC --preset NAME`;
+  never drop it straight into `public/assets/` unresized. Pillow is installed
+  (2026-07-22) so JPEG/WebP and Lanczos resampling work; the script still falls
+  back to a pure-stdlib PNG-only path if it's ever missing.
+- There is no ImageMagick here — the `convert.exe` on PATH is the Windows
+  filesystem tool, and running it against an image would be a bad time.
