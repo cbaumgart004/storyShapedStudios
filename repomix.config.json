@@ -1,0 +1,58 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": ".claude/context/repo-map.md",
+    "style": "markdown",
+    "showLineNumbers": true,
+    "removeEmptyLines": true,
+    "topFilesLength": 10
+  },
+  "include": [
+    "README.md",
+    "CLAUDE.md",
+    "docs/**/*.md",
+    "src/**/*",
+    "app/**/*",
+    "tests/**/*",
+    "*.sln",
+    "*.csproj",
+    "package.json",
+    "tsconfig*.json",
+    "vite.config.*",
+    "Program.cs",
+    "appsettings*.json"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "**/bin/**",
+      "**/obj/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/.next/**",
+      "**/.vercel/**",
+      "**/node_modules/**",
+      "**/package-lock.json",
+      "**/pnpm-lock.yaml",
+      "**/yarn.lock",
+      "**/*.min.js",
+      "**/*.map",
+      "**/*.generated.*",
+      "**/*.Designer.cs",
+      "**/Migrations/**",
+      "**/*.log",
+      "**/*.sqlite",
+      "**/*.db",
+      "**/.env",
+      "**/.env.*",
+      "**/appsettings.Development.json",
+      ".claude/context/repo-map.md",
+      ".claude/context/recent-changes.md"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}

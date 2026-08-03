@@ -1,0 +1,5 @@
+﻿{
+    "includeDocumentation":  true,
+    "includeRepomixContext":  false,
+    "claudeMdDir":  "."
+}
