@@ -35,6 +35,22 @@ Main technologies:
 - Do not commit generated Repomix context files.
 - Report what was changed, tested, and not verified.
 
+## Claude in Chrome
+
+Keep browser work compact:
+
+- Load every chrome tool expected for the task in **one** `ToolSearch` call. Never one call per tool.
+- Prefer `browser_batch` for any sequence of two or more browser actions.
+- Prefer `find` and `get_page_text` over screenshots and full `read_page` dumps. Take a screenshot only when the visual itself is the deliverable.
+- Always pass a `pattern` filter to `read_console_messages` and `read_network_requests`.
+- After a browser task completes, compact the context before moving on to unrelated work.
+
+Visual verification — propose, don't drive:
+
+- Do **not** open the browser to visually review a change on the user's behalf. Before any DOM-level visual review of a revision, stop and ask.
+- Instead, propose a **visual test plan**: what to look at, at which viewport(s), and the specific pass/fail criteria for each item. Let the user run it or approve driving the browser.
+- Failures are different: when something breaks (build, script, test, browser action), resolve it automatically. Do not ask permission to fix a failure — fix it and report what happened.
+
 ## Common Commands
 
 Install or restore:
