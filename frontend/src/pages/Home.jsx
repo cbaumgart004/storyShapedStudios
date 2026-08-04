@@ -15,22 +15,65 @@ import '@/styles/Home.css'
 // under it, which is the one Whitney wants carrying the hero (board #10).
 import heroLogo from '/assets/StoryShapedStudiosNeonGlow_Rect.png'
 
-// Pull the real product photography from the assets folder.
-const photoImports = import.meta.glob('@/assets/coming-soon/PSX_*.jpg', {
-  eager: true,
-})
-const photos = Object.entries(photoImports)
-  .sort(([a], [b]) => a.localeCompare(b))
-  .map(([, mod]) => mod.default)
-
-const featured = [
-  { name: 'The Marquise', tag: 'Uranium · Filigree' },
-  { name: 'The Hexagon', tag: 'Faceted glass' },
-  { name: 'The Drop', tag: 'Art Deco · c.1930s' },
+// Whitney's seven values, copy verbatim from the notes doc (board #16). The
+// heading is "What We Believe", not the "Our Values" the board item was opened
+// under. Seven is a lot of stacked text and three of them overlap, but that is
+// a copy call for her, not one to make here — raised under board #41.
+const values = [
+  {
+    title: 'Preserving History',
+    body:
+      'Every piece of uranium glass carries a story. We are committed to the ' +
+      'stewardship of an extraordinary artistic heritage, preserving it for ' +
+      'those who will discover it next.',
+  },
+  {
+    title: 'Education Through Research',
+    body:
+      'Knowledge should be shared. Through ongoing research, historical ' +
+      'documentation, and educational resources, we strive to be the world’s ' +
+      'most trusted source for uranium glass jewelry.',
+  },
+  {
+    title: 'Honoring the Material',
+    body:
+      'Remarkable materials deserve exceptional craftsmanship. Every piece is ' +
+      'thoughtfully designed and handcrafted to become tomorrow’s heirloom.',
+  },
+  {
+    title: 'Restoration & Renewal',
+    body:
+      'Some stories aren’t finished yet. Through careful repair and ' +
+      'restoration, we breathe new life into vintage and antique uranium ' +
+      'glass jewelry, honoring the hands that created it so it can continue ' +
+      'to be loved across generations.',
+  },
+  {
+    title: 'Authenticity',
+    body:
+      'We believe every piece deserves an honest story. From age and origin ' +
+      'to materials and craftsmanship, we are committed to representing every ' +
+      'piece with accuracy and integrity.',
+  },
+  {
+    title: 'Curiosity & Discovery',
+    body:
+      'Whether it’s an overlooked antique necklace, a forgotten Czech bead, ' +
+      'or a rare cabochon, we believe the thrill of discovery is part of the ' +
+      'journey. We are always searching for remarkable pieces and the stories ' +
+      'they carry.',
+  },
+  {
+    title: 'Caring for Every Collector',
+    body:
+      'Whether you’re purchasing your first glowing pendant or your hundredth ' +
+      'antique bead, we want every interaction to be welcoming, educational, ' +
+      'and genuinely enjoyable.',
+  },
 ]
 
 const Home = () => {
-  const { mode, lit, toggle } = useUvMode()
+  const { mode } = useUvMode()
 
   return (
     <div className="sss-home" data-mode={mode}>
@@ -77,15 +120,36 @@ const Home = () => {
 
         <div className="deco-divider" aria-hidden="true" />
 
+        {/* Everything below the credit is Whitney's writing from the notes doc,
+            in her running order: What We Believe, Our Story, Our Jewelry, A
+            Space for Makers. Each section's name is now the heading itself —
+            the old eyebrow-plus-pulled-phrase pairing is gone at her request. */}
+
+        {/* ---------------- WHAT WE BELIEVE ---------------- */}
+        <section className="section" id="what-we-believe">
+          <div className="section-head">
+            <h2>What We Believe</h2>
+          </div>
+          <div className="values-grid">
+            {values.map((v) => (
+              <div className="value" key={v.title}>
+                <h3>{v.title}</h3>
+                <p>{v.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="deco-divider" aria-hidden="true" />
+
         {/* ---------------- OUR STORY ----------------
             Copy is Whitney's, verbatim from the notes doc. Her draft trails off
             mid-word on a link ("More on Whitney's personal journey here (hy"),
             so that fragment is not rendered; the link below points at the
-            Meet the Artist page, which is the assumed target. Confirm. */}
+            Meet the Artist page, which is the assumed target (board #40). */}
         <section className="section" id="our-story">
           <div className="prose-block">
-            <p className="eyebrow">Our Story</p>
-            <h2>Long before StoryShaped Studios existed</h2>
+            <h2>Our Story</h2>
             <p>
               Long before StoryShaped Studios existed, artisans were crafting
               jewelry from uranium glass. Whitney discovered that forgotten
@@ -108,14 +172,26 @@ const Home = () => {
 
         <div className="deco-divider" aria-hidden="true" />
 
-        {/* ---------------- A SPACE FOR MAKERS ----------------
-            Copy verbatim from the notes doc. "Our Values" sits between this and
-            Our Story in Whitney's running order, but its body is still marked
-            "Text pending" (board #16), so it is not stubbed in here. */}
+        {/* ---------------- OUR JEWELRY ---------------- */}
+        <section className="section" id="our-jewelry">
+          <div className="prose-block">
+            <h2>Our Jewelry</h2>
+            <p>
+              Every StoryShaped Studios piece begins with genuine uranium glass,
+              from rare antique treasures to newly crafted Czech glass. Whether
+              creating an original design or carefully restoring a historic
+              piece, our work is guided by a deep respect for the history,
+              artistry, and enduring beauty of uranium glass.
+            </p>
+          </div>
+        </section>
+
+        <div className="deco-divider" aria-hidden="true" />
+
+        {/* ---------------- A SPACE FOR MAKERS ---------------- */}
         <section className="section" id="makers">
           <div className="prose-block">
-            <p className="eyebrow">A Space for Makers</p>
-            <h2>Over 200 unique bead designs</h2>
+            <h2>A Space for Makers</h2>
             <p>
               StoryShaped Studios is the largest retailer of uranium glass beads
               in the world, with over 200 unique bead designs both vintage and
@@ -125,76 +201,6 @@ const Home = () => {
               We also specialize in uranium glass cabochons, pendants, and
               faceted gems.
             </p>
-          </div>
-        </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
-        {/* ---------------- FEATURED ---------------- */}
-        <section className="section">
-          <div className="section-head">
-            <p className="eyebrow">From the Collection</p>
-            <h2>Pieces with a past</h2>
-          </div>
-
-          <div className="piece-grid">
-            {featured.map((piece, i) => (
-              <Link key={piece.name} to="/shop" className="piece-card deco-corners">
-                <div className="frame">
-                  <img
-                    src={photos[(i + 1) % photos.length]}
-                    alt={`${piece.name} — ${piece.tag}`}
-                  />
-                </div>
-                <div className="piece-meta">
-                  <h3>{piece.name}</h3>
-                  <span>{piece.tag}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
-        {/* ---------------- GLOW STORY ---------------- */}
-        <section className="section" id="glow">
-          <div className="glow-story">
-            <figure className="story-img deco-corners">
-              <img src={photos[photos.length - 1]} alt="Uranium glass beads glowing green" />
-            </figure>
-            <div className="story-copy">
-              <p className="eyebrow">Why it glows</p>
-              <h2>A trace of uranium, a century of light</h2>
-              <p>
-                Uranium glass carries a whisper of uranium oxide. Its most
-                beloved form — <b>vaseline glass</b>, named for its soft, buttery
-                daylight color — answers ultraviolet light with a green that looks
-                lit from within. Every piece here is antique, hand-set, and
-                unmistakably alive.
-              </p>
-              <button type="button" className="story-link" onClick={toggle}>
-                {lit ? 'Return to daylight' : 'Flip the blacklight'}
-                <span className="arrow" aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
-        {/* ---------------- MEET THE ARTIST ---------------- */}
-        <section className="section">
-          <div className="artist-feature">
-            <p className="eyebrow">The Maker</p>
-            <h2>Meet the Artist</h2>
-            <p>
-              Every piece is hand-set by a single maker. Step behind the
-              workbench and discover the story behind the glow.
-            </p>
-            <Link to="/meet-the-artist" className="btn btn-primary">
-              Meet the Artist
-            </Link>
           </div>
         </section>
       </main>

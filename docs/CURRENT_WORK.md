@@ -7,12 +7,15 @@ Last updated: 2026-08-03
 | Track | Focus | Branch | Status |
 |---|---|---|---|
 | A | Inventory Phase 1 (items, components, BOM, decrement) | merged to `main` (`292741b`) | Built; needs end-to-end DB verification + admin auth |
-| B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #16 and #22 |
-| C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25 shipped |
+| B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #22 |
+| C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25, #26 shipped; signed off by Whitney |
+| D | Customer layout revision (her 2026-08-03 review) | `260803_Customer_Layout_Revision` (off `library-mobile-update`) | Content chunk shipped; visual tweaks open |
 
 **One preview branch.** Whitney reviews a single preview site, so front-end work
-stacks onto `home-page-layout` rather than branching off `main` — do not cut a
-new branch from `main` for review work.
+stacks onto the current head of that chain rather than branching off `main` — do
+not cut a new branch from `main` for review work. The chain is now
+`main` → `layout-updates` → `home-page-layout` → `library-mobile-update` →
+`260803_Customer_Layout_Revision`.
 
 ---
 
@@ -282,8 +285,9 @@ rules on `.piece-card img` and `.glow-story .story-img img` are still there).
 - **#4** — where the Home button should live in the two-row bar (design call).
 - **#8** — final contents of the left hamburger menu (Services, Policies, …),
   and whether the #3 text rows survive the move to icons.
-- **#16** — Our Values body copy, still "Text pending" in the notes. It belongs
-  between Our Story and A Space for Makers; nothing is stubbed in for it.
+- ~~**#16**~~ — unblocked 2026-08-03. Copy landed, heading is "What We Believe"
+  rather than "Our Values", and it ships at the *head* of the body sections, not
+  between Our Story and A Space for Makers. Shipped in Track D.
 
 ## Assumptions to Confirm With Whitney
 
@@ -358,12 +362,203 @@ note at the top.
 
 ## Next Steps
 
-- Confirm on a real phone, ideally iOS Safari.
+- Confirm on a real phone, ideally iOS Safari. (Whitney reviewed the preview on
+  2026-08-03: "Looks amazing and stupid proof!!!" — treat as signed off unless a
+  real-device check turns something up.)
 
 ---
 
-# Do Not Repeat (both tracks)
+# Track D — Customer Layout Revision (2026-08-03 review)
 
+## Objective
+
+Work Whitney's 2026-08-03 pass over the preview site into the page. Her notes
+doc is the source of truth and is edited in place — re-read it rather than
+trusting this summary. The editor renders to canvas and extracts as nothing;
+read `/mobilebasic` instead of `/edit` to get the text.
+
+## Branch
+
+`260803_Customer_Layout_Revision`, cut from `library-mobile-update`.
+
+## Tracker
+
+Epic #2 still. New issues **#27–#43**.
+
+## Current State
+
+**Shipped: #16, #27, #28, #31, #43 (content), #32–#37 (visual tweaks), #44–#46.**
+
+**#46 supersedes the logo decision in #45.** Both modes now run three steps of
+one hue — `--bone` s49/l90, `--accent` s100/l49–71, `--muted` s45/l62 — but they
+are anchored in **opposite directions**, which is deliberate and easy to
+"correct" by mistake:
+
+- **Blacklight**: the logo is the reference. It renders unfiltered at its native
+  `rgb(0, 251, 0)` and `--uranium` is that exact value, so type matches the art.
+- **Daylight**: the logo is filtered to the accent instead. Matching type to the
+  daylight logo would mean `#97b819`, the dull dark olive Whitney rejected in
+  #36, so the bright `#d9ff6b` accent stays and the logo comes to it.
+
+- **#27** — the three legacy bands below the copy (Pieces with a past, Why it
+  glows, Meet the Artist) and their photos are gone, per "please remove
+  everything underneath this". This reverses the earlier note that Whitney's
+  notes "neither mention nor remove them" — they do now. The `featured` array,
+  the `coming-soon/PSX_*.jpg` glob and the `lit`/`toggle` destructuring went
+  with them; the image files stay on disk for #42.
+- **#16** — What We Believe ships as the first body section, seven values from a
+  `values` array at the top of `Home.jsx`, in new `.values-grid`/`.value` rules.
+  Heading is "What We Believe", not the "Our Values" the item was opened under.
+- **#28** — Our Jewelry added as a new `.prose-block` between Our Story and A
+  Space for Makers.
+- **#43** — each body section's name is now its own `h2`; the eyebrow and the
+  pulled-phrase heading above it are gone.
+- **#31** — footer carries "© {year} StoryShaped Studios", year derived.
+- **#29 and #30 closed with no code change.** The doc's Our Story and A Space
+  for Makers copy is word-for-word what already shipped under #15 and #17 — she
+  restated it as part of the full run, she did not rewrite it.
+
+Body order is now What We Believe → Our Story → Our Jewelry → A Space for
+Makers, which is the doc's order under "Update to writing following 'Created by
+Whitney Granger….'". Note this moves the values block to the *head* of the
+sections; the earlier assumption was that it sat between Our Story and A Space
+for Makers.
+
+Her seven visual notes are then all in:
+
+- **#32** — `.hero` top padding halved, at both breakpoints (see below).
+- **#33** — `font-weight: 700` on `.btn`, both CTAs; size and tracking untouched.
+- **#34** — the per-photo switch moved out from over the image. Needed a
+  `.uv-photo-frame` wrapper: the lit shot is `position: absolute; inset: 0`, so
+  putting the button back in flow without it would have stretched the blacklight
+  image over the button too.
+- **#35** — `.hero-credit` up from `0.86rem` to `clamp(0.95rem, 1.4vw, 1.06rem)`,
+  then superseded by **#44**: the credit now shares one rule with `.value h3`,
+  so it carries the same face, weight, size, tracking, accent and glow as a
+  value name. Shared selector rather than copied declarations — "the same
+  status" only survives a later retune if there is one rule.
+- **#36** — `--vaseline` `#c6e87a` → `#d9ff6b`, brighter at essentially the same
+  hue. Three rules that hardcoded the old rgb were moved with it.
+- **#37** — `--glow-strong` from `4/12/34/70px` to `3/9/22/44px` with the outer
+  alphas cut, `--glow-1` from `6px @ 0.9` to `5px @ 0.7`, and the hardcoded
+  `.btn-primary:hover` halo pulled in to match.
+
+## Decisions Already Made
+
+- **Her copy ships verbatim, including the parts flagged in #41.** The grammar
+  and redundancy notes she asked for are recommendations to hand back, not edits
+  to make on her behalf — it is her voice.
+- **#43 was inferred from an unrecoverable screenshot anchor and shipped
+  anyway; #39 was inferred and left blocked.** The split is blast radius: #43 is
+  cosmetic, Home-only and reversible, #39 would silently change every page's
+  header.
+- **Dead CSS left in place.** `.glow-story`, `.story-img`, `.story-copy`,
+  `.story-link` and `.artist-feature` are orphaned by #27 but not deleted —
+  unrelated cleanup. `.piece-grid`/`.piece-card` are *not* orphaned; Meet the
+  Artist still uses them.
+
+## Validation Performed
+
+- `npm run build --prefix frontend` — clean, 234 modules, no warnings.
+- **Visual pass run in Chrome against `npm run dev`, 2026-08-03, at 400px and
+  1400px in both UV modes.** Verified: page ends after A Space for Makers with
+  no trailing divider; no eyebrows survive and each section's `h2` is its own
+  name; no `.piece-grid`, `.glow-story` or `.artist-feature` left on Home; the
+  seven value names take the same computed colour as the `h2` rules in both
+  modes (`#c6e87a` daylight, `#57ff5e` blacklight) and their text-shadow changes
+  too; no horizontal overflow at either width on any page; footer reads
+  "© 2026 StoryShaped Studios".
+- **One failure found and fixed:** the values block was built on CSS grid and
+  stranded the seventh card at the left edge of the last row at 1400px. Rebuilt
+  on flex-wrap — see board #16 and the Known Traps entry in `AI_CONTEXT.md`.
+- **Second visual pass for #32–#37**, same two widths and both modes. Measured
+  after: hero top padding 35.2px desktop / 20px phone; `.btn` weight 700 with
+  size and tracking unchanged from before; credit 16.96px / 15.2px; daylight
+  accent `rgb(217,255,107)`; `--glow-strong` at 3/9/22/44px; the per-photo
+  switch's top edge exactly at the photo's bottom edge with no overlap at either
+  width, still inside the `.hero-figure` border, and the lit image still
+  covering the base image to the pixel through a toggle click.
+- **Second failure found and fixed:** #32's first cut only applied above 860px.
+  A `@media (max-width: 860px)` rule overrides `.hero { padding-top }`
+  separately, so phones kept 40px — more headroom than the desktop that override
+  exists to slightly exceed. Both values now move together.
+- `/shop` renders no footer, so the copyright does not appear there. This is
+  **pre-existing** — `SiteFooter` is only imported by Home, Library, Glossary
+  and Meet the Artist; Shop is still the empty scaffold. Not caused by #31.
+- Not checked: real iOS Safari, and the hero at desktop width (the browser
+  window would not grow back after being shrunk, so the 1400px pass ran against
+  a same-origin iframe of the page rather than a real desktop window).
+
+## Next Steps
+
+Nothing unblocked is left in this track — #32–#37 are done. Everything else
+here is waiting on Whitney (below).
+
+Still ready from Track B: **#6**, and it did not become moot when #27 deleted
+the glow story — its other target, `.piece-card img`, is still live on Meet the
+Artist.
+
+Board audit, 2026-08-03: **#4 closed as obsolete** — it asked where the Home
+button should sit in "the two-row bar", a layout #23 replaced and Track C then
+rebuilt again; Home is now a nav link that filters itself out on the current
+page. Everything else still open (#1, #2, #6, #8, #22, #38–#42, #47) is either
+genuinely blocked on Whitney or not started.
+
+**#36 and #37 are taste calls made without her in the room.** "Brighter" and
+"slightly too high" have no target value, so both are a judged step in the
+direction she asked for and easy to nudge either way. Show her before treating
+them as settled.
+
+## Blocked / Waiting on Whitney
+
+- **#47** — the blacklight green from #46 "looks too simplistic". Two compounding
+  causes: `--uranium` is now the single-channel primary `rgb(0, 251, 0)` (zero
+  red, zero blue) taken straight off the logo, and #46's ramp is strictly one
+  hue, so nothing on the page varies in hue any more. Note the tension — the
+  page looked richer when the hues disagreed and duller once unified; the answer
+  is likely an *analogous* ramp rather than either extreme. **Daylight is out of
+  scope: "leave the yellow alone for now."** Needs a direction before any change.
+- **#38** — she asked for the site to default to blacklight. It already does;
+  `context/UvMode.jsx` only yields daylight when `localStorage` holds it. She is
+  seeing her own saved preference. Needs her to choose: clear her site data, or
+  drop the persistence so every visit opens in blacklight regardless of what the
+  visitor last picked.
+- **#39** — "remove this for the home page but make it appear on the other
+  pages", anchored to a screenshot that did not survive extraction. Probably the
+  nav site title. Do not guess.
+- **#40** — Our Story still trails off mid-word ("…here (hy"), unchanged from
+  the previous revision. Link target still assumed to be `/meet-the-artist`.
+- **#41** — the grammar and redundancy notes she asked for are written and need
+  sending. Headline items: three competing "world's largest/leading/most
+  trusted" claims, and "What began as a personal fascination grew into the
+  world's leading authority", where a fascination cannot become an authority.
+- **#42** — Featured Collection and Newly Added bands, deferred by her until her
+  products are sorted.
+
+---
+
+# Do Not Repeat (all tracks)
+
+- Whitney's notes doc renders to canvas in the normal Google Docs editor, so
+  `get_page_text` on `/edit` returns only chrome and no body text. Read
+  `/mobilebasic` instead. `WebFetch` still 401s either way.
+- The `boards.ps1` helper shipped with the `boards-local` skill casts the whole
+  filename to `[int]`, so it throws on this repo's `<id>-<slug>.md` items. Edit
+  `.boards/items/*.md` directly, matching the existing frontmatter.
+- Do not round-trip those item files through `Get-Content`/`Set-Content` in
+  Windows PowerShell to do bulk text edits — the default read encoding mangles
+  em-dashes into `â€"` and `Set-Content -Encoding UTF8` then bakes the mojibake
+  in. Use `[System.IO.File]::ReadAllText(path, [Text.Encoding]::UTF8)`.
+- **Don't verify a CSS transition by reading `getComputedStyle` in the automated
+  browser.** The driven tab reports `visibilityState: "hidden"`, so transitions
+  never tick and computed style freezes at the value it held when the change
+  started — a toggle-driven colour change reads as "stuck on the old colour"
+  when the page is fine. Same trap inside an iframe probe. Verify mode-dependent
+  styling with a **fresh page load in each mode** (set `localStorage` key
+  `sss-uv-mode`, reload, read), where no transition is involved.
+- The `title:` line in a board item is unquoted, even when it contains a colon.
+  A line-by-line regex parses these files, not a YAML library, so quotes end up
+  as part of the title string.
 - Git Bash mangles a leading-slash arg (e.g. `/library-media`) into a Windows
   path; run the converter with `MSYS_NO_PATHCONV=1` (or from PowerShell).
 - `railway up` must run from the **repo root** (backend service root directory

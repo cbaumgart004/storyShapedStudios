@@ -49,24 +49,30 @@ export default function UvPhoto({
 
   return (
     <span className={`uv-photo${showLit ? ' is-lit' : ''}${className ? ` ${className}` : ''}`}>
-      <img
-        src={fallback(daylight)}
-        srcSet={srcSet(daylight)}
-        sizes={sizes}
-        alt={alt}
-        loading={loading}
-      />
-      {/* Decorative duplicate: same subject, so it carries no alt text of its
-          own — screen readers get the description once, from the image above. */}
-      <img
-        className="uv-photo-lit"
-        src={fallback(blacklight)}
-        srcSet={srcSet(blacklight)}
-        sizes={sizes}
-        alt=""
-        aria-hidden="true"
-        loading={loading}
-      />
+      {/* The two stacked shots get their own box so the switch below can sit in
+          normal flow. The lit image is absolutely positioned against THIS
+          element, not the whole component, which is what keeps it covering the
+          photo alone rather than the switch too (board #34). */}
+      <span className="uv-photo-frame">
+        <img
+          src={fallback(daylight)}
+          srcSet={srcSet(daylight)}
+          sizes={sizes}
+          alt={alt}
+          loading={loading}
+        />
+        {/* Decorative duplicate: same subject, so it carries no alt text of its
+            own — screen readers get the description once, from the image above. */}
+        <img
+          className="uv-photo-lit"
+          src={fallback(blacklight)}
+          srcSet={srcSet(blacklight)}
+          sizes={sizes}
+          alt=""
+          aria-hidden="true"
+          loading={loading}
+        />
+      </span>
 
       <button
         type="button"

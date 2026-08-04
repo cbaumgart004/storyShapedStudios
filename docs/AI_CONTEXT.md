@@ -39,7 +39,7 @@ Prefer these as the source of truth; do not duplicate them here.
 | Component | Responsibility | Location |
 |---|---|---|
 | Web UI | React storefront. Routed today: `/`, `/meet-the-artist`, `/shop`, `/library`, `/library/:slug`, `/glossary`. | `frontend/src/` (`App.jsx`, `pages/`, `components/`) |
-| Home page | Live landing page + daylight/blacklight UV toggle. Hero is the big neon logo, tagline, two CTAs, a paired daylight/blacklight photo and Whitney's credit; then the Our Story / A Space for Makers copy blocks | `frontend/src/pages/Home.jsx`, `components/UvPhoto.jsx`, `styles/Home.css` |
+| Home page | Live landing page + daylight/blacklight UV toggle. Hero is the big neon logo, tagline, two CTAs, a paired daylight/blacklight photo and Whitney's credit; then four copy blocks in her running order — What We Believe (seven values), Our Story, Our Jewelry, A Space for Makers. Nothing follows them; the old Featured / Why-it-glows / Meet-the-Artist bands were cut on her instruction | `frontend/src/pages/Home.jsx`, `components/UvPhoto.jsx`, `styles/Home.css` |
 | Meet the Artist | Artist bio page (scaffold): 3 images + text body, shared nav/footer | `frontend/src/pages/MeetTheArtist.jsx`, `styles/MeetTheArtist.css` |
 | Library | Searchable knowledge base from Markdown. Index + per-article pages: `/library` lists all entries, `/library/:slug` shows one article on its own shareable URL; shared shell (search + Most-viewed + Contents rail) with copy-link + view counts | `frontend/src/pages/Library.jsx`, `public/library.md`, `public/library-media/`, `scripts/docx_to_library_md.py` |
 | Shared UI | Site header/footer + UV-mode context reused across pages. The nav is a text wordmark on its own line, then one row of links (current page's own link filtered out) with the UV toggle and four inert utility icons at the right. The social band under it is Facebook + Instagram only (`connectSocials`), while the footer keeps the full `socials` list | `frontend/src/components/Site{Header,Footer}.jsx`, `components/navIcons.jsx`, `components/socials.js`, `context/UvMode.jsx`, `lib/api.js` |
@@ -141,6 +141,40 @@ as a hard blocker before real stock data goes live (see Known Traps).
   in `routes/inventory.js`).
 - No auth exists on `/api/inventory/*` or `/admin/inventory` yet — do not treat this as
   production-ready for real stock data until an admin-auth gate is added.
+- **`UvMode` already defaults to blacklight** (`context/UvMode.jsx`) — it returns
+  `'blacklight'` unless `localStorage` holds a valid saved mode. A report that "the site
+  opens in daylight" is a *persisted visitor preference*, not a wrong default, and changing
+  the default constant will not fix it. Whether the saved preference should be honoured at
+  all is an open product call (board #38).
+- **`--glow-strong` is all one green on purpose (board #45).** Its innermost layer used
+  to be a pale mint `--halo` (`#b9ffbc`), which bloomed over glyphs and made the hero
+  tagline read as a whiter green than the rest of the accent text — a colour mismatch
+  that no `color` value explains, since every accent element already resolves to the same
+  `var(--accent)`. `--halo` is gone; don't reintroduce a light inner layer on text glow.
+- **Each mode is three steps of ONE hue** (board #46) — `--bone` s49/l90, `--accent`
+  s100/l49–71, `--muted` s45/l62, all on the same hue (h120 blacklight, h75 daylight).
+  Emphasis is carried by saturation and lightness, never by hue. If you add a colour,
+  place it on that ramp rather than introducing a new hue.
+- **The two modes are anchored in opposite directions, on purpose.** In blacklight the
+  hero logo is the reference: it renders **unfiltered** at its native `rgb(0, 251, 0)`
+  and `--uranium` is set to that exact value, so type matches the artwork. In daylight the
+  logo is filtered to the accent instead, because matching type to the daylight logo would
+  mean `#97b819` — the dull dark olive Whitney rejected in board #36. Don't "fix" the
+  asymmetry by filtering the blacklight logo or dulling the daylight accent.
+- Retuning a logo filter: the artwork has **no red or blue**, so `saturate()` **below 1**
+  is what adds them (desaturation moves a colour toward its luminance grey) and
+  `brightness()` then restores the green channel. Measure by rendering the image through
+  `canvas.filter` and sampling the brightest pixel — a CSS filter cannot be read back off
+  a rendered element.
+- `.values-grid` (the What We Believe block) is **flex-wrap, not CSS grid, on purpose**.
+  Seven cards leave a partial last row, and `grid-template-columns: repeat(auto-fit, …)`
+  does not centre it — `auto-fit` collapses a track only when that track is empty across
+  the whole grid, so the seventh card pins to column 1. Don't "tidy" this back into a grid.
+- `Home.css` owns `.piece-grid` / `.piece-card`, but **Meet the Artist is now their only
+  consumer** — Home stopped using them when its Featured band was cut (board #27). They are
+  not dead code. `.glow-story`, `.story-img`, `.story-copy`, `.story-link` and
+  `.artist-feature` in the same file genuinely are dead, and are kept only because deleting
+  them is cleanup unrelated to the copy change that orphaned them.
 - `UvMode` itself only drives CSS custom properties and filters. For a piece photographed in
   both states, use `components/UvPhoto.jsx` instead — it stacks the two photos and crossfades
   between them, and takes asset paths *without* the width suffix

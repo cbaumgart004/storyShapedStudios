@@ -18,7 +18,7 @@ Main technologies:
 0. Read existing project docs first: `README.md`.
 1. Read `docs/AI_CONTEXT.md`.
 2. Read `docs/CURRENT_WORK.md`.
-3. Use `.claude/context/repo-map.md` for orientation.
+3. Use `docs/AI_CONTEXT.md` as the orientation map (layout, components, API, known traps).
 4. Read actual source files before editing them.
 5. Do not read the entire repository unless the task requires it.
 

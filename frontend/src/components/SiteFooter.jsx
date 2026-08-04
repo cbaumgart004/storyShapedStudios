@@ -20,7 +20,11 @@ export default function SiteFooter() {
           </a>
         ))}
       </div>
-      <p className="footer-note">StoryShaped Studios</p>
+      {/* Year is derived, not hardcoded, so the notice does not go stale
+          (board #31). Whitney asked for this twice in the notes doc. */}
+      <p className="footer-note">
+        &copy; {new Date().getFullYear()} StoryShaped Studios
+      </p>
     </footer>
   )
 }
