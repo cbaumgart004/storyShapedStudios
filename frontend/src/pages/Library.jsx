@@ -34,7 +34,7 @@ import ReactMarkdown from 'react-markdown'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
-import { API_BASE } from '@/lib/api'
+import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
 import '@/styles/Library.css'
 
@@ -180,6 +180,7 @@ export default function Library() {
 
   // Pull global view counts from the backend; fall back to localStorage on error.
   useEffect(() => {
+    if (!HAS_BACKEND) return
     let active = true
     fetch(`${API_BASE}/api/library/views`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))

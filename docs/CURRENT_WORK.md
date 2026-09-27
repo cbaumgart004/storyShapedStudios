@@ -589,8 +589,9 @@ so the window is four working days. Nothing below is started.
 - **Go-Live scope (decided 2026-09-27):** only the frontend moves before Go-Live.
   Production calls no Railway backend. Not by leaving `VITE_API_URL` unset:
   `lib/api.js` then falls back to `http://localhost:3000`, which a visitor's
-  browser may meet with a local-network permission prompt (unverified). Needs
-  an explicit "no backend" build instead;
+  browser may meet with a local-network permission prompt (unverified). Built
+  with `VITE_API_URL=none` instead (`lib/api.js` exports `HAS_BACKEND`; Library
+  and Shop skip their fetches, `apiFetch` throws);
   Library view counts fall back to the visitor's browser (`Library.jsx` catches
   the failed fetch). The backend moves to AWS with the inventory work.
 - **`/shop` hidden from the nav for Go-Live** (it calls the backend). Separately,

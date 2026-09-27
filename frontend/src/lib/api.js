@@ -1,13 +1,18 @@
 // src/lib/api.js
 // Base URL for the backend API. In production set VITE_API_URL to the deployed
 // backend origin (e.g. https://xxx.up.railway.app); locally it defaults to the
-// dev server on port 3000.
+// dev server on port 3000. VITE_API_URL=none builds a site with no backend
+// (Go-Live): callers check HAS_BACKEND and skip the request instead of letting
+// a visitor's browser try localhost.
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const configured = import.meta.env.VITE_API_URL
+export const HAS_BACKEND = configured !== 'none'
+export const API_BASE = HAS_BACKEND ? configured || 'http://localhost:3000' : ''
 
 // Small JSON fetch helper for pages that make repeated API calls (GET/POST/
 // PATCH/DELETE) instead of hand-rolling fetch() at each call site.
 export async function apiFetch(path, options = {}) {
+  if (!HAS_BACKEND) throw new Error('This build has no backend.')
   const { body, headers, ...rest } = options
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,

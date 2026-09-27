@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import EtsyItemCard from '@/components/shop/EtsyItemCard'
 import EbayItemCard from '@/components/shop/EbayItemCard' // You'll create this next
-import { API_BASE } from '@/lib/api'
+import { API_BASE, HAS_BACKEND } from '@/lib/api'
 
 const Shop = () => {
   console.log('🌿 Shop page loaded')
@@ -11,6 +11,7 @@ const Shop = () => {
   const [ebayListings, setEbayListings] = useState([])
 
   useEffect(() => {
+    if (!HAS_BACKEND) return
     // Fetch Etsy mock listing
     fetch(`${API_BASE}/api/etsy/mock-listing`)
       .then((res) => res.json())
