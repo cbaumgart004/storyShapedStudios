@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, backend half superseded by ADR-0005
 ---
 
 # Host on AWS: Amplify for the frontend, Lightsail for the backend

@@ -578,6 +578,11 @@ so the window is four working days. Nothing below is started.
   backend is a second process on the same Lightsail instance, against a Neon
   branch. See `docs/adr/0001-host-on-aws-amplify-and-lightsail.md`.
 - Open: who holds the AWS account.
+- **Superseded 2026-09-27 by `docs/adr/0005-free-first-hosting-stack.md`:** the
+  backend goes to Lambda, not Lightsail, once the Etsy/eBay tokens move into Neon;
+  logins use Neon Auth; uploaded photos go to S3. The Lightsail bullets above are
+  kept for history. The admin console is shared with other client sites
+  (`docs/adr/0006-shared-admin-console.md`).
 - **Why AWS (decided 2026-09-27):** Vercel Hobby is non-commercial only and
   Railway Hobby is aimed at personal projects; this is a business site. The move
   is a compliance requirement, so it is on the Go-Live path.
@@ -599,6 +604,11 @@ so the window is four working days. Nothing below is started.
   any rejected reasons, before deciding.
 - Then outline a project plan for an in-house editor: scope, content model,
   storage (repo vs Neon), auth, preview flow into the E1 preview environment.
+- **TinaCMS rejected (2026-09-27):** the client found its editing UI unusable,
+  and it cannot carry the site's branding. Proposed storage and auth (Neon, Neon
+  Auth) are in `docs/adr/0005-free-first-hosting-stack.md`. The editor is now a
+  console shared with LiveSpiritSeeds and future sites:
+  `docs/adr/0006-shared-admin-console.md`.
 
 **E3. Inventory API: finish Phase 1 and wire to marketplaces.**
 - Verify the Track A API end to end against Neon (still unverified).
