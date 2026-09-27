@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StoryShaped Deployment Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  /* Daylight palette (light) */
+  :root {
+    --bg: #f6f8f0;
+    --surface: #ffffff;
+    --ink: #17240f;
+    --muted: #4f6440;
+    --line: #d6e0c8;
+    --accent: #2fae37;
+    --accent-ink: #0d3b10;
+    --band: linear-gradient(135deg, #0b140b 0%, #123d14 100%);
+    --band-ink: #d9ff6b;
+    --glow: none;
+    --warn-bg: #fff4d6;
+    --warn-ink: #6b4a00;
+    --chip-bg: #e7f5d0;
+  }
+  /* Blacklight palette (dark) */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #070a07;
+      --surface: #0f150f;
+      --ink: #e6f5d8;
+      --muted: #b3ca73;
+      --line: #203020;
+      --accent: #00fb00;
+      --accent-ink: #d9ff6b;
+      --band: linear-gradient(135deg, #000000 0%, #0b2a0c 100%);
+      --band-ink: #d9ff6b;
+      --glow: 0 0 10px rgba(0, 251, 0, 0.45);
+      --warn-bg: #2a2206;
+      --warn-ink: #ffd76b;
+      --chip-bg: #16240f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #070a07;
+    --surface: #0f150f;
+    --ink: #e6f5d8;
+    --muted: #b3ca73;
+    --line: #203020;
+    --accent: #00fb00;
+    --accent-ink: #d9ff6b;
+    --band: linear-gradient(135deg, #000000 0%, #0b2a0c 100%);
+    --band-ink: #d9ff6b;
+    --glow: 0 0 10px rgba(0, 251, 0, 0.45);
+    --warn-bg: #2a2206;
+    --warn-ink: #ffd76b;
+    --chip-bg: #16240f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 Inter, system-ui, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+
+  header { background: var(--band); color: var(--band-ink); padding: 28px 0 24px; }
+  header .wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  header img { height: 64px; width: auto; }
+  h1, h2 { font-family: 'Poiret One', 'Futura', sans-serif; font-weight: 400; letter-spacing: 0.02em; }
+  h1 { margin: 0; font-size: 32px; text-shadow: 0 0 12px rgba(217, 255, 107, 0.45); }
+  header p { margin: 4px 0 0; opacity: 0.85; }
+  h2 { font-size: 24px; margin: 36px 0 12px; color: var(--accent-ink); }
+
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 24px; }
+  .fig { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .fig b { display: block; font-family: 'Poiret One', sans-serif; font-size: 28px; color: var(--accent); text-shadow: var(--glow); }
+  .fig span { color: var(--muted); font-size: 13px; }
+
+  .open { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 14px 18px; margin-top: 20px; }
+  .open h3 { margin: 0 0 6px; font-size: 15px; }
+  .open ul { margin: 0; padding-left: 18px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th { background: var(--band); color: var(--band-ink); text-align: left; font-weight: 600; font-size: 13px; padding: 10px 12px; }
+  td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  .tier { display: inline-block; background: var(--chip-bg); border-radius: 999px; padding: 1px 9px; font-size: 12.5px; }
+  .unv { color: var(--warn-ink); background: var(--warn-bg); border-radius: 4px; padding: 0 5px; font-size: 12px; font-weight: 600; }
+  .edit { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 3px; padding: 0 4px; }
+
+  ol.road { padding-left: 0; list-style: none; counter-reset: s; }
+  ol.road li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 12px 52px; margin-bottom: 8px; position: relative; }
+  ol.road li::before { content: counter(s); position: absolute; left: 14px; top: 11px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 600; text-align: center; line-height: 26px; }
+  ol.road .who { color: var(--muted); font-size: 13px; }
+  .later li { margin-bottom: 4px; }
+
+  footer { color: var(--muted); font-size: 13px; padding: 28px 0 40px; }
+  a { color: var(--accent-ink); }
+
+  @media (max-width: 720px) {
+    table, thead, tbody, tr, td { display: block; }
+    thead { display: none; }
+    tr { border-top: 1px solid var(--line); padding: 8px 0; }
+    td { border: 0; padding: 4px 12px; }
+    td:first-child { white-space: normal; font-size: 16px; }
+    td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-weight: 600; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img src="../frontend/public/assets/StoryShapedStudiosNeonGlow_Rect.png" alt="StoryShaped Studios">
+    <div>
+      <h1>Deployment Plan</h1>
+      <p>Roadmap for Go-Live, Thursday 1 October 2026. Front-end steps complete 27 September 2026.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="figures">
+    <div class="fig"><b>$0</b><span>Monthly hosting at current traffic (estimate)</span></div>
+    <div class="fig"><b>6</b><span>Hosting services, each on a free tier</span></div>
+    <div class="fig"><b>~1.8 GB</b><span>Photo storage of 5 GB free (estimate: 616 listings, 10 photos each)</span></div>
+    <div class="fig"><b>1 Oct</b><span>Go-Live: front end only; backend follows</span></div>
+    <div class="fig"><b>5</b><span>Items still open (below)</span></div>
+  </div>
+
+  <div class="open">
+    <h3>Still open</h3>
+    <ul>
+      <li>Who holds the AWS account. It is not created yet.</li>
+      <li>Domain, registrar and expiry date: to be filled in (marked with a dashed outline below).</li>
+      <li>Whether Amplify's free allowances are permanent: <span class="unv">unverified</span>. A $1 budget alert catches it.</li>
+      <li>Whether a login's admin role reaches the database's access rules: <span class="unv">unverified</span>. Fallback: an admins table.</li>
+      <li>Admin logins have no two-factor sign-in until Neon ships it ("coming soon").</li>
+    </ul>
+  </div>
+
+  <h2>Where each element lives</h2>
+  <table>
+    <thead>
+      <tr><th>Element</th><th>Lives on</th><th>Tier</th><th>Limits</th><th>Considerations</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Domain and DNS</td>
+        <td data-l="Lives on">Porkbun (registrar and DNS)</td>
+        <td data-l="Tier"><span class="edit">DOMAIN</span><br>Expires <span class="edit">DATE</span></td>
+        <td data-l="Limits">Renewal date above</td>
+        <td data-l="Considerations">Points at Amplify at cutover. Vercel stays live until production is verified, so the switch can be reversed.</td>
+      </tr>
+      <tr>
+        <td>AWS account</td>
+        <td data-l="Lives on">AWS</td>
+        <td data-l="Tier"><span class="tier">Paid plan</span></td>
+        <td data-l="Limits">$100 credit at signup, up to $100 more for onboarding tasks</td>
+        <td data-l="Considerations">The Free plan closes the account after 6 months unless upgraded, so a production site takes the Paid plan. Unused credits carry over. Turn on root MFA and a $1 budget alert on day one.</td>
+      </tr>
+      <tr>
+        <td>Front end</td>
+        <td data-l="Lives on">AWS Amplify Hosting, built from GitHub</td>
+        <td data-l="Tier"><span class="tier">Free allowances</span></td>
+        <td data-l="Limits">1,000 build minutes, 5 GB stored and 15 GB served a month. Beyond that: $0.01/build minute, $0.023/GB stored, $0.15/GB served</td>
+        <td data-l="Considerations">Deploys switch over only when complete, so no downtime. <code>main</code> is production; <code>preview</code> is password-protected for Whitney. Go-Live builds with <code>VITE_API_URL=none</code>.</td>
+      </tr>
+      <tr>
+        <td>Database</td>
+        <td data-l="Lives on">Neon Postgres, <code>aws-us-east-1</code></td>
+        <td data-l="Tier"><span class="tier">Free</span> now, <span class="tier">Launch</span> once real stock is stored</td>
+        <td data-l="Limits">Free: 100 compute-hours, 0.5 GB, 10 branches, 5 GB egress, 6 h restore. Launch: $0.106/compute-hour, $0.35/GB-month, 7-day restore</td>
+        <td data-l="Considerations">Free never bills; it suspends at the limit. It sleeps after 5 idle minutes and wakes on the next query. Preview uses its own Neon branch, so testing never touches real stock.</td>
+      </tr>
+      <tr>
+        <td>Logins</td>
+        <td data-l="Lives on">Neon Auth (managed Better Auth)</td>
+        <td data-l="Tier"><span class="tier">Free</span></td>
+        <td data-l="Limits">60,000 monthly active users</td>
+        <td data-l="Considerations">Users live in our own database. Admin plugin supported; two-factor sign-in "coming soon".</td>
+      </tr>
+      <tr>
+        <td>Admin console</td>
+        <td data-l="Lives on">Our own React app at <code>/admin</code>, shared across client sites</td>
+        <td data-l="Tier"><span class="tier">$0</span></td>
+        <td data-l="Limits">None beyond the database's</td>
+        <td data-l="Considerations">Replaces TinaCMS. Branded with StoryShaped's tokens. Edits save as draft or published and appear at once, with no rebuild.</td>
+      </tr>
+      <tr>
+        <td>Backend: inventory, Etsy and eBay</td>
+        <td data-l="Lives on">AWS Lambda</td>
+        <td data-l="Tier"><span class="tier">Always free</span></td>
+        <td data-l="Limits">1M requests and 400,000 GB-seconds a month</td>
+        <td data-l="Considerations">After Go-Live. Etsy/eBay tokens move from files into Neon first. OAuth secrets live in Lambda settings, never in code.</td>
+      </tr>
+      <tr>
+        <td>Scheduled marketplace sync</td>
+        <td data-l="Lives on">EventBridge Scheduler</td>
+        <td data-l="Tier"><span class="tier">Free tier</span></td>
+        <td data-l="Limits">14M runs a month, then $1 per million</td>
+        <td data-l="Considerations">A sync every 15 minutes is about 3,000 runs a month: under a cent even if billed.</td>
+      </tr>
+      <tr>
+        <td>Uploaded photos</td>
+        <td data-l="Lives on">S3, served through a CloudFront flat-rate plan</td>
+        <td data-l="Tier"><span class="tier">Flat-rate Free</span></td>
+        <td data-l="Limits">5 GB S3 credit, 1M requests, 100 GB transfer. 3 Free plans per AWS account. No overage charges</td>
+        <td data-l="Considerations">Photos are resized in the browser before upload. Live the moment the upload ends. Sharing the domain with Amplify: <span class="unv">unverified</span>. Site design images stay in GitHub.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Today: front end to Go-Live</h2>
+  <ol class="road">
+    <li>Fill in the domain, registrar and expiry date on this page. <span class="who">Chris</span></li>
+    <li>Create the AWS account on the Paid plan; turn on root MFA and a $1 budget alert. <span class="who">Chris</span></li>
+    <li>Commit the no-backend build change (built and checked; awaiting commit). <span class="who">Claude</span></li>
+    <li>Create the Amplify app from GitHub: <code>main</code> as production with <code>VITE_API_URL=none</code>, and a password-protected <code>preview</code> branch. <span class="who">Claude, with account access</span></li>
+    <li>Check production on its Amplify address: Home, Library, and that no page calls a backend. <span class="who">Chris</span></li>
+    <li>Point the domain at Amplify in Porkbun and confirm HTTPS. <span class="who">Chris</span></li>
+    <li>Keep Vercel and Railway running until production is verified, then retire them. <span class="who">Chris</span></li>
+  </ol>
+
+  <h2>After Go-Live</h2>
+  <ul class="later">
+    <li>Move Etsy/eBay tokens into Neon, then the backend onto Lambda.</li>
+    <li>Neon Auth login and the admin gate on inventory.</li>
+    <li>S3 photo uploads and the shared admin console.</li>
+    <li>Neon Launch plan once real stock is stored.</li>
+  </ul>
+
+</main>
+
+<footer class="wrap">
+  Prices and limits read from the vendors' pages on 27 September 2026 unless marked unverified. Decisions and sources:
+  <code>docs/adr/0005-free-first-hosting-stack.md</code>, <code>docs/adr/0006-shared-admin-console.md</code>.
+</footer>
+
+</body>
+</html>
