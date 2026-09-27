@@ -605,7 +605,7 @@ so the window is four working days. Nothing below is started.
 - Then outline a project plan for an in-house editor: scope, content model,
   storage (repo vs Neon), auth, preview flow into the E1 preview environment.
 - **TinaCMS rejected (2026-09-27):** the client found its editing UI unusable,
-  and it cannot carry the site's branding. Proposed storage and auth (Neon, Neon
+  and it cannot carry the site's branding. Storage and auth (Neon, Neon
   Auth) are in `docs/adr/0005-free-first-hosting-stack.md`. The editor is now a
   console shared with LiveSpiritSeeds and future sites:
   `docs/adr/0006-shared-admin-console.md`.
