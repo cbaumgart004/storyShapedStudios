@@ -1,6 +1,6 @@
 # Current Work
 
-Last updated: 2026-08-03
+Last updated: 2026-09-27
 
 ## Work Tracks
 
@@ -10,6 +10,7 @@ Last updated: 2026-08-03
 | B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #22 |
 | C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25, #26 shipped; signed off by Whitney |
 | D | Customer layout revision (her 2026-08-03 review) | `260803_Customer_Layout_Revision` (off `library-mobile-update`) | Content chunk shipped; visual tweaks open |
+| E | Go-Live 2026-10-01: hosting, inventory, marketplace, editor | not started | To-do list + timetable only |
 
 **One preview branch.** Whitney reviews a single preview site, so front-end work
 stacks onto the current head of that chain rather than branching off `main` — do
@@ -70,7 +71,9 @@ Committed to `main` as `292741b` ("Inventory: Phase 1 foundation").
 - **No DB-level `CHECK (quantity >= 0)`** — a hard floor would roll back a
   whole sale transaction on bookkeeping drift. Negative/low stock is a signal
   (surfaced via `/components/low-stock`), not a blocking rule.
-- **A quantity *increase* does not consume components** — only a *decrease*
+- **Superseded 2026-09-27 by `docs/adr/0003-components-leave-stock-at-build.md`:
+  components now leave at Build, not Sale.** Original entry kept for history:
+  **A quantity *increase* does not consume components** — only a *decrease*
   prorates the BOM down. Restocking a finished item is "more pre-made stock
   arrived," not an assembly event. Flagged for the user to confirm before any
   future "record a production run" workflow is built.
@@ -443,6 +446,19 @@ Her seven visual notes are then all in:
   alphas cut, `--glow-1` from `6px @ 0.9` to `5px @ 0.7`, and the hardcoded
   `.btn-primary:hover` halo pulled in to match.
 
+**2026-09-27 pass, from the doc's 2026-08-04 section** (all in
+`components/SiteHeader.jsx` plus one `Home.css` rule):
+
+- **#39**: the "StoryShapedStudios" wordmark no longer renders on Home, where
+  the hero logo carries the brand; every other page keeps it. The 08-04 note
+  confirms the earlier guess that this was the nav site title.
+- The utility icons (search, sign in, wishlist, cart) moved out of the nav bar
+  into the social band after a rule, and the "Connect With Us" heading is gone.
+  `.sss-nav-utils` and `.sss-social-head` rules are now dead CSS, left in place.
+- Shop is out of the nav for Go-Live (Track E, E1); the route remains.
+- Still open from 08-04: the colour shift (#47, needs a direction) and "tweaking
+  on coloration writ large" (no target given). Build clean; **no visual pass run**.
+
 ## Decisions Already Made
 
 - **Her copy ships verbatim, including the parts flagged in #41.** The grammar
@@ -523,9 +539,7 @@ them as settled.
   seeing her own saved preference. Needs her to choose: clear her site data, or
   drop the persistence so every visit opens in blacklight regardless of what the
   visitor last picked.
-- **#39** — "remove this for the home page but make it appear on the other
-  pages", anchored to a screenshot that did not survive extraction. Probably the
-  nav site title. Do not guess.
+- **#39**: resolved 2026-09-27, see below.
 - **#40** — Our Story still trails off mid-word ("…here (hy"), unchanged from
   the previous revision. Link target still assumed to be `/meet-the-artist`.
 - **#41** — the grammar and redundancy notes she asked for are written and need
@@ -534,6 +548,151 @@ them as settled.
   world's leading authority", where a fascination cannot become an authority.
 - **#42** — Featured Collection and Newly Added bands, deferred by her until her
   products are sorted.
+
+---
+
+# Track E: Go-Live 2026-10-01
+
+## Objective
+
+Take the site live on **Thursday 2026-10-01**. Recorded 2026-09-27 (a Sunday),
+so the window is four working days. Nothing below is started.
+
+## To-Do
+
+**E1. Hosting: migrate Railway (backend) and Vercel (frontend) to AWS.**
+- Two environments, both shareable with Whitney: **production** from `main`,
+  and a **preview** from a designated preview branch (today that role is played
+  by the head of the branch chain above).
+- Each needs its own `DATABASE_URL` and `VITE_API_URL`; the latter is baked in
+  at build time, so each environment builds separately.
+- Keep Railway/Vercel running until AWS production is verified, so cutover is a
+  DNS switch that can be reversed. Neon stays as the database.
+- **Hosting layout (decided 2026-09-27):** frontend and its images on Amplify,
+  built from GitHub (images stay in `frontend/public/assets/` for now); backend
+  on a Lightsail instance (~$5/mo), because Etsy/eBay tokens are file-persisted
+  (`utils/*TokenStorage.js`) and Lambda or a Lightsail container would lose them;
+  database stays on Neon; domain and DNS stay at Porkbun, pointed at Amplify.
+- **Preview (decided 2026-09-27):** a long-lived `preview` branch on Amplify,
+  password-protected, replaces the stacked branch chain once it exists. Its
+  backend is a second process on the same Lightsail instance, against a Neon
+  branch. See `docs/adr/0001-host-on-aws-amplify-and-lightsail.md`.
+- Open: who holds the AWS account.
+- **Why AWS (decided 2026-09-27):** Vercel Hobby is non-commercial only and
+  Railway Hobby is aimed at personal projects; this is a business site. The move
+  is a compliance requirement, so it is on the Go-Live path.
+- **Go-Live scope (decided 2026-09-27):** only the frontend moves before Go-Live.
+  Production calls no Railway backend. Not by leaving `VITE_API_URL` unset:
+  `lib/api.js` then falls back to `http://localhost:3000`, which a visitor's
+  browser may meet with a local-network permission prompt (unverified). Needs
+  an explicit "no backend" build instead;
+  Library view counts fall back to the visitor's browser (`Library.jsx` catches
+  the failed fetch). The backend moves to AWS with the inventory work.
+- **`/shop` hidden from the nav for Go-Live** (it calls the backend). Separately,
+  `pages/Shop/index.jsx` fetches `/api/etsy/mock-listing` but the route is
+  `/api/mock/etsy/mock-listing`, so that call already 404s.
+
+**E2. In-house page editor (replacing the planned TinaCMS).**
+- Review TinaCMS limitations against what this site needs (Git-backed content,
+  editing the Library Markdown and Home copy, the daylight/blacklight photo
+  pairs, auth for Whitney as a non-developer). Record the findings, including
+  any rejected reasons, before deciding.
+- Then outline a project plan for an in-house editor: scope, content model,
+  storage (repo vs Neon), auth, preview flow into the E1 preview environment.
+
+**E3. Inventory API: finish Phase 1 and wire to marketplaces.**
+- Verify the Track A API end to end against Neon (still unverified).
+- Add the admin-auth gate on `/api/inventory/*` and `/admin/inventory`. This is
+  a hard blocker for real stock data (see `AI_CONTEXT.md` Known Traps).
+- Wire to Etsy and eBay: OAuth and token validation exist in `server.js`;
+  listing sync and sale webhooks do not. A sale should enter through the single
+  `PATCH /items/:id/quantity` endpoint (Track A decision).
+- **Field ownership (decided 2026-09-27):** the site owns count, SKU, price,
+  title, description and photos and pushes them to both Marketplaces; category,
+  shipping profile and tags stay on each Marketplace for now. The goal is for
+  the site to own everything: today every edit is made twice, on Etsy and on
+  eBay, which is slow and error-prone. Once a field is owned here, Marketplace
+  edits to it are overwritten, so Whitney (who edits on Etsy today) moves her
+  edits here. Reconciliation waits until the wiring is complete.
+
+**E4a. Merge items and components into one Stock Item table (decided
+2026-09-27, `docs/adr/0002-one-stock-item-table.md`).** Components are sold on
+their own with their own SKUs, so they cannot live in a separate table. Must
+land before E6's backfill.
+
+**E4. Components tracked on every product.** New and existing products are
+built from components that must be tracked. The schema for this already exists
+(`inventory_components` + `inventory_bom`); the work is entering a BOM for every
+product, including the backfilled ones from E6.
+
+**E5. Inventory columns: Previous, Calculated, Actual.**
+- **Previous**: quantity before the last change. **Calculated**: what the system
+  derives from Previous and the recorded sales/decrements. **Actual**: a
+  physical count that, when entered, overrides Calculated.
+- **Decided 2026-09-27** (terms in `CONTEXT.md`): Previous is the last Physical
+  Count; Calculated is derived from Previous plus the adjustment log, never
+  stored as typed input; entering Actual (any time, not on a schedule) logs a
+  Count Correction row for Actual minus Calculated and becomes the new Previous.
+  Applies to items and components. Quantities are whole numbers today (beads)
+  but must accept decimals: components already are `NUMERIC(12,3)`, items are
+  `INTEGER`.
+- Schema change still to design: where Previous and its count date live, and a
+  `reason` value for Count Corrections.
+- **Gap found:** `inventory_adjustments` has only `item_id` and `INTEGER`
+  columns, and the BOM decrement in `PATCH /items/:id/quantity` updates
+  component stock without logging it. Calculated cannot be derived for
+  components until component changes are logged too, with decimal deltas.
+
+**E6. Backfill existing inventory from Trunk.** Trunk app:
+`https://app.trunkinventory.com/inventory`. Trunk has no API, so data comes via
+an export or a scrape; which one is possible is **unverified**. Map Trunk fields
+onto Stock Items and BOMs.
+- **Model before import (decided 2026-09-27):** build the models that can hold
+  everything Etsy, eBay and Trunk know about each item before importing
+  anything, so Reconciliation is possible later without re-importing.
+  Shape: Listings with per-Variation links to Marketplace Listings, plus raw
+  Import Snapshots (`docs/adr/0004-site-owns-listing-shape.md`). Both
+  Marketplaces use variations today, with different rules. Every Variation is
+  its own SKU. Price lives on the Variation, with an optional per-Marketplace
+  override.
+- **Trunk syncs with Etsy and eBay today** (user report, **unverified**). If it
+  syncs quantity, it and the site would both write counts to the Marketplaces
+  once the site starts pushing, so Trunk's sync must be switched off the day
+  the site takes over.
+
+**E7. Resolve all formatting issues.** The full list is not enumerated yet.
+Known open: #47 (blacklight green), #40 (Our Story truncated), #6, and #36/#37
+awaiting Whitney's sign-off. #38, #39, #41, #42 are blocked on her (Track D).
+
+**E8. Light/Blacklight image index.** Future uploads need an index recording,
+per image, its daylight and blacklight versions, so the toggle is applied from
+data rather than by hand-pairing paths in `UvPhoto` calls. Should feed the
+`resize_asset.py` pipeline and the E2 editor's upload flow.
+
+**E9. Design review with AI tools.** Evaluate design applications/AI agents to
+punch up the design within the current template parameters: the one-hue ramp
+per mode (`--bone`/`--accent`/`--muted`), the glow tokens, and the logo anchoring
+rules in `AI_CONTEXT.md` Known Traps. Output is proposals for Whitney, not
+direct edits.
+
+## Timetable (proposed, not agreed)
+
+Four days cannot hold all of E1 to E9. Proposed split: go-live carries what a
+public, shoppable site cannot launch without; the rest follows.
+
+| Date | Work |
+|---|---|
+| Sun 09-27 | E1 AWS decisions + both environments stood up; E7 list enumerated |
+| Mon 09-28 | E3 end-to-end verify + auth gate; E5 schema designed and migrated |
+| Tue 09-29 | E6 Trunk backfill (needs the URL); E4 BOMs for backfilled items |
+| Wed 09-30 | E7 fixes Whitney has signed off; preview review with her; E1 production verified on AWS |
+| Thu 10-01 | **Go-live:** DNS cutover to AWS production; Railway/Vercel kept as fallback |
+| After | E3 Etsy/eBay sync, E2 TinaCMS review + editor plan, E8 image index, E9 design review |
+
+**Risks to the date:** E1 is the largest item and the one that can take the
+site down; if AWS is not verified by 09-30, go live on the existing
+Railway/Vercel hosting and migrate afterwards. E6 is blocked until the Trunk URL
+arrives. E7 depends on Whitney's turnaround.
 
 ---
 

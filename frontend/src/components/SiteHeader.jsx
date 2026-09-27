@@ -5,17 +5,19 @@
 // <div className="sss-home" data-mode={mode}> wrapper.
 //
 // Shape follows the reference site Whitney picked (satomikawakita.com): the
-// site title alone on the top line, then one row of links with the utility
-// icons pushed to the right. The neon logo lockup no longer appears in the bar
-// at all — on home it runs full size in the hero, and elsewhere the wordmark
-// carries the branding.
+// site title alone on the top line, then one row of links. The neon logo
+// lockup no longer appears in the bar at all. On home it runs full size in the
+// hero, so the wordmark is dropped there too (board #39); elsewhere the
+// wordmark carries the branding.
 //
 // The link matching the current page is dropped from the row, so the nav never
 // offers you the page you are already on.
 //
-// Pass `featured` on the home page to render the big, bold "Connect With Us"
-// social band; every other page gets the compact strip. The band is Facebook +
-// Instagram only — the footer keeps the full list with Etsy/eBay.
+// The social band under the nav carries the social links and, after a rule,
+// the utility icons (moved out of the nav bar per the 2026-08-04 notes). Pass
+// `featured` on the home page for the big band; every other page gets the
+// compact strip. The band is Facebook + Instagram only; the footer keeps the
+// full list with Etsy/eBay.
 
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -23,11 +25,12 @@ import { useUvMode } from '@/context/UvMode'
 import { connectSocials } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
 
-// Order matters on a phone: the row is a 3-up grid, so this list plus the UV
-// toggle at the end reads Home | Glossary | Images / Shop | Meet the Artist |
-// toggle. One link is always filtered out (the page you are on), so the six
-// routed pages become five links + the toggle = two full rows of three. A page
-// outside this list drops nothing and leaves a short third row — harmless.
+// Order matters on a phone: the row is a 3-up grid with the UV toggle as its
+// last cell. One link is always filtered out (the page you are on), so four
+// links + the toggle leave a short second row, which is harmless.
+//
+// Shop is hidden for Go-Live (CURRENT_WORK Track E, E1): the page is an empty
+// scaffold and selling is not part of the launch. The route still exists.
 const NAV_LINKS = [
   { to: '/', label: 'Home' },
   { to: '/library', label: 'Library' },
@@ -35,7 +38,6 @@ const NAV_LINKS = [
   // No /images route exists yet, so this renders inert rather than as a dead
   // link. Give it a `to` and drop `soon` once the gallery page lands.
   { to: '/images', label: 'Images', soon: true },
-  { to: '/shop', label: 'Shop' },
   { to: '/meet-the-artist', label: 'Meet the Artist' },
 ]
 
@@ -73,9 +75,11 @@ export default function SiteHeader({ featured = false }) {
   return (
     <>
       <header className="sss-nav">
-        <Link to="/" className="sss-wordmark">
-          StoryShaped Studios
-        </Link>
+        {pathname !== '/' && (
+          <Link to="/" className="sss-wordmark">
+            StoryShaped Studios
+          </Link>
+        )}
 
         <div className="sss-nav-bar">
           <nav className="sss-navlinks" aria-label="Primary">
@@ -97,32 +101,6 @@ export default function SiteHeader({ featured = false }) {
               </button>
             </span>
           </nav>
-
-          <div className="sss-nav-utils">
-            {/* Placeholders: the icons make the bar read finished, but none of
-                these features exist yet — search, accounts, the wishlist and
-                the cart are all still to build (board #22). They are real
-                buttons rather than links so nothing 404s, and they announce
-                themselves as unavailable. The divider goes with them. */}
-            {UTILITY_ICONS_VISIBLE && (
-              <>
-                <span className="sss-nav-sep" aria-hidden="true" />
-                {utilityIcons.map(({ label, Icon }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    className="sss-nav-util"
-                    aria-disabled="true"
-                    aria-label={`${label} — coming soon`}
-                    title={`${label} — coming soon`}
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <Icon />
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
         </div>
       </header>
 
@@ -130,9 +108,6 @@ export default function SiteHeader({ featured = false }) {
         className={`sss-social-bar${featured ? ' is-featured' : ''}`}
         aria-label="Connect with StoryShaped Studios"
       >
-        {featured && (
-          <p className="sss-social-head">Connect With Us</p>
-        )}
         <div className="sss-social-icons">
           {connectSocials.map((s) => (
             <a
@@ -146,6 +121,30 @@ export default function SiteHeader({ featured = false }) {
               <img src={s.icon} alt={s.label} />
             </a>
           ))}
+
+          {/* Placeholders: none of these features exist yet (search,
+              accounts, the wishlist and the cart are all still to build,
+              board #22). They are real buttons rather than links so nothing
+              404s, and they announce themselves as unavailable. The rule
+              goes with them. */}
+          {UTILITY_ICONS_VISIBLE && (
+            <>
+              <span className="sss-nav-sep" aria-hidden="true" />
+              {utilityIcons.map(({ label, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="sss-nav-util"
+                  aria-disabled="true"
+                  aria-label={`${label}: coming soon`}
+                  title={`${label}: coming soon`}
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <Icon />
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </section>
     </>

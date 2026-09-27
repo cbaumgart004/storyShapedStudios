@@ -338,6 +338,16 @@ body {
   width: clamp(42px, 8vw, 56px);
   height: clamp(42px, 8vw, 56px);
 }
+/* Utility icons share the social row (moved out of the nav, 2026-08-04). The
+   line icons run a little under the social glyphs so the brand marks lead. */
+.sss-social-bar .sss-nav-util svg {
+  width: 22px;
+  height: 22px;
+}
+.sss-social-bar.is-featured .sss-nav-util svg {
+  width: clamp(28px, 5vw, 36px);
+  height: clamp(28px, 5vw, 36px);
+}
 
 /* UV toggle */
 .uv-toggle {
