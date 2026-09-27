@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, deployment superseded by ADR-0007
 ---
 
 # One schema-driven admin console, shared by every client site and branded per client
@@ -22,8 +22,11 @@ Future sites adopt one of these. Both have a front end and a back end.
 
 ## Decision
 
-- **One console package, many deployments.** It lives in its own repo and each site installs it at
-  `/admin`. It is not a multi-tenant service: one client's outage or data never reaches another.
+- ~~**One console package, many deployments.** It lives in its own repo and each site installs it at
+  `/admin`. It is not a multi-tenant service: one client's outage or data never reaches another.~~
+  **Superseded by [ADR-0007](0007-central-console-at-edge-of-the-map.md):** the console is
+  served from `admin.theedgeofthemap.com` as pinned versions and runs inside each site's own page;
+  isolation is kept by giving each client its own Neon project.
 - **Each site declares a schema.** Object types and their fields; the console generates list, edit
   and reorder screens from it. Field kinds: text, rich text, image, daylight/blacklight image pair,
   number, money, date, select, relation, and a block list for page sections.
