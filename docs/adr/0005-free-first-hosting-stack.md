@@ -127,10 +127,15 @@ whether "free" holds past this one.
 | Neon Free | Per project, 100 projects per org | Scales well: each site gets its own project and allowances |
 | Neon Auth | Per project | Each site has its own users |
 
-- **Proposed for later sites:** each client site runs in the **client's own AWS account**, which we operate through an
-  IAM role. Each account then gets its own free allowances and 3 flat-rate plans, the client's card
-  carries any cost, and a client who leaves takes their account with them. An AWS Organization does
-  not help here: its members share one free tier
+- **Decided 2026-09-27: client sites run in Edge of the Map's own AWS account for now.** The
+  owner sets up hosting, preview and logins; clients only sign in to the console. Asking a client to
+  open and secure an AWS account is setup work they should not carry. Cost: every site draws on one
+  account's free allowances, and the 3 flat-rate Free plans are used by StoryShaped, LiveSpiritSeeds
+  and Edge of the Map, so a fourth site needs Pro ($15/mo) or a second account. Any bill lands on the
+  owner's card.
+- ~~**Proposed for later sites:** each client site runs in the client's own AWS account.~~ Rejected
+  for now, above. It stays the exit route: a client who leaves can be moved into an account of their
+  own. An AWS Organization does not multiply allowances; its members share one free tier
   ([re:Post](https://repost.aws/questions/QUqw-vLvrJQEeW_n8INbFpSA/free-tier-and-aws-organizations-is-free-tier-consolidated-or-only-for-first-aws-account-under-organization)).
 - **The admin console becomes the product.** Build it once as a shared package with per-client theme
   tokens, deployed into each site, not a multi-tenant service. Each site stays isolated, and one

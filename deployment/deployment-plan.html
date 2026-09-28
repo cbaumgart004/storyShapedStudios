@@ -130,13 +130,12 @@
     <div class="fig"><b>6</b><span>Hosting services, each on a free tier</span></div>
     <div class="fig"><b>~1.8 GB</b><span>Photo storage of 5 GB free (estimate: 616 listings, 10 photos each)</span></div>
     <div class="fig"><b>1 Oct</b><span>Go-Live: front end only; backend follows</span></div>
-    <div class="fig"><b>5</b><span>Items still open (below)</span></div>
+    <div class="fig"><b>4</b><span>Items still open (below)</span></div>
   </div>
 
   <div class="open">
     <h3>Still open</h3>
     <ul>
-      <li>Who holds the AWS account. It is not created yet.</li>
       <li>Domain, registrar and expiry date: to be filled in (marked with a dashed outline below).</li>
       <li>Whether Amplify's free allowances are permanent: <span class="unv">unverified</span>. A $1 budget alert catches it.</li>
       <li>Whether a login's admin role reaches the database's access rules: <span class="unv">unverified</span>. Fallback: an admins table.</li>
@@ -159,7 +158,7 @@
       </tr>
       <tr>
         <td>AWS account</td>
-        <td data-l="Lives on">AWS</td>
+        <td data-l="Lives on">AWS, Edge of the Map's own account, shared by StoryShaped, LiveSpiritSeeds and Edge of the Map (ADR-0005)</td>
         <td data-l="Tier"><span class="tier">Paid plan</span></td>
         <td data-l="Limits">$100 credit at signup, up to $100 more for onboarding tasks</td>
         <td data-l="Considerations">The Free plan closes the account after 6 months unless upgraded, so a production site takes the Paid plan. Unused credits carry over. Turn on root MFA and a $1 budget alert on day one.</td>
@@ -220,8 +219,8 @@
   <ol class="road">
     <li>Fill in the domain, registrar and expiry date on this page. <span class="who">Chris</span></li>
     <li>Create the AWS account on the Paid plan; turn on root MFA and a $1 budget alert. <span class="who">Chris</span></li>
-    <li>Commit the no-backend build change (built and checked; awaiting commit). <span class="who">Claude</span></li>
-    <li>Create the Amplify app from GitHub: <code>main</code> as production with <code>VITE_API_URL=none</code>, and a password-protected <code>preview</code> branch. <span class="who">Claude, with account access</span></li>
+    <li>Commit the no-backend build change. Done (<code>f6c10ad</code>); <code>amplify.yml</code> added for the <code>frontend/</code> app root. <span class="who">Claude</span></li>
+    <li>Create the Amplify app from GitHub: <code>main</code> as production with <code>VITE_API_URL=none</code>, and a password-protected <code>preview</code> branch; tick "monorepo" with root <code>frontend</code>, and add the SPA rewrite (all non-file paths to <code>/index.html</code>, 200). <span class="who">Claude, with account access</span></li>
     <li>Check production on its Amplify address: Home, Library, and that no page calls a backend. <span class="who">Chris</span></li>
     <li>Point the domain at Amplify in Porkbun and confirm HTTPS. <span class="who">Chris</span></li>
     <li>Keep Vercel and Railway running until production is verified, then retire them. <span class="who">Chris</span></li>

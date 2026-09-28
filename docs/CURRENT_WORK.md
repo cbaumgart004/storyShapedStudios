@@ -10,13 +10,21 @@ Last updated: 2026-09-27
 | B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #22 |
 | C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25, #26 shipped; signed off by Whitney |
 | D | Customer layout revision (her 2026-08-03 review) | `260803_Customer_Layout_Revision` (off `library-mobile-update`) | Content chunk shipped; visual tweaks open |
-| E | Go-Live 2026-10-01: hosting, inventory, marketplace, editor | not started | To-do list + timetable only |
+| E | Go-Live 2026-10-01: hosting, inventory, marketplace, editor | `preview` | Plan settled; execution starts next session (below) |
 
 **One preview branch.** Whitney reviews a single preview site, so front-end work
 stacks onto the current head of that chain rather than branching off `main` — do
 not cut a new branch from `main` for review work. The chain is now
 `main` → `layout-updates` → `home-page-layout` → `library-mobile-update` →
 `260803_Customer_Layout_Revision`.
+
+**Next session starts Track E execution.** The plan is
+[`deployment/deployment-plan.html`](../deployment/deployment-plan.html) (steps and owners), with the
+reasons in [ADR-0005](adr/0005-free-first-hosting-stack.md) (stack; Chris hosts every client in his
+own AWS account), [ADR-0006](adr/0006-shared-admin-console.md) (console schema and brand) and
+[ADR-0007](adr/0007-central-console-at-edge-of-the-map.md) (console served from
+`admin.theedgeofthemap.com`, pinned per site, running in each site's page). Still needed from Chris
+before step 1: StoryShaped's domain and whether it is on Porkbun.
 
 ---
 
