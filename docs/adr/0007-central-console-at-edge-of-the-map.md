@@ -65,10 +65,16 @@ panel. The console is Edge of the Map's product, so its code lives on that domai
 - **Login runs first-party on each customer's domain.** Neon Auth's session cookie is
   `__Secure-neonauth.session_token`, `SameSite=None`, on the Neon Auth host, and Neon's JWT guide
   points to a reverse proxy or shared parent domain because Safari's tracking prevention blocks it as
-  a third-party cookie. So each customer site carries an Amplify reverse-proxy rewrite (status 200,
-  HTTPS target; a documented Amplify rule type) from a path such as `/_edit/auth/<*>` to Edge of the
-  Map's Neon Auth URL, ordered before the SPA catch-all. The cookie is then first-party on the
-  customer's domain. This is site configuration, not code, so it does not undo the no-rebuild rule.
+  a third-party cookie. So each customer site carries an Amplify rewrite (status 200) from
+  `/_edit/auth/<*>` to the console Lambda's `/auth/<*>`, ordered before the SPA catch-all, and the
+  Lambda forwards to Neon Auth. The cookie comes back without a `Domain` attribute, so it is
+  first-party on the customer's domain. This is site configuration, not code, so it does not undo the
+  no-rebuild rule.
+  - ~~Rewrite straight to Edge of the Map's Neon Auth URL.~~ **Withdrawn 2026-09-28:** Amplify adds
+    `X-Forwarded-Host` to proxied requests, and Neon Auth answers any request carrying that header
+    with 400 `INVALID_HOSTNAME`, whether or not the host is a trusted domain (verified with curl
+    against the control project's Auth URL). The Lambda rebuilds the request without it
+    (`edgeOfTheMap/console/api/auth-proxy.js`).
 - **The console's API trusts a bearer JWT, not a cookie.** Neon Auth puts a JWT in
   `session.access_token`; it is EdDSA (Ed25519), expires in 15 minutes, and any backend verifies it
   against `<NEON_AUTH_URL>/.well-known/jwks.json` with the issuer equal to that URL's origin (Neon's
@@ -78,10 +84,11 @@ panel. The console is Edge of the Map's product, so its code lives on that domai
 - **Self-serve signup adds the customer's domain to Neon Auth's trusted domains** through the Neon
   API (`POST /projects/{project_id}/branches/{branch_id}/auth/domains`). Neon documents these as
   governing redirects (OAuth and email verification); no limit is stated.
-- **Unverified, and the first thing a spike must prove:** that Neon Auth accepts sign-in requests
-  arriving through the proxy from a customer origin (Better Auth checks a request's origin against
-  trusted origins, and Neon documents trusted domains only for redirects), and that Amplify's proxy
-  rewrite passes `POST` bodies and `Set-Cookie` through unchanged.
+- **Verified 2026-09-28 (curl):** `GET /_edit/auth/ok` and `get-session` reach Neon Auth through
+  the Amplify rewrite and the Lambda on the StoryShaped preview and on `admin.theedgeofthemap.com`,
+  answered `private, no-store`. **Still unverified:** a real sign-in `POST` from a customer origin,
+  that `Set-Cookie` survives Amplify, and where Neon Auth exposes the JWT (the console tries the
+  `set-auth-jwt` header, `session.access_token`, then `/token`).
 - **Neon project count is not a constraint for now:** Free and Launch both allow 100 projects per
   organization (Neon pricing page, read 2026-09-27). Signup creates the customer's project through
   Neon's API and writes its connection string to SSM.
