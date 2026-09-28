@@ -220,7 +220,7 @@
     <li>Fill in the domain, registrar and expiry date on this page. <span class="who">Chris</span></li>
     <li>Create the AWS account on the Paid plan; turn on root MFA and a $1 budget alert. <span class="who">Chris</span></li>
     <li>Commit the no-backend build change. Done (<code>f6c10ad</code>); <code>amplify.yml</code> added for the <code>frontend/</code> app root. <span class="who">Claude</span></li>
-    <li>Create the Amplify app from GitHub: <code>main</code> as production with <code>VITE_API_URL=none</code>, and a password-protected <code>preview</code> branch; tick "monorepo" with root <code>frontend</code>, and add the SPA rewrite (all non-file paths to <code>/index.html</code>, 200). <span class="who">Claude, with account access</span></li>
+    <li>Create the Amplify app from GitHub. Done for <code>preview</code> (app <code>di5pjjwi2k9o1</code>, us-east-1): monorepo root <code>frontend</code>, <code>VITE_API_URL=none</code> app-wide, SPA rewrite to <code>/index.html</code> (200) for paths that are not files, <code>.md</code> included so the Library loads. <code>main</code> is added as production after <code>preview</code> merges. A rewrite change needs a redeploy: CloudFront caches the old answer. <span class="who">Claude</span></li>
     <li>Check production on its Amplify address: Home, Library, and that no page calls a backend. <span class="who">Chris</span></li>
     <li>Point the domain at Amplify in Porkbun and confirm HTTPS. <span class="who">Chris</span></li>
     <li>Keep Vercel and Railway running until production is verified, then retire them. <span class="who">Chris</span></li>

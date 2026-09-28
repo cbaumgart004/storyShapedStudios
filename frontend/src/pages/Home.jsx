@@ -205,7 +205,7 @@ const Home = () => {
         </section>
       </main>
 
-      <SiteFooter />
+      <SiteFooter brand={false} />
     </div>
   )
 }

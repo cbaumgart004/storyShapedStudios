@@ -6,13 +6,17 @@ import React from 'react'
 import logo from '/assets/StoryShapedStudiosLogo_GmailOptimized.png'
 import { socials } from '@/components/socials'
 
-export default function SiteFooter() {
+// `brand={false}` drops the logo + wordmark: Home already leads with the logo,
+// and Whitney's notes ask for it gone there but kept on the other pages.
+export default function SiteFooter({ brand = true }) {
   return (
     <footer className="sss-footer">
-      <div className="footer-brand">
-        <img className="mark" src={logo} alt="" />
-        <span className="footer-wordmark">StoryShaped Studios</span>
-      </div>
+      {brand && (
+        <div className="footer-brand">
+          <img className="mark" src={logo} alt="" />
+          <span className="footer-wordmark">StoryShaped Studios</span>
+        </div>
+      )}
       <div className="footer-socials">
         {socials.map((s) => (
           <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer">
