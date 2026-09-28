@@ -8,5 +8,8 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <!-- Edge of the Map console (ADR-0007). Visitors get only this small loader;
+         the editor loads for a signed-in owner via ?edit or Ctrl/Cmd+Shift+E. -->
+    <script src="https://admin.theedgeofthemap.com/loader.js" data-site="storyshaped" async></script>
   </body>
 </html>

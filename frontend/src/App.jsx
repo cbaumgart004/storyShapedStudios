@@ -1,7 +1,7 @@
 // src/App.jsx
 
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
 import { UvModeProvider } from '@/context/UvMode'
 import ScrollToTop from '@/components/ScrollToTop'
 import Home from '@/pages/Home'
@@ -10,12 +10,20 @@ import Shop from '@/pages/Shop'
 import Library from '@/pages/Library'
 import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
+import { useConsoleNavigation } from '@/lib/siteConsole'
+
+// Lets the Edge of the Map console open a document's page through the router.
+function ConsoleNavigation() {
+  useConsoleNavigation(useNavigate())
+  return null
+}
 
 function App() {
   return (
     <UvModeProvider>
       <Router>
         <ScrollToTop />
+        <ConsoleNavigation />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />

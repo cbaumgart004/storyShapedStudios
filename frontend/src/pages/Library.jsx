@@ -36,6 +36,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
+import { fetchPublished, useLiveDocuments, isDraft, textOf } from '@/lib/siteConsole'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
@@ -112,6 +113,25 @@ function parseSections(md) {
     .filter(Boolean)
 }
 
+// Entries written in the Edge of the Map console join the ones in library.md:
+// one whose title matches a library.md heading replaces it in place, the rest
+// follow in their `order`. The body is sanitized HTML from the console, not
+// markdown; `body` keeps its plain text so search works the same.
+function mergeManaged(builtIn, docs) {
+  const out = builtIn.map((s) => ({ ...s }))
+  const extra = []
+  for (const d of docs) {
+    const title = (d.data?.title ?? '').trim()
+    if (!title) continue
+    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), draft: isDraft(d), order: d.data.order }
+    const i = out.findIndex((s) => s.id === entry.id)
+    if (i >= 0) out[i] = entry
+    else extra.push(entry)
+  }
+  extra.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.title.localeCompare(b.title))
+  return [...out, ...extra]
+}
+
 function readViews() {
   try {
     return JSON.parse(window.localStorage.getItem(VIEWS_KEY)) || {}
@@ -146,7 +166,10 @@ export default function Library() {
   const { slug } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const [sections, setSections] = useState([])
+  const [builtIn, setSections] = useState([]) // from library.md
+  const [managed, setManaged] = useState([]) // published in the console
+  const live = useLiveDocuments('libraryArticle', managed)
+  const sections = useMemo(() => mergeManaged(builtIn, live), [builtIn, live])
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [query, setQuery] = useState('')
   const [views, setViews] = useState(readViews) // localStorage seed for instant paint
@@ -159,6 +182,14 @@ export default function Library() {
   const [featuredOpen, setFeaturedOpen] = useState(false)
   const [contentsOpen, setContentsOpen] = useState(false)
   const [showTop, setShowTop] = useState(false) // mobile: back-to-top visible
+
+  useEffect(() => {
+    let active = true
+    fetchPublished('libraryArticle').then((docs) => active && setManaged(docs))
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -232,14 +263,14 @@ export default function Library() {
   }, [slug, location.hash, navigate])
 
   const current = useMemo(
-    () => (slug ? sections.find((s) => s.id === slug) : null),
+    () => (slug ? sections.find((s) => s.id === slug || s.slug === slug) : null),
     [slug, sections]
   )
 
   // Count a visit whenever a valid article page is shown.
   useEffect(() => {
     if (status === 'ready' && current) recordView(current.id)
-  }, [status, current, recordView])
+  }, [status, current?.id, recordView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goTo = (id) => navigate(`/library/${encodeURIComponent(id)}`)
 
@@ -583,9 +614,15 @@ export default function Library() {
                     {copiedId === current.id ? 'Copied!' : 'Copy link'}
                   </button>
                 </div>
-                <ReactMarkdown components={mdComponents}>
-                  {current.body}
-                </ReactMarkdown>
+                {current.html != null ? (
+                  // Sanitized by the console API on save; drafts come from the
+                  // owner's own editor on this page.
+                  <div className={`lib-html${current.draft ? ' is-draft' : ''}`} dangerouslySetInnerHTML={{ __html: current.html }} />
+                ) : (
+                  <ReactMarkdown components={mdComponents}>
+                    {current.body}
+                  </ReactMarkdown>
+                )}
 
                 <nav className="lib-prevnext" aria-label="More entries">
                   {prev ? (
