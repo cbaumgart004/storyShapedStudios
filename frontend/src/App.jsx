@@ -11,6 +11,7 @@ import Library from '@/pages/Library'
 import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
 import Page from '@/pages/Page'
+import SiteTheme from '@/components/SiteTheme'
 import { useConsoleNavigation } from '@/lib/siteConsole'
 
 // Lets the Edge of the Map console open a document's page through the router.
@@ -25,6 +26,7 @@ function App() {
       <Router>
         <ScrollToTop />
         <ConsoleNavigation />
+        <SiteTheme />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />

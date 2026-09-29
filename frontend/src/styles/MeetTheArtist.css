@@ -34,7 +34,7 @@
 
 /* Signature block under the story. */
 .artist-body .artist-sign {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-size: 1.15rem;
   letter-spacing: 0.12em;
   color: var(--bone);

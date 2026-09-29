@@ -79,12 +79,16 @@ body {
 /* Page shell. Split from the token block above so a UvPhoto can share the
    tokens without inheriting the page's own layout. */
 .sss-home {
+  /* The two type families, so a console Theme can swap them (SiteTheme.jsx).
+     Every heading-face rule reads --font-heading; body copy reads --font-body. */
+  --font-heading: 'Poiret One', sans-serif;
+  --font-body: 'Futura', 'Century Gothic', 'Poiret One', sans-serif;
   min-height: 100vh;
   background:
     radial-gradient(120% 90% at 50% -10%, rgba(0, 251, 0, 0.12), transparent 55%),
     var(--void);
   color: var(--bone);
-  font-family: 'Futura', 'Century Gothic', 'Poiret One', sans-serif;
+  font-family: var(--font-body);
   overflow-x: clip;
   transition: background 0.6s ease, color 0.6s ease;
 }
@@ -138,7 +142,7 @@ body {
 }
 
 .eyebrow {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   text-transform: uppercase;
   letter-spacing: 0.42em;
   font-size: 0.72rem;
@@ -168,7 +172,7 @@ body {
 .sss-wordmark {
   align-self: center;
   text-decoration: none;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.05rem, 2.2vw, 1.5rem);
   letter-spacing: 0.34em;
@@ -290,7 +294,7 @@ body {
 }
 .sss-social-head {
   margin: 0;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -479,7 +483,7 @@ body {
   z-index: 2;
   margin: 0;
   max-width: 24ch;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.45rem, 3.8vw, 2.7rem);
   line-height: 1.14;
@@ -514,7 +518,7 @@ body {
 }
 
 .btn {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   text-transform: uppercase;
   letter-spacing: 0.24em;
   font-size: 0.82rem;
@@ -614,7 +618,7 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   /* Matches `.btn` and `.uv-toggle` (board #33). */
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -722,7 +726,7 @@ body {
 /* Section headings take the accent, not static --bone, so they track the UV
    toggle the way the eyebrows above them already do. Font untouched. */
 .section-head h2 {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.8rem, 3.6vw, 2.8rem);
   letter-spacing: 0.08em;
@@ -747,7 +751,7 @@ body {
   padding: 0;
 }
 .prose-block h2 {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.6rem, 3.2vw, 2.4rem);
   letter-spacing: 0.06em;
@@ -768,7 +772,7 @@ body {
   gap: 0.6rem;
   margin-top: 0.6rem;
   text-decoration: none;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-size: 0.85rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -809,7 +813,7 @@ body {
    `.hero-credit` up in the hero block. */
 .value h3,
 .hero-credit {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.1rem, 1.9vw, 1.35rem);
   letter-spacing: 0.08em;
@@ -876,7 +880,7 @@ body {
   padding: 0.9rem 0.3rem 0.2rem;
 }
 .piece-meta h3 {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: 0.1em;
@@ -919,7 +923,7 @@ body {
   filter: saturate(0.65) brightness(0.9);
 }
 .glow-story h2 {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.8rem, 3.4vw, 2.6rem);
   letter-spacing: 0.06em;
@@ -947,7 +951,7 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-size: 0.85rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -972,7 +976,7 @@ body {
   align-items: center;
 }
 .artist-feature h2 {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 700;
   font-size: clamp(1.8rem, 3.4vw, 2.6rem);
   letter-spacing: 0.06em;
@@ -1013,7 +1017,7 @@ body {
   filter: drop-shadow(var(--glow-1));
 }
 .footer-wordmark {
-  font-family: 'Poiret One', sans-serif;
+  font-family: var(--font-heading);
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: clamp(1.15rem, 3.6vw, 2rem);
