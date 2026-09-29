@@ -1,6 +1,6 @@
 # Current Work
 
-Last updated: 2026-09-27
+Last updated: 2026-09-29
 
 ## Work Tracks
 
@@ -565,6 +565,20 @@ them as settled.
 
 Take the site live on **Thursday 2026-10-01**. Recorded 2026-09-27 (a Sunday),
 so the window is four working days. Nothing below is started.
+
+## Launch checklist (2026-09-29)
+
+The console is released as **1.0.0**. The switch-on steps for every project (AWS, uptime
+monitoring, the console on a phone, DNS and SES) live in Edge of the Map's
+[launch checklist](https://github.com/cbaumgart004/edgeOfTheMap/blob/preview/docs/launch-checklist.md).
+StoryShaped's own part of it:
+
+- Manage → StoryShaped → Editor version **1.0.0** → Save.
+- A photo bucket (checklist step 1.5); uploads answer 503 until then.
+- **The production domain is still not recorded.** Once known: Amplify → Domain management, then
+  the records it lists at the registrar. The site sends no email, so no SES records.
+- Click-to-edit marks are on console Pages (each section), Library entries (the article; images in
+  the body drag to size) and Home (each block opens the page layout).
 
 ## To-Do
 

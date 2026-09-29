@@ -58,9 +58,12 @@ export function usePageLayout(path, keys) {
   }, [])
   const docs = useLiveDocuments('pageLayout', published)
   return useMemo(() => {
-    const saved = docs.find((d) => d.data?.path === path)?.data?.blocks ?? []
+    const doc = docs.find((d) => d.data?.path === path)
+    const saved = doc?.data?.blocks ?? []
     const out = saved.filter((b) => keys.includes(b.key))
     for (const key of keys) if (!out.some((b) => b.key === key)) out.push({ key, span: 12 })
+    // Which console document to open when a block is clicked (click-to-edit).
+    out.docId = doc?.id ?? null
     return out
   }, [docs, path, keys])
 }

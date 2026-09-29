@@ -570,7 +570,9 @@ export default function Library() {
 
             {/* ---- Single article ---- */}
             {slug && current && (
-              <article className="lib-entry lib-entry--solo" id={current.id}>
+              <article className="lib-entry lib-entry--solo" id={current.id}
+                /* Click-to-edit in the console, for an entry it holds. */
+                {...(current.docId ? { 'data-eotm-edit': `libraryArticle:${current.docId}`, 'data-eotm-label': current.title } : {})}>
                 <Link to="/library" className="lib-back">
                   ← Library
                 </Link>
@@ -590,7 +592,7 @@ export default function Library() {
                 {current.html != null ? (
                   // Sanitized by the console API on save; drafts come from the
                   // owner's own editor on this page.
-                  <div className={`lib-html${current.draft ? ' is-draft' : ''}`} dangerouslySetInnerHTML={{ __html: current.html }} />
+                  <div className={`lib-html${current.draft ? ' is-draft' : ''}`} data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: current.html }} />
                 ) : (
                   <ReactMarkdown components={mdComponents}>
                     {current.body}

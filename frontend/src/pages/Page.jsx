@@ -2,7 +2,8 @@
 // A page written in the Edge of the Map console (its `page` type), at /<slug>.
 // Its sections are the schema's blocks (Text section, Values grid, Daylight /
 // blacklight photo), drawn with Home's classes so a written page looks like the
-// rest of the site. While the owner edits, the draft renders live.
+// rest of the site. While the owner edits, the draft renders live, and every
+// section carries the console's click-to-edit marks (`marks`, data-eotm-*).
 
 import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -21,15 +22,15 @@ function LinkTo({ url, className, children }) {
   return <a href={url} className={className} target="_blank" rel="noopener noreferrer">{children}</a>
 }
 
-function Prose({ block }) {
+function Prose({ block, marks }) {
   const { heading, body, link } = block
   return (
-    <section className="section">
+    <section className="section" {...marks}>
       <div className="prose-block">
         {heading && <h2>{heading}</h2>}
         {/* Sanitized by the console API on save; drafts come from the owner's
             own editor on this page. */}
-        {body && <div className="page-rich" dangerouslySetInnerHTML={{ __html: body }} />}
+        {body && <div className="page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: body }} />}
         {link?.url && link?.label && (
           <LinkTo url={link.url} className="prose-link">
             {link.label}
@@ -41,9 +42,9 @@ function Prose({ block }) {
   )
 }
 
-function Values({ block }) {
+function Values({ block, marks }) {
   return (
-    <section className="section">
+    <section className="section" {...marks}>
       {block.heading && (
         <div className="section-head">
           <h2>{block.heading}</h2>
@@ -62,14 +63,14 @@ function Values({ block }) {
 }
 
 // The paired daylight/blacklight shot when both exist; one photo otherwise.
-function PhotoFeature({ block }) {
+function PhotoFeature({ block, marks }) {
   const photos = block.photos ?? []
   const light = photos.find((p) => p.index === 'Light')
   const dark = photos.find((p) => p.index === 'Dark')
   const only = light ?? dark
   if (!only) return null
   return (
-    <section className="section page-photo">
+    <section className="section page-photo" {...marks}>
       <figure className="hero-figure deco-corners">
         {light && dark ? (
           <UvPhoto daylight={light.src} blacklight={dark.src} widths={[]} alt={light.alt ?? ''}
@@ -112,7 +113,7 @@ export default function Page() {
             return (
               <React.Fragment key={b._id ?? i}>
                 {i > 0 && <div className="deco-divider" aria-hidden="true" />}
-                <Block block={b} />
+                <Block block={b} marks={{ 'data-eotm-edit': `page:${page.id}`, 'data-eotm-item': b._id, 'data-eotm-label': b.heading || 'section' }} />
               </React.Fragment>
             )
           })

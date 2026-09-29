@@ -241,7 +241,9 @@ function arrange(layout) {
     used += span
     cells.push(
       <div key={key} className={`sss-block${joins ? ' is-joined' : ''}`} style={{ '--span': span }}
-        data-eotm-block={key} data-eotm-label={BLOCKS[key].label} data-eotm-span={span}>
+        data-eotm-block={key} data-eotm-label={BLOCKS[key].label} data-eotm-span={span}
+        /* Click-to-edit opens the page layout (Arrange); the blocks text is built in. */
+        data-eotm-edit={`pageLayout:${layout.docId ?? 'home'}`}>
         {BLOCKS[key].content}
       </div>
     )
