@@ -9,6 +9,7 @@ import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import UvPhoto from '@/components/UvPhoto'
+import { usePageLayout } from '@/lib/siteConsole'
 import '@/styles/Home.css'
 
 // The rect neon lockup is the logo variant without "Uranium Glass Jewelry"
@@ -72,14 +73,14 @@ const values = [
   },
 ]
 
-const Home = () => {
-  const { mode } = useUvMode()
-
-  return (
-    <div className="sss-home" data-mode={mode}>
-      <SiteHeader featured />
-
-      <main>
+// Home's sections, in Whitney's running order. Each is a block the owner can
+// move and resize from the Edge of the Map console (a pageLayout for "/"); with
+// no layout published they stack in this order at full width.
+const BLOCKS = {
+  hero: {
+    label: 'Hero',
+    content: (
+      <>
         {/* ---------------- HERO ----------------
             Order is Whitney's, from the notes doc: big logo, tagline, the two
             CTAs, then the paired daylight/blacklight photo, then her credit. */}
@@ -117,9 +118,13 @@ const Home = () => {
             jewelry artist and historian
           </p>
         </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
+      </>
+    ),
+  },
+  believe: {
+    label: 'What We Believe',
+    content: (
+      <>
         {/* Everything below the credit is Whitney's writing from the notes doc,
             in her running order: What We Believe, Our Story, Our Jewelry, A
             Space for Makers. Each section's name is now the heading itself —
@@ -139,9 +144,13 @@ const Home = () => {
             ))}
           </div>
         </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
+      </>
+    ),
+  },
+  story: {
+    label: 'Our Story',
+    content: (
+      <>
         {/* ---------------- OUR STORY ----------------
             Copy is Whitney's, verbatim from the notes doc. Her draft trails off
             mid-word on a link ("More on Whitney's personal journey here (hy"),
@@ -169,9 +178,13 @@ const Home = () => {
             </Link>
           </div>
         </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
+      </>
+    ),
+  },
+  jewelry: {
+    label: 'Our Jewelry',
+    content: (
+      <>
         {/* ---------------- OUR JEWELRY ---------------- */}
         <section className="section" id="our-jewelry">
           <div className="prose-block">
@@ -185,9 +198,13 @@ const Home = () => {
             </p>
           </div>
         </section>
-
-        <div className="deco-divider" aria-hidden="true" />
-
+      </>
+    ),
+  },
+  makers: {
+    label: 'A Space for Makers',
+    content: (
+      <>
         {/* ---------------- A SPACE FOR MAKERS ---------------- */}
         <section className="section" id="makers">
           <div className="prose-block">
@@ -203,6 +220,45 @@ const Home = () => {
             </p>
           </div>
         </section>
+      </>
+    ),
+  },
+}
+const KEYS = Object.keys(BLOCKS)
+
+// A zigzag rule opens every row after the first, so blocks set side by side
+// share one. A block that joins a row is marked, so it takes its own rule when
+// the grid stacks on a phone.
+function arrange(layout) {
+  const cells = []
+  let used = 12
+  layout.forEach(({ key, span }, i) => {
+    const joins = used + span <= 12
+    if (!joins) {
+      if (i > 0) cells.push(<div key={`rule-${key}`} className="deco-divider sss-rule" aria-hidden="true" />)
+      used = 0
+    }
+    used += span
+    cells.push(
+      <div key={key} className={`sss-block${joins ? ' is-joined' : ''}`} style={{ '--span': span }}
+        data-eotm-block={key} data-eotm-label={BLOCKS[key].label} data-eotm-span={span}>
+        {BLOCKS[key].content}
+      </div>
+    )
+  })
+  return cells
+}
+
+const Home = () => {
+  const { mode } = useUvMode()
+  const layout = usePageLayout('/', KEYS)
+
+  return (
+    <div className="sss-home" data-mode={mode}>
+      <SiteHeader featured />
+
+      <main className="sss-layout" data-eotm-layout>
+        {arrange(layout)}
       </main>
 
       <SiteFooter brand={false} />

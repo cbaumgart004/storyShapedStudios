@@ -45,6 +45,26 @@ export function useLiveDocuments(type, published) {
   )
 }
 
+// The owner's arrangement of one page (the console's pageLayout type, whose
+// `blocks` is [{ key, span }]: page order, width in columns of 12). Blocks it
+// does not name follow in their built-in order at full width; names the page no
+// longer has are ignored. `keys` must be a stable array.
+export function usePageLayout(path, keys) {
+  const [published, setPublished] = useState([])
+  useEffect(() => {
+    let active = true
+    fetchPublished('pageLayout').then((docs) => active && setPublished(docs))
+    return () => { active = false }
+  }, [])
+  const docs = useLiveDocuments('pageLayout', published)
+  return useMemo(() => {
+    const saved = docs.find((d) => d.data?.path === path)?.data?.blocks ?? []
+    const out = saved.filter((b) => keys.includes(b.key))
+    for (const key of keys) if (!out.some((b) => b.key === key)) out.push({ key, span: 12 })
+    return out
+  }, [docs, path, keys])
+}
+
 // Tells the console the order a type is shown in, so its placement fields
 // offer "after <title>" for every entry, built-in ones included.
 export function useConsoleOrder(type, entries) {
