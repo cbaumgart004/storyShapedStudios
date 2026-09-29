@@ -97,6 +97,9 @@ panel. The console is Edge of the Map's product, so its code lives on that domai
   would be fractions of a cent at this volume.
 - **The console's CSS shares a document with the customer's.** The plan's §4.1 rule applies: a
   sealed prefix, and the console never reads a site token except the brand tokens it is given.
+- **Superseded 2026-09-29:** photos now go to one shared bucket, each site under `sites/<slug>/`, so
+  adding a customer needs no AWS step (edgeOfTheMap `console/README.md`, Photos). A site can still
+  be given its own bucket in Manage. The original bullet follows for history.
 - **Photos:** the upload-signing Lambda is central, but each customer keeps its own S3 bucket. The
   3 free CloudFront flat-rate plans per AWS account (ADR-0005) are used by StoryShaped,
   LiveSpiritSeeds and Edge of the Map.

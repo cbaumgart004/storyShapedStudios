@@ -103,17 +103,33 @@ created after 2025-07-15 get no standing 5 GB free allowance; S3 draws on the cr
 - eBay store: at least 480 active items (10+ pages of 48; exact count not shown, and eBay's bot check
   blocked the browser). It carries the same stock as Etsy (user, 2026-09-27), so each photo is stored
   once and Etsy's count sizes the estimate.
-- Photos are scaled before upload to a 1600 px long edge plus a 400 px thumbnail, about 0.3 MB per
-  photo together (an assumption, not measured).
+- **Withdrawn 2026-09-29:** "photos are scaled to a 1600 px long edge plus a 400 px thumbnail, about
+  0.3 MB together". That was an assumption, and the console does not do it.
+- **What the console does (verified from source, edgeOfTheMap `console/src/images.js`
+  `<!--sym:prepareImage-->`, from console 1.1.2):** one file per photo, no thumbnail. WebP (JPEG where
+  the browser cannot encode WebP), long edge capped at 1600 px, quality then size stepped down until
+  the file is at most 600 KB. Two exceptions (`LIMITS`): a schema field marked `"wide": true` (a
+  banner or full-bleed background) allows 2560 px and 1.2 MB, and after an upload the owner can press
+  "Sharper (larger file)" to send the same photo at up to 3200 px and 2.5 MB. Releases up to 1.1.1
+  capped at 2400 px and 900 KB. The 600 KB is a
+  ceiling; typical sizes for her photos were **not measured**.
+- **Why 1600 px (verified from source):** the widest photo on the site is the Home hero and a console
+  Page's photo feature, both `.hero-figure` at `min(100%, 760px)` (`frontend/src/styles/Home.css`).
+  Library article images are `max-width: 100%` inside an 80ch column (`styles/Library.css`,
+  `.lib-entry--solo`), narrower than that. A 760 px box on a 2x screen needs about 1520 px, the size
+  of the shipped hero (`public/assets/hero-necklace-*-1600.jpg`, 138 KB and 373 KB). Console uploads
+  get no `srcset` (`pages/Page.jsx` passes `widths={[]}`), so a phone downloads the full file.
 
-| Photos per listing | 616 listings at 0.3 MB |
-|---|---|
-| 5 | about 0.9 GB |
-| 10 | about 1.8 GB |
-| 20 (Etsy's maximum) | about 3.7 GB |
+| Photos per listing | 616 listings at 0.6 MB (the ceiling) | at 0.3 MB (near the shipped hero; unmeasured) |
+|---|---|---|
+| 5 | about 1.8 GB | about 0.9 GB |
+| 10 | about 3.7 GB | about 1.8 GB |
+| 20 (Etsy's maximum) | about 7.4 GB | about 3.7 GB |
 
-This site fits inside the 5 GB credit at any plausible photo count. The remaining room is for growth
-and variants, not for more sites.
+At the ceiling, the 5 GB credit holds up to about 13 photos per listing. Photos are now in one bucket
+shared by every site (ADR-0007, superseded bullet), so the credit is shared too. The table assumes standard
+uploads; every wide or Sharper photo costs up to four times as much. Measure a sample of real uploads
+before relying on either column.
 
 ## Multi-site growth
 
@@ -150,5 +166,6 @@ whether "free" holds past this one.
 - Image upload goes through a Lambda that signs S3 upload URLs, so the browser uploads straight to
   S3 with no AWS keys. It is the only server step the editor needs.
 - Admin accounts have no MFA until Neon ships it; use a strong password per admin.
-- The editor resizes photos in the browser before upload, so no resize service is needed.
+- The editor resizes photos in the browser before upload, so no resize service is needed (sizes: see
+  the image storage estimate above).
 - Nothing here changes Go-Live scope: only the front end moves before 2026-10-01.

@@ -568,13 +568,15 @@ so the window is four working days. Nothing below is started.
 
 ## Launch checklist (2026-09-29)
 
-The console is released as **1.1.0**. The switch-on steps for every project (AWS, uptime
+The console is released as **1.1.1**. The switch-on steps for every project (AWS, uptime
 monitoring, the console on a phone, DNS and SES) live in Edge of the Map's
 [launch checklist](https://github.com/cbaumgart004/edgeOfTheMap/blob/preview/docs/launch-checklist.md).
 StoryShaped's own part of it:
 
-- Manage → StoryShaped → Editor version **1.1.0** → Save.
-- A photo bucket (checklist step 1.5); uploads answer 503 until then.
+- Editor version pinned to **1.1.1** (done 2026-09-29, all sites). **1.1.2** is released but not
+  deployed: photos capped at 1600 px / 600 KB. Pin it once the console is deployed.
+- The shared photo bucket (checklist step 1.5, once for all sites); uploads answer 503 until then.
+  Nothing StoryShaped-specific: it uploads under `sites/storyshaped/`.
 - **The production domain is still not recorded.** Once known: Amplify → Domain management, then
   the records it lists at the registrar. The site sends no email, so no SES records.
 - Click-to-edit marks are on console Pages (each section), Library entries (the article; images in
