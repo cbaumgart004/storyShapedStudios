@@ -4,7 +4,7 @@
 
 export function notifyLowStock(components) {
   const summary = components
-    .map((c) => `${c.name} (${c.quantity_on_hand}/${c.low_stock_threshold} ${c.unit})`)
+    .map((c) => `${c.name} (${c.quantity}/${c.low_stock_threshold} ${c.unit})`)
     .join(', ')
   console.warn(`[inventory] low stock: ${summary}`)
 }

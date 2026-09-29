@@ -151,3 +151,28 @@
 .ai-table button:hover {
   background: #333;
 }
+
+/* Stock Item detail (one item's actions, Bill of Materials and history). */
+.ai-detail h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+.ai-detail h3:first-child {
+  margin-top: 0;
+}
+.ai-hint,
+.ai-muted {
+  color: #666;
+  font-size: 0.85rem;
+}
+.ai-hint {
+  margin: 0.25rem 0 0.5rem;
+}
+.ai-history {
+  font-size: 0.85rem;
+}
+.ai-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}

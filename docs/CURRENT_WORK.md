@@ -637,7 +637,10 @@ so the window is four working days. Nothing below is started.
 **E4a. Merge items and components into one Stock Item table (decided
 2026-09-27, `docs/adr/0002-one-stock-item-table.md`).** Components are sold on
 their own with their own SKUs, so they cannot live in a separate table. Must
-land before E6's backfill.
+land before E6's backfill. **Built 2026-09-29** on `preview`: `stock_items`,
+`stock_bom`, `stock_movements` in `backend/server/utils/stock.js`, routes under
+`/api/inventory/stock`, admin page rewritten; tested against PGlite, not yet
+against Neon. Still ungated (E3).
 
 **E4. Components tracked on every product.** New and existing products are
 built from components that must be tracked. The schema for this already exists
@@ -655,9 +658,11 @@ product, including the backfilled ones from E6.
   Applies to items and components. Quantities are whole numbers today (beads)
   but must accept decimals: components already are `NUMERIC(12,3)`, items are
   `INTEGER`.
-- Schema change still to design: where Previous and its count date live, and a
-  `reason` value for Count Corrections.
-- **Gap found:** `inventory_adjustments` has only `item_id` and `INTEGER`
+- **Built 2026-09-29:** Previous lives on the item (`counted_quantity`,
+  `counted_at`); Calculated is `quantity`, moved only by `stock_movements`
+  rows; a Count Correction is a movement of kind `count`. Every quantity is
+  `NUMERIC(12,3)`.
+- **Gap found (closed 2026-09-29 by the Stock Item tables):** `inventory_adjustments` has only `item_id` and `INTEGER`
   columns, and the BOM decrement in `PATCH /items/:id/quantity` updates
   component stock without logging it. Calculated cannot be derived for
   components until component changes are logged too, with decimal deltas.
