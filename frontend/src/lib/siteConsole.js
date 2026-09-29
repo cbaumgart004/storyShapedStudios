@@ -97,6 +97,28 @@ export function useConsoleNavigation(navigate) {
   }, [navigate])
 }
 
+// The editor token the console's loader keeps for this tab after single sign-on
+// (#eotm-token from the admin page), or null when there is none or it is about
+// to run out. The site's own admin pages send it to the backend, which asks the
+// console who it is (backend/server/utils/requireEditor.js).
+const TOKEN_KEY = 'eotm:token:storyshaped'
+export function editorToken() {
+  try {
+    const token = sessionStorage.getItem(TOKEN_KEY)
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return payload.exp * 1000 - Date.now() > 60_000 ? token : null
+  } catch {
+    return null
+  }
+}
+
+// Sign in on the admin page, which hands a fresh token back to this path.
+export function signInThroughConsole() {
+  const back = location.pathname + location.search
+  location.assign(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}`)
+}
+
 // Visible text of a rich-text field, for search. DOMParser builds an inert
 // document: unlike innerHTML on a detached element, nothing in it loads or runs.
 export function textOf(html) {

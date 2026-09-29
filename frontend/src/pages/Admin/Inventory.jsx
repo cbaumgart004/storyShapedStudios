@@ -2,15 +2,28 @@
 // Minimal internal admin page for Stock Items (ADR-0002; terms in CONTEXT.md):
 // one list, where a Product is an item marked sellable and a Component is one
 // used in another's Bill of Materials. Counts change only through the four
-// actions (Build, Sale, Restock, Physical Count), each logged. No auth yet —
-// see docs/CURRENT_WORK.md.
+// actions (Build, Sale, Restock, Physical Count), each logged. Needs a console
+// sign-in: every call carries the editor token, and the backend asks the
+// console whether it can edit this site.
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { apiFetch } from '@/lib/api'
+import { apiFetch as rawFetch } from '@/lib/api'
+import { editorToken, signInThroughConsole } from '@/lib/siteConsole'
 import '@/styles/AdminInventory.css'
 
 const API = '/api/inventory/stock'
+
+// A 401 means the token ran out mid-session; the page offers sign-in again.
+let onSignedOut = () => {}
+async function apiFetch(path, options = {}) {
+  try {
+    return await rawFetch(path, { ...options, headers: { ...options.headers, Authorization: `Bearer ${editorToken()}` } })
+  } catch (err) {
+    if (err.status === 401) onSignedOut()
+    throw err
+  }
+}
 const EMPTY_ITEM = { name: '', sku: '', unit: 'each', sellable: false, quantity: '', low_stock_threshold: '' }
 
 const isLow = (s) => Number(s.quantity) <= Number(s.low_stock_threshold)
@@ -143,6 +156,8 @@ export default function AdminInventory() {
   const [open, setOpen] = useState(null)
   const [filter, setFilter] = useState('all')
   const [newItem, setNewItem] = useState(EMPTY_ITEM)
+  const [signedIn, setSignedIn] = useState(() => Boolean(editorToken()))
+  onSignedOut = () => setSignedIn(false)
 
   const load = useCallback(async () => {
     try {
@@ -151,7 +166,7 @@ export default function AdminInventory() {
       setError(err.message)
     }
   }, [])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (signedIn) load() }, [load, signedIn])
 
   const shown = stock.filter((s) =>
     filter === 'products' ? s.sellable : filter === 'components' ? s.is_component : filter === 'low' ? isLow(s) : true)
@@ -188,6 +203,13 @@ export default function AdminInventory() {
         <Link to="/" className="ai-back-link">← Back to site</Link>
       </header>
 
+      {!signedIn ? (
+        <section className="ai-section">
+          <p>Stock is for the studio only. Sign in with your Edge of the Map login to see it.</p>
+          <button type="button" onClick={signInThroughConsole}>Sign in</button>
+        </section>
+      ) : (
+      <>
       {error && <p className="ai-error">{error}</p>}
 
       <section className="ai-section">
@@ -254,6 +276,8 @@ export default function AdminInventory() {
           <button type="submit">Add</button>
         </form>
       </section>
+      </>
+      )}
     </div>
   )
 }

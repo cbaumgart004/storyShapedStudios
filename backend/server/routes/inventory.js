@@ -16,8 +16,8 @@
 // POST /stock/:id/movements. Phase 1's /items and /components routes are gone
 // (ADR-0002); their rows are copied into stock_items on first use.
 //
-// NOT GATED YET: anyone who can reach the backend can call these. Real stock
-// data waits on the admin-auth gate (docs/CURRENT_WORK.md, E3).
+// Every route needs a login the Edge of the Map console says can edit this site
+// (utils/requireEditor.js): the admin page sends the editor token it was handed.
 //
 // Degrades gracefully when no DB is configured, same as libraryViews.js.
 
@@ -25,8 +25,10 @@ import express from 'express'
 import { pool, hasDb } from '../utils/db.js'
 import { createStock, StockError } from '../utils/stock.js'
 import { notifyLowStock } from '../utils/notifyLowStock.js'
+import { requireEditor } from '../utils/requireEditor.js'
 
 const router = express.Router()
+router.use(requireEditor)
 const stock = hasDb ? createStock(pool) : null
 
 const id = (v) => {

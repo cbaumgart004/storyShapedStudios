@@ -22,7 +22,9 @@ export async function apiFetch(path, options = {}) {
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
   if (!res.ok) {
-    throw new Error(data?.error || `Request failed: ${res.status}`)
+    const err = new Error(data?.error || `Request failed: ${res.status}`)
+    err.status = res.status
+    throw err
   }
   return data
 }

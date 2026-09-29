@@ -47,7 +47,7 @@ Prefer these as the source of truth; do not duplicate them here.
 | OAuth / marketplace API | Etsy + eBay OAuth flows and token validation | `backend/server/server.js` |
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |
 | Inventory API | Stock Items (ADR-0002): one table where a Product is sellable and a Component is in another's Bill of Materials; counts move only through logged Build / Sale / Restock / Physical Count movements (ADR-0003), with low-stock detection. Phase 1's tables are copied in once and renamed `phase1_*` | `backend/server/routes/inventory.js` (HTTP), `utils/stock.js` (rules + schema), `utils/stock.test.js` (PGlite, `npm test` in `backend/`), `utils/notifyLowStock.js` |
-| Admin UI (minimal) | Internal, unauthenticated page listing Stock Items (filter: products, components, low), each with its count actions, Bill of Materials, where it is used, and history | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
+| Admin UI (minimal) | Internal page, behind a console sign-in, listing Stock Items (filter: products, components, low), each with its count actions, Bill of Materials, where it is used, and history | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
 | Database | Postgres (Neon) — Library view counts, inventory (`stock_items`, `stock_bom`, `stock_movements`) | `backend/server/utils/db.js`, `routes/libraryViews.js`, `utils/stock.js` |
 | Token storage | File-based persistence of Etsy/eBay access tokens | `backend/server/utils/*TokenStorage.js` |
 | Asset pipeline | Downscales designer-supplied art to the sizes the site serves, before it lands in `public/assets/`. Output widths live in one `PRESETS` table | `scripts/resize_asset.py` |
@@ -90,9 +90,11 @@ comes from the mount in `index.js`. Any other path returns `404 { error: 'Route 
 degrades gracefully: `GET` returns `{}`/`[]`, writes return `503`. The frontend falls back to
 `localStorage` for Library views; the inventory admin UI has no offline fallback.
 
-`/api/inventory/*` and `/admin/inventory` have **no authentication** — anyone with the URL can
-read/write inventory data. Acceptable while building out the CRUD/decrement logic, but flagged
-as a hard blocker before real stock data goes live (see Known Traps).
+`/api/inventory/*` needs a bearer token the Edge of the Map console accepts for this site:
+`utils/requireEditor.js` asks the console's `GET /api/sites/storyshaped/me` (setting `EOTM_SITE_API`)
+and keeps a yes for a minute per token; an unreachable console answers 503, never a pass.
+`/admin/inventory` sends the editor token the console's loader keeps in `sessionStorage`
+(`editorToken()` in `lib/siteConsole.js`) and offers "Sign in", a round trip through the admin page.
 
 ## External Systems
 
@@ -137,8 +139,8 @@ as a hard blocker before real stock data goes live (see Known Traps).
   build time — it must include the scheme (`https://…`) and needs a redeploy to change.
 - Postgres `NUMERIC` columns (stock quantities, Bill of Materials ratios) come back from `pg` as JS
   strings, not numbers — `utils/stock.js` converts them (`row()`) before returning.
-- No auth exists on `/api/inventory/*` or `/admin/inventory` yet — do not treat this as
-  production-ready for real stock data until an admin-auth gate is added.
+- `/api/inventory/*` trusts the console for sign-in and membership: a login removed from the site
+  on the admin page keeps working here for up to a minute (the cached yes).
 - **`UvMode` already defaults to blacklight** (`context/UvMode.jsx`) — it returns
   `'blacklight'` unless `localStorage` holds a valid saved mode. A report that "the site
   opens in daylight" is a *persisted visitor preference*, not a wrong default, and changing

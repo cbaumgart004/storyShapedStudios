@@ -621,8 +621,9 @@ so the window is four working days. Nothing below is started.
 
 **E3. Inventory API: finish Phase 1 and wire to marketplaces.**
 - Verify the Track A API end to end against Neon (still unverified).
-- Add the admin-auth gate on `/api/inventory/*` and `/admin/inventory`. This is
-  a hard blocker for real stock data (see `AI_CONTEXT.md` Known Traps).
+- ~~Add the admin-auth gate on `/api/inventory/*` and `/admin/inventory`.~~
+  **Built 2026-09-29:** both need a console sign-in for this site
+  (`backend/server/utils/requireEditor.js`, console `GET /me`).
 - Wire to Etsy and eBay: OAuth and token validation exist in `server.js`;
   listing sync and sale webhooks do not. A sale should enter through the single
   `PATCH /items/:id/quantity` endpoint (Track A decision).
@@ -640,7 +641,7 @@ their own with their own SKUs, so they cannot live in a separate table. Must
 land before E6's backfill. **Built 2026-09-29** on `preview`: `stock_items`,
 `stock_bom`, `stock_movements` in `backend/server/utils/stock.js`, routes under
 `/api/inventory/stock`, admin page rewritten; tested against PGlite, not yet
-against Neon. Still ungated (E3).
+against Neon. Gated by a console sign-in since the same day (E3).
 
 **E4. Components tracked on every product.** New and existing products are
 built from components that must be tracked. The schema for this already exists
