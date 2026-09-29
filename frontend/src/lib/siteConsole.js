@@ -29,7 +29,7 @@ export function useLiveDocuments(type, published) {
     let unsubscribe = null
     let timer = null
     const wire = () => {
-      if (window.EOTM) unsubscribe = window.EOTM.subscribe((c) => c.type === type && setTick((t) => t + 1))
+      if (window.EOTM) unsubscribe = window.EOTM.subscribe((c) => c.type === type && !c.order && setTick((t) => t + 1))
       else timer = setTimeout(wire, 50)
     }
     wire()
@@ -43,6 +43,21 @@ export function useLiveDocuments(type, published) {
     () => (window.EOTM ? window.EOTM.merge(type, published) : published),
     [type, published, tick] // eslint-disable-line react-hooks/exhaustive-deps
   )
+}
+
+// Tells the console the order a type is shown in, so its placement fields
+// offer "after <title>" for every entry, built-in ones included.
+export function useConsoleOrder(type, entries) {
+  useEffect(() => {
+    const order = entries.map((e) => ({ key: e.id, title: e.title, docId: e.docId }))
+    let timer = null
+    const send = () => {
+      if (window.EOTM?.setOrder) window.EOTM.setOrder(type, order)
+      else if (!window.EOTM) timer = setTimeout(send, 50)
+    }
+    send()
+    return () => clearTimeout(timer)
+  }, [type, entries])
 }
 
 export function isDraft(doc) {

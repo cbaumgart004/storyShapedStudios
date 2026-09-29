@@ -36,7 +36,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
-import { fetchPublished, useLiveDocuments, isDraft, textOf } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf } from '@/lib/siteConsole'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
@@ -115,7 +115,8 @@ function parseSections(md) {
 
 // Entries written in the Edge of the Map console join the ones in library.md:
 // one whose title matches a library.md heading replaces it in place, the rest
-// follow in their `order`. The body is sanitized HTML from the console, not
+// go where their `after` places them: "^" first, an entry's id to follow it,
+// otherwise last (older entries' numeric `order` still sorts those). The body is sanitized HTML from the console, not
 // markdown; `body` keeps its plain text so search works the same.
 function mergeManaged(builtIn, docs) {
   const out = builtIn.map((s) => ({ ...s }))
@@ -123,13 +124,25 @@ function mergeManaged(builtIn, docs) {
   for (const d of docs) {
     const title = (d.data?.title ?? '').trim()
     if (!title) continue
-    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), draft: isDraft(d), order: d.data.order }
+    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), draft: isDraft(d), order: d.data.order, after: d.data.after ?? '', docId: d.id }
     const i = out.findIndex((s) => s.id === entry.id)
     if (i >= 0) out[i] = entry
     else extra.push(entry)
   }
   extra.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.title.localeCompare(b.title))
-  return [...out, ...extra]
+  const placed = [...out, ...extra.filter((e) => !e.after)]
+  // Several passes, so an entry placed after another placed entry still lands.
+  let pending = extra.filter((e) => e.after)
+  for (let pass = 0; pending.length && pass < 5; pass++) {
+    pending = pending.filter((e) => {
+      if (e.after === '^') { placed.unshift(e); return false }
+      const i = placed.findIndex((s) => s.id === e.after)
+      if (i < 0) return true
+      placed.splice(i + 1, 0, e)
+      return false
+    })
+  }
+  return [...placed, ...pending]
 }
 
 function readViews() {
@@ -170,6 +183,7 @@ export default function Library() {
   const [managed, setManaged] = useState([]) // published in the console
   const live = useLiveDocuments('libraryArticle', managed)
   const sections = useMemo(() => mergeManaged(builtIn, live), [builtIn, live])
+  useConsoleOrder('libraryArticle', sections)
   const [status, setStatus] = useState('loading') // loading | ready | error
   const [query, setQuery] = useState('')
   const [views, setViews] = useState(readViews) // localStorage seed for instant paint
