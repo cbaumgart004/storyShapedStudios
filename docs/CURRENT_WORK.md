@@ -568,12 +568,12 @@ so the window is four working days. Nothing below is started.
 
 ## Launch checklist (2026-09-29)
 
-The console is released as **1.0.0**. The switch-on steps for every project (AWS, uptime
+The console is released as **1.1.0**. The switch-on steps for every project (AWS, uptime
 monitoring, the console on a phone, DNS and SES) live in Edge of the Map's
 [launch checklist](https://github.com/cbaumgart004/edgeOfTheMap/blob/preview/docs/launch-checklist.md).
 StoryShaped's own part of it:
 
-- Manage → StoryShaped → Editor version **1.0.0** → Save.
+- Manage → StoryShaped → Editor version **1.1.0** → Save.
 - A photo bucket (checklist step 1.5); uploads answer 503 until then.
 - **The production domain is still not recorded.** Once known: Amplify → Domain management, then
   the records it lists at the registrar. The site sends no email, so no SES records.
