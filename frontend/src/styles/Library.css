@@ -390,7 +390,8 @@
 /* Links inside an article body. Accent, so they shift with the UV toggle like
    the headings do, and `anywhere` because Whitney's sources include bare URLs
    long enough to push a phone layout sideways otherwise. */
-.lib-entry .lib-link {
+.lib-entry .lib-link,
+.lib-html a {
   color: var(--accent);
   text-shadow: var(--glow-1);
   text-decoration: none;
@@ -399,10 +400,14 @@
   transition: color 0.6s ease, text-shadow 0.6s ease, border-color 0.25s ease;
 }
 .lib-entry .lib-link:hover,
-.lib-entry .lib-link:focus-visible {
+.lib-entry .lib-link:focus-visible,
+.lib-html a:hover,
+.lib-html a:focus-visible {
   border-bottom-color: var(--accent);
 }
-.lib-img {
+/* Entries from the console arrive as HTML without classes. */
+.lib-img,
+.lib-html img {
   display: block;
   max-width: 100%;
   height: auto;

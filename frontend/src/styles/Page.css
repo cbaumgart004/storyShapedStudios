@@ -1,0 +1,41 @@
+/* Pages written in the console (pages/Page.jsx). Everything else comes from
+   Home.css; this only covers what Home builds by hand and a page gets as data. */
+
+/* A figure outside the hero is not in the hero's centred flex column. */
+.page-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(1.1rem, 2.6vw, 2rem);
+}
+.page-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Rich text arrives as HTML without classes: lists, links and inline images. */
+.page-rich a {
+  color: var(--accent);
+  text-shadow: var(--glow-1);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.page-rich a:hover,
+.page-rich a:focus-visible {
+  border-bottom-color: var(--accent);
+}
+.page-rich img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.page-rich ul,
+.page-rich ol {
+  text-align: left;
+  display: inline-block;
+}

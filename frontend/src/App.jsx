@@ -10,6 +10,7 @@ import Shop from '@/pages/Shop'
 import Library from '@/pages/Library'
 import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
+import Page from '@/pages/Page'
 import { useConsoleNavigation } from '@/lib/siteConsole'
 
 // Lets the Edge of the Map console open a document's page through the router.
@@ -32,6 +33,8 @@ function App() {
           <Route path="/library/:slug" element={<Library />} />
           <Route path="/glossary" element={<Glossary />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
+          {/* Pages written in the console; the named routes above win. */}
+          <Route path="/:slug" element={<Page />} />
         </Routes>
       </Router>
     </UvModeProvider>

@@ -36,6 +36,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
+import { parseSections } from '@/lib/libraryMarkdown'
 import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf } from '@/lib/siteConsole'
 import '@/styles/Library.css'
 
@@ -68,51 +69,6 @@ async function copyToClipboard(text) {
   }
 }
 
-// Whitney's source doc has bare URLs sitting in the prose, and CommonMark
-// leaves those as plain text — react-markdown only links them if remark-gfm's
-// autolink literals are enabled, which would also switch on tables, task lists
-// and strikethrough and change how the rest of her copy parses. Wrapping each
-// bare URL in CommonMark's own `<...>` autolink syntax gets the links without
-// the dependency or the parsing side effects.
-//
-// The first alternative swallows a URL that is already a markdown link target
-// or an autolink and hands it back untouched, so only genuinely bare URLs reach
-// the second. Consuming them rather than testing the preceding character means
-// a URL written inside plain parentheses — which Whitney does, citing sources —
-// still gets linked. `)` is excluded from the URL itself, so the closing paren
-// stays in the prose. No lookbehind: iOS Safari before 16.4 has none, and this
-// site is read on phones.
-const URL_SCAN =
-  /(\]\(\s*<?https?:\/\/[^\s)]+>?\s*\)|<https?:\/\/[^\s>]+>)|(https?:\/\/[^\s<>()[\]"']+)/g
-
-function linkifyUrls(md) {
-  return md.replace(URL_SCAN, (match, alreadyLinked, bare) => {
-    if (alreadyLinked) return alreadyLinked
-    // A URL that ends a sentence shouldn't drag the full stop into its href.
-    const trailing = bare.match(/[.,;:!?]+$/)
-    const href = trailing ? bare.slice(0, -trailing[0].length) : bare
-    return `<${href}>${trailing ? trailing[0] : ''}`
-  })
-}
-
-// Split the markdown into { id, title, body } sections on each "## " heading.
-function parseSections(md) {
-  const withoutTitle = md.replace(/^#\s+.*(\r?\n)?/, '')
-  const blocks = withoutTitle.split(/\n(?=##\s)/)
-  const seen = {}
-  return blocks
-    .map((block) => {
-      const m = block.match(/^##\s+(.*)/)
-      if (!m) return null
-      const title = m[1].trim()
-      let id = slugify(title)
-      seen[id] = (seen[id] || 0) + 1
-      if (seen[id] > 1) id = `${id}-${seen[id]}`
-      return { id, title, body: linkifyUrls(block.slice(m[0].length).trim()) }
-    })
-    .filter(Boolean)
-}
-
 // Entries written in the Edge of the Map console join the ones in library.md:
 // one whose title matches a library.md heading replaces it in place, the rest
 // go where their `after` places them: "^" first, an entry's id to follow it,
@@ -131,9 +87,11 @@ function mergeManaged(builtIn, docs) {
   }
   extra.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.title.localeCompare(b.title))
   const placed = [...out, ...extra.filter((e) => !e.after)]
-  // Several passes, so an entry placed after another placed entry still lands.
+  // Pass until nothing more lands, so a chain of entries each placed after the
+  // one before (the imported library.md) resolves however long it is.
   let pending = extra.filter((e) => e.after)
-  for (let pass = 0; pending.length && pass < 5; pass++) {
+  for (let landed = true; pending.length && landed; ) {
+    const before = pending.length
     pending = pending.filter((e) => {
       if (e.after === '^') { placed.unshift(e); return false }
       const i = placed.findIndex((s) => s.id === e.after)
@@ -141,6 +99,7 @@ function mergeManaged(builtIn, docs) {
       placed.splice(i + 1, 0, e)
       return false
     })
+    landed = pending.length < before
   }
   return [...placed, ...pending]
 }

@@ -44,8 +44,9 @@ export default function UvPhoto({
   useEffect(() => setOverride(null), [lit])
 
   const showLit = override === null ? lit : override
-  const srcSet = (base) => widths.map((w) => `${base}-${w}.jpg ${w}w`).join(', ')
-  const fallback = (base) => `${base}-${widths[widths.length - 1]}.jpg`
+  // No widths: the paths are whole image URLs (a console upload), not bases.
+  const srcSet = (base) => (widths.length ? widths.map((w) => `${base}-${w}.jpg ${w}w`).join(', ') : undefined)
+  const fallback = (base) => (widths.length ? `${base}-${widths[widths.length - 1]}.jpg` : base)
 
   return (
     <span className={`uv-photo${showLit ? ' is-lit' : ''}${className ? ` ${className}` : ''}`}>
