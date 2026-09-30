@@ -33,24 +33,32 @@ const rows = Array.isArray(read?.[0]?.variants)
     product: product.sku, trunk: { product, variant: v },
   })))
   : read
-// In batches: the server's JSON body limit is Express's default 100 KB, and a
-// row carries its raw Trunk record for the snapshot.
-const BATCH = 50
+// In batches under the server's JSON body limit (Express's default 100 KB): a
+// row carries its raw Trunk record for the snapshot, and some descriptions are
+// long, so batches are cut by size, not by count.
+const LIMIT = 80_000
+const batches = [[]]
+for (const row of rows) {
+  const last = batches[batches.length - 1]
+  if (last.length && JSON.stringify([...last, row]).length > LIMIT) batches.push([row])
+  else last.push(row)
+}
 const totals = { created: [], existing: [], groups: [], invalid: [] }
-for (let i = 0; i < rows.length; i += BATCH) {
+let done = 0
+for (const batch of batches) {
   const res = await fetch(`${api.replace(/\/$/, '')}/api/inventory/import/trunk`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(rows.slice(i, i + BATCH)),
+    body: JSON.stringify(batch),
   })
   const out = await res.json().catch(() => ({}))
   if (!res.ok) {
-    console.error(`Import refused at row ${i} (${res.status}): ${out.error ?? 'no detail'}. Rows before it are in; rerunning skips them as existing.`)
+    console.error(`Import refused at row ${done} (${res.status}): ${out.error ?? 'no detail'}. Rows before it are in; rerunning skips them as existing.`)
     process.exit(1)
   }
   for (const k of Object.keys(totals)) totals[k].push(...(out[k] ?? []))
-  process.stdout.write(`
-${Math.min(i + BATCH, rows.length)} of ${rows.length}`)
+  done += batch.length
+  process.stdout.write(`${done} of ${rows.length}`)
 }
 console.log()
 for (const [what, skus] of Object.entries(totals)) console.log(`${what}: ${skus.length}${skus.length ? ` (${skus.slice(0, 10).join(', ')}${skus.length > 10 ? ', …' : ''})` : ''}`)
