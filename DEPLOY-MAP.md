@@ -80,13 +80,15 @@ On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=
 - Role `storyshaped-api-role`: basic Lambda logging, plus `ssm:GetParameter` on the two parameters above and
   `kms:Decrypt` through SSM only.
 - Functions `storyshaped-api` and `storyshaped-api-preview`: Node.js 24, `lambda.handler`, 512 MB, 20 s,
-  public function URLs. Verified: both answer `GET /`; production wrote a Library view to Neon; preview
-  answers 503 on database routes until `database-preview` exists.
+  public function URLs. Verified: both answer `GET /` and write to their own database (production: the main
+  branch; preview: the Neon `preview` branch, whose parameter was stored the same day).
+- Stock loaded into both from Trunk (2,043 Stock Items, 18,658 units each). The preview branch did not carry
+  production's data when created, so it was loaded separately; from here the two stay apart.
 - Role `storyshaped-backend-deploy` (GitHub OIDC, this repo's `preview` and `main`), and the repo variable
   `AWS_DEPLOY_ROLE_ARN`.
 
-Still to do: the Neon preview branch and its parameter (step 1 below), Etsy and eBay settings, the rewrites
-(later), and monitoring.
+Still to do: Etsy and eBay settings (step 8), the UptimeRobot backend monitors, the rewrites (later), and the
+Amplify `main` branch at the Go-Live gate.
 
 ### One-time setup (AWS, us-east-1, the account running the console)
 
