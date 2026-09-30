@@ -15,8 +15,8 @@
 //   - Draft pages (DRAFT_PAGES: Shop, Images): created as drafts, never
 //     published by this script; a Shop page already live goes back to a draft.
 //   - Menu: created when there is none, from the menu as shipped, each item
-//     naming its Page (Glossary by address); Shop's item is hidden from
-//     visitors until the Shop page is published.
+//     naming its Page (Glossary by address); Images' and Shop's items are
+//     hidden from all but the Owner until their pages are published.
 //
 // The Glossary has its own script (import-glossary.mjs); Library entries were
 // loaded by import-library.mjs.
@@ -115,10 +115,10 @@ if (!(await call('GET', '/documents?type=menu')).length) {
     item('nav-1', 'Home', 'home'),
     item('nav-2', 'Library', 'library'),
     { _id: 'nav-3', page: null, label: 'Glossary', url: '/glossary', soon: false },
-    item('nav-4', 'Images', 'images', { soon: true }),
+    item('nav-4', 'Images', 'images'),
     item('nav-5', 'Meet the Artist', 'meet-the-artist'),
     item('nav-6', 'Shop', 'shop'),
   ]
   await createAndPublish({ type: 'menu', data: { items } })
-  console.log('menu       created and published (Shop hidden until its page is published)')
+  console.log('menu       created and published (Images and Shop show only to the Owner until published)')
 }

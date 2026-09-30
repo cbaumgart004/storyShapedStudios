@@ -146,10 +146,10 @@ export function useSiteSettings() {
 }
 
 // The site's menu (the console's `menu`, one per site): its items in order,
-// each a Page or an address. An item naming a Page shows to visitors only once
-// that Page is published; while the owner edits, every item shows. Null until a
-// Menu exists; the header then uses the older Site header and footer list, or
-// its built-in one.
+// each a Page or an address. An item naming a Page not yet published is hidden
+// from everyone but the Owner (a browser the console confirmed as hers, or one
+// with the editor open), who sees it dimmed. Null until a Menu exists; the
+// header then uses the older Site header and footer list, or its built-in one.
 export function useMenu() {
   const [menus, setMenus] = useState([])
   const [pages, setPages] = useState([])
@@ -163,13 +163,13 @@ export function useMenu() {
   const livePages = useLiveDocuments('page', pages)
   return useMemo(() => {
     if (!menu) return null
-    const editing = Boolean(window.EOTM?.editing)
+    const owner = Boolean(window.EOTM?.editing) || isRememberedOwner()
     const published = new Set(pages.map((p) => p.id))
     const byId = new Map(livePages.map((p) => [p.id, p]))
     const links = []
     for (const item of menu.data?.items ?? []) {
       const page = item.page ? byId.get(item.page) : null
-      if (item.page && !published.has(item.page) && !editing && !item.soon) continue
+      if (item.page && !published.has(item.page) && !owner) continue
       const url = page ? (page.slug === 'home' ? '/' : `/${page.slug}`) : item.url
       const label = item.label || page?.data?.title
       if (!label || (!url && !item.soon)) continue
