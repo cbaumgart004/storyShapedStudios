@@ -24,7 +24,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { connectSocials } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
-import { signInThroughConsole } from '@/lib/siteConsole'
+import { useOwner, openEditor } from '@/lib/siteConsole'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -52,6 +52,9 @@ const UTILITY_ICONS_VISIBLE = true
 export default function SiteHeader({ featured = false }) {
   const { lit, toggle } = useUvMode()
   const { pathname } = useLocation()
+  // Sign in is the owner's (the console confirms the role); hidden from
+  // everyone else until customer accounts exist.
+  const owner = useOwner()
 
   // Hide the current page's own link. Library article URLs (/library/:slug)
   // count as being on Library, hence the prefix check rather than equality.
@@ -128,13 +131,14 @@ export default function SiteHeader({ featured = false }) {
               board #22). They are real buttons rather than links so nothing
               404s, and they announce themselves as unavailable. The rule
               goes with them. */}
-          {/* Sign in works everywhere; the other three stay behind the flag. */}
-          {(
+          {/* Sign in shows to the owner on every build; the other three stay
+              behind the flag. */}
+          {(UTILITY_ICONS_VISIBLE || owner) && (
             <>
               <span className="sss-nav-sep" aria-hidden="true" />
-              {utilityIcons.filter(({ label }) => UTILITY_ICONS_VISIBLE || label === 'Sign in').map(({ label, Icon }) => label === 'Sign in' ? (
-                // The owner's way into the editor (the console's sign-in).
-                <button key={label} type="button" className="sss-nav-util is-live" aria-label="Sign in to edit the site" title="Sign in to edit the site" onClick={() => signInThroughConsole()}>
+              {utilityIcons.filter(({ label }) => (label === 'Sign in' ? owner : UTILITY_ICONS_VISIBLE)).map(({ label, Icon }) => label === 'Sign in' ? (
+                // The owner's way into the editor (lib/siteConsole.js, openEditor).
+                <button key={label} type="button" className="sss-nav-util is-live" aria-label="Edit the site" title="Edit the site" onClick={openEditor}>
                   <Icon />
                 </button>
               ) : (

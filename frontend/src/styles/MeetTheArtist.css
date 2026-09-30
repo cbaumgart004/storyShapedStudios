@@ -73,6 +73,16 @@
 .artist-body .artist-links a:focus-visible {
   border-color: var(--accent);
 }
+/* Press links are source links (title, then site and address), centred. */
+.artist-body .artist-links .source-link {
+  align-items: center;
+  text-align: center;
+  border-bottom: 0;
+}
+.artist-body .artist-links .source-link .source-title {
+  align-self: center;
+  font-size: 0.95rem;
+}
 
 /* Cabinet photo below the story — framed like the hero showpiece. */
 .artist-cabinet {

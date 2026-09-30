@@ -19,7 +19,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { slugify } from '@/lib/librarySlug'
 import { BUILT_IN } from '@/lib/glossaryPage'
-import { fetchPublished, useLiveDocuments } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, textOf } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
 import '@/styles/Glossary.css'
 
@@ -29,10 +29,18 @@ const termId = (term) => `term-${slugify(term)}`
 function matches(term, q) {
   if (!q) return true
   const has = (v) => String(v ?? '').toLowerCase().includes(q)
-  return has(term.term) || has(term.definition) || (term.details ?? []).some((d) => has(d.label) || has(d.text))
+  return has(term.term) || has(textOf(term.definition)) || (term.details ?? []).some((d) => has(d.label) || has(d.text))
 }
 
 const NONE = []
+
+// A definition is rich text from the console (sanitized by its API on save),
+// or plain text from the built-in glossary and the first import.
+function Definition({ html }) {
+  if (!html) return null
+  if (!/^\s*</.test(html)) return <p>{html}</p>
+  return <div className="gl-def" dangerouslySetInnerHTML={{ __html: html }} />
+}
 
 export default function Glossary() {
   const { mode } = useUvMode()
@@ -142,9 +150,10 @@ export default function Glossary() {
             </p>
             <div className="gl-term-grid">
               {g.terms.map((t) => (
-                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term} data-eotm-item={t._id}>
+                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term}
+                  {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-item': t._id, 'data-eotm-label': t.term } : {})}>
                   <h2>{t.term}</h2>
-                  <p>{t.definition}</p>
+                  <Definition html={t.definition} />
                   {t.details?.length > 0 && (
                     <ul className="gl-sub">
                       {t.details.map((s) => (

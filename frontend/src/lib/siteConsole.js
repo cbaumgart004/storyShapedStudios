@@ -100,14 +100,15 @@ export function useConsoleNavigation(navigate) {
   }, [navigate])
 }
 
-// The editor token the console's loader keeps for this tab after single sign-on
+// The editor token the console's loader keeps after single sign-on
 // (#eotm-token from the admin page), or null when there is none or it is about
 // to run out. The site's own admin pages send it to the backend, which asks the
 // console who it is (backend/server/utils/requireEditor.js).
 const TOKEN_KEY = 'eotm:token:storyshaped'
 export function editorToken() {
   try {
-    const token = sessionStorage.getItem(TOKEN_KEY)
+    // The browser's copy (the loader keeps it until it runs out), else this tab's.
+    const token = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
     if (!token) return null
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
     return payload.exp * 1000 - Date.now() > 60_000 ? token : null
@@ -123,7 +124,55 @@ export function editorToken() {
 // console's first allowed origin for StoryShaped (the preview), so /preview
 // on the production domain lands on the preview with the editor open.
 export function signInThroughConsole(back = location.pathname + location.search) {
-  location.replace(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}`)
+  // origin: come back to this address when the console lists it (the preview,
+  // say); an address it does not list falls back to its first.
+  location.replace(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}&origin=${encodeURIComponent(location.origin)}`)
+}
+
+// Whether this browser belongs to the site's owner. The console is the judge:
+// after any sign-in here, GET /me with the editor token answers the login's role
+// on this site, and only 'owner' is remembered (localStorage, so it outlasts the
+// 8-hour token and the tab). A token for any other role clears it. The nav's
+// sign-in icon reads this, so visitors never meet the owner's sign-in; customer
+// accounts will have their own.
+const OWNER_KEY = 'sss:owner'
+export function isRememberedOwner() {
+  try { return localStorage.getItem(OWNER_KEY) === '1' } catch { return false }
+}
+export function useOwner() {
+  const [owner, setOwner] = useState(isRememberedOwner)
+  useEffect(() => {
+    let active = true
+    let timer = null
+    // The loader stores a handed-off token asynchronously; look for it a few
+    // times before deciding this tab has none.
+    const check = (tries) => {
+      const token = editorToken()
+      if (!token) {
+        if (tries > 0) timer = setTimeout(() => check(tries - 1), 500)
+        return
+      }
+      fetch(`${CONSOLE_API}/me`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((me) => {
+          if (!active || !me) return
+          const yes = me.role === 'owner'
+          try { yes ? localStorage.setItem(OWNER_KEY, '1') : localStorage.removeItem(OWNER_KEY) } catch { /* private mode */ }
+          setOwner(yes)
+        })
+        .catch(() => {})
+    }
+    check(6)
+    return () => { active = false; clearTimeout(timer) }
+  }, [])
+  return owner
+}
+
+// The owner's way into the editor: open it here when this tab already holds a
+// token, otherwise sign in through the console, which brings her back with it.
+export function openEditor() {
+  if (editorToken() && window.EOTM?.open) window.EOTM.open()
+  else signInThroughConsole()
 }
 
 // Visible text of a rich-text field, for search. DOMParser builds an inert
