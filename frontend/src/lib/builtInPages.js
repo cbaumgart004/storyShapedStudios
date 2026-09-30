@@ -4,7 +4,11 @@
 // in the console's schema/sites/storyshaped.json). A page renders from its
 // console document when there is one (components/SitePage.jsx) and from here
 // when there is not, and scripts/import-pages.mjs copies these into the console.
-// Plain data, no React or bundled assets, so Node can import it.
+// Plain data, no React or bundled assets, so Node can import it. The sections
+// below are written in the narrower shapes they were first built in and turned
+// into Cards on export (lib/cards.js, toCard), keeping the copy easy to read.
+
+import { toCard } from './cards.js'
 //
 // Home's section ids are the keys its Page layout for "/" already arranges
 // (hero, believe, story, jewelry, makers), so that layout still applies.
@@ -121,5 +125,20 @@ const meetTheArtist = {
   ],
 }
 
+// The Library's page: its first Card is the heading over the index
+// (pages/Library.jsx); the entries themselves are Library entry documents.
+const library = {
+  title: 'Library',
+  sections: [
+    {
+      _id: 'intro', _type: 'card', eyebrow: 'Knowledge Base', heading: 'Uranium Glass Library',
+      body: '<p>On identifying, dating, and caring for uranium glass jewelry. Pick an entry to begin.</p>',
+      images: [], links: [], byline: '', bylineNote: '', look: 'text',
+    },
+  ],
+}
+
+const asCards = (page) => ({ ...page, sections: page.sections.map(toCard) })
+
 // By page slug; Home's is "home" and it shows at "/".
-export const BUILT_IN_PAGES = { home, 'meet-the-artist': meetTheArtist }
+export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library }

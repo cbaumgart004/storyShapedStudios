@@ -39,3 +39,28 @@
   text-align: left;
   display: inline-block;
 }
+
+/* Product card (components/Blocks.jsx): a Listing's photo, title and price,
+   framed like the Meet the Artist portraits. */
+.product-card {
+  max-width: 360px;
+  margin: 0 auto;
+}
+.product-card figcaption {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.9rem 0.4rem 0.2rem;
+  text-align: center;
+}
+.product-card figcaption strong {
+  color: var(--bone);
+  font-weight: 600;
+}
+.product-card figcaption span {
+  color: var(--accent);
+  text-shadow: var(--glow-1);
+}
+.product-card figcaption em {
+  color: var(--muted);
+  font-size: 0.85rem;
+}

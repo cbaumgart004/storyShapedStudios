@@ -16,7 +16,7 @@ import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
-import { BLOCKS, labelOf } from '@/components/Blocks'
+import { BLOCKS, current, labelOf } from '@/components/Blocks'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import { fetchPublished, useLiveDocuments, usePageLayout } from '@/lib/siteConsole'
 import '@/styles/Home.css'
@@ -64,7 +64,7 @@ export default function SitePage({ slug, path = `/${slug}`, featured = false }) 
   const pages = useLiveDocuments('page', published ?? NONE)
   const doc = pages.find((p) => p.slug === slug)
   const page = doc?.data ?? BUILT_IN_PAGES[slug]
-  const sections = useMemo(() => (page?.sections ?? []).filter((b) => BLOCKS[b._type]), [page])
+  const sections = useMemo(() => (page?.sections ?? []).map(current).filter((b) => BLOCKS[b._type]), [page])
   const idsKey = sections.map((b) => b._id).join('|')
   const keys = useMemo(() => (idsKey ? idsKey.split('|') : []), [idsKey])
   const layout = usePageLayout(path, keys)

@@ -1,16 +1,18 @@
 // src/components/Blocks.jsx
 // One renderer per component a page can be made of: the blocks in the console's
-// schema/sites/storyshaped.json (Hero, Text section, Values grid, Daylight /
-// blacklight photo, Portrait row, Artist story, Framed photo). Each draws with
-// the site's own classes, so a page written in the console looks like the rest
-// of the site. `marks` are the console's click-to-edit attributes (data-eotm-*).
-// Rich text is sanitized by the console API on save; drafts come from the
-// owner's own editor on the page.
+// schema/sites/storyshaped.json. Card is the general one (small heading,
+// heading, rich text, images, links by title, a signature, a look); Hero, Values
+// grid, Daylight / blacklight photo and Product card are the particular ones.
+// Each draws with the site's own classes, so a page written in the console
+// looks like the rest of the site. `marks` are the console's click-to-edit
+// attributes (data-eotm-*). Rich text is sanitized by the console API on save;
+// drafts come from the owner's own editor on the page.
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import UvPhoto from '@/components/UvPhoto'
-import SourceLink from '@/components/SourceLink'
+import { fetchPublished, useLiveDocuments } from '@/lib/siteConsole'
+import { toCard } from '@/lib/cards'
 import '@/styles/MeetTheArtist.css'
 
 // The rect neon lockup is the logo variant without "Uranium Glass Jewelry"
@@ -64,24 +66,6 @@ function Hero({ block, marks }) {
   )
 }
 
-function Prose({ block, marks }) {
-  const { heading, body, link } = block
-  return (
-    <section className="section" {...marks}>
-      <div className="prose-block">
-        {heading && <h2>{heading}</h2>}
-        {body && <div className="page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: body }} />}
-        {link?.url && link?.label && (
-          <LinkTo url={link.url} className="prose-link">
-            {link.label}
-            <span className="arrow" aria-hidden="true">→</span>
-          </LinkTo>
-        )}
-      </div>
-    </section>
-  )
-}
-
 function Values({ block, marks }) {
   return (
     <section className="section" {...marks}>
@@ -114,63 +98,106 @@ function PhotoFeature({ block, marks }) {
   )
 }
 
-function Portraits({ block, marks }) {
+// The general component. With images, the heading is the large centred one
+// over them (a gallery, a framed photo); without, it heads the text column.
+// Links show by title only. Look "story" is the longer read of Meet the Artist.
+function Card({ block, marks }) {
+  const { eyebrow, heading, body, byline, bylineNote } = block
+  const images = (block.images ?? []).filter((i) => i?.src)
+  const links = (block.links ?? []).filter((l) => l.url && l.title)
+  const story = block.look === 'story'
+  const head = (eyebrow || heading) && (
+    <>
+      {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+      {heading && <h2>{heading}</h2>}
+    </>
+  )
+  const hasText = body || byline || links.length > 0
   return (
     <section className="section" {...marks}>
-      {(block.eyebrow || block.heading) && (
-        <div className="section-head">
-          {block.eyebrow && <p className="eyebrow">{block.eyebrow}</p>}
-          {block.heading && <h2>{block.heading}</h2>}
+      {images.length > 0 && head && <div className="section-head">{head}</div>}
+      {images.length === 1 && (
+        <figure className="artist-cabinet deco-corners">
+          <img src={images[0].src} alt={images[0].alt ?? ''} />
+        </figure>
+      )}
+      {images.length > 1 && (
+        <div className="piece-grid artist-gallery">
+          {images.map((p, i) => (
+            <figure key={p.src ?? i} className="piece-card deco-corners">
+              <div className="frame"><img src={p.src} alt={p.alt ?? ''} /></div>
+            </figure>
+          ))}
         </div>
       )}
-      <div className="piece-grid artist-gallery">
-        {(block.photos ?? []).slice(0, 3).map((p, i) => (
-          <figure key={p.src ?? i} className="piece-card deco-corners">
-            <div className="frame">
-              <img src={p.src} alt={p.alt ?? ''} />
+      {(hasText || (!images.length && head)) && (
+        <div className={story ? 'artist-body' : 'prose-block'}>
+          {!images.length && head}
+          {body && <div className="page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: body }} />}
+          {byline && (
+            <p className="artist-sign">
+              {byline}
+              {bylineNote && <span>{bylineNote}</span>}
+            </p>
+          )}
+          {links.length > 0 && (story ? (
+            <div className="artist-links">
+              {links.map((l) => <LinkTo key={l._id ?? l.url} url={l.url}>{l.title}</LinkTo>)}
             </div>
-          </figure>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function ArtistStory({ block, marks }) {
-  const links = (block.links ?? []).filter((l) => l.url)
-  return (
-    <section className="section artist-body" {...marks}>
-      {block.body && <div data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: block.body }} />}
-      {block.signature && (
-        <p className="artist-sign">
-          {block.signature}
-          {block.signatureTitle && <span>{block.signatureTitle}</span>}
-        </p>
-      )}
-      {links.length > 0 && (
-        <div className="artist-links">
-          {links.map((l) => <SourceLink key={l._id ?? l.url} url={l.url} title={l.title} />)}
+          ) : links.map((l) => (
+            <LinkTo key={l._id ?? l.url} url={l.url} className="prose-link">
+              {l.title}
+              <span className="arrow" aria-hidden="true">→</span>
+            </LinkTo>
+          )))}
         </div>
       )}
     </section>
   )
 }
 
-function FramedPhoto({ block, marks }) {
-  if (!block.image?.src) return null
+// A Listing (the console's `listing`, ADR-0008) as a card: its first photo,
+// title and lowest price. Published Listings only, plus the owner's drafts
+// while editing.
+const NONE = []
+function useListings() {
+  const [published, setPublished] = useState(NONE)
+  useEffect(() => {
+    let active = true
+    fetchPublished('listing').then((docs) => active && setPublished(docs))
+    return () => { active = false }
+  }, [])
+  return useLiveDocuments('listing', published)
+}
+const money = (m) => (m?.amount == null ? null : new Intl.NumberFormat('en-US', { style: 'currency', currency: m.currency ?? 'USD' }).format(m.amount / 100))
+
+function ProductCard({ block, marks }) {
+  const listing = useListings().find((d) => d.id === block.listing)
+  if (!listing) return null
+  const l = listing.data ?? {}
+  const photo = (l.photos ?? []).find((p) => p.index === 'Light') ?? l.photos?.[0]
+  const prices = (l.variations ?? []).map((v) => v.price?.amount).filter((a) => a != null)
+  const price = prices.length ? money({ amount: Math.min(...prices), currency: l.variations[0].price.currency }) : null
   return (
     <section className="section" {...marks}>
-      <figure className="artist-cabinet deco-corners">
-        <img src={block.image.src} alt={block.image.alt ?? ''} />
+      <figure className="piece-card deco-corners product-card">
+        {photo && <div className="frame"><img src={photo.src} alt={photo.alt ?? l.title ?? ''} /></div>}
+        <figcaption>
+          <strong>{l.title}</strong>
+          {price && <span>{prices.length > 1 ? `from ${price}` : price}</span>}
+          {block.note && <em>{block.note}</em>}
+        </figcaption>
       </figure>
-      {block.caption && <p className="hero-credit">{block.caption}</p>}
     </section>
   )
 }
 
-export const BLOCKS = { hero: Hero, prose: Prose, values: Values, photoFeature: PhotoFeature, portraits: Portraits, artistStory: ArtistStory, framedPhoto: FramedPhoto }
+export const BLOCKS = { hero: Hero, card: Card, values: Values, photoFeature: PhotoFeature, productCard: ProductCard }
 
-// A heading for the page layout's Arrange boxes and the Edit button.
+// A section as the page renders it: one saved in a retired shape becomes a Card.
+export const current = (block) => toCard(block)
+
+// A name for the page layout's Arrange boxes and the Edit button.
 export function labelOf(block) {
-  return block.heading || (block.tagline && 'Hero') || (block.signature && 'Artist story') || block.caption || block._type
+  return block.heading || (block._type === 'hero' && 'Hero') || block.byline || block.eyebrow || (block._type === 'card' && 'Card') || block._type
 }

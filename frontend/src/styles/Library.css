@@ -642,3 +642,14 @@
     columns: auto;
   }
 }
+
+/* A Library entry's sources (reference card): title as the link, the site and
+   address beneath (components/SourceLink.jsx). */
+.lib-sources {
+  list-style: none;
+  margin: 1.6rem 0 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.6rem;
+}

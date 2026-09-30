@@ -38,6 +38,9 @@ import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
 import { parseSections } from '@/lib/libraryMarkdown'
 import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf } from '@/lib/siteConsole'
+import SourceLink from '@/components/SourceLink'
+import { BLOCKS, current as asCurrent } from '@/components/Blocks'
+import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import '@/styles/Library.css'
 
 const VIEWS_KEY = 'sss-lib-views'
@@ -80,7 +83,7 @@ function mergeManaged(builtIn, docs) {
   for (const d of docs) {
     const title = (d.data?.title ?? '').trim()
     if (!title) continue
-    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), draft: isDraft(d), order: d.data.order, after: d.data.after ?? '', docId: d.id }
+    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), sources: d.data.sources ?? [], draft: isDraft(d), order: d.data.order, after: d.data.after ?? '', docId: d.id }
     const i = out.findIndex((s) => s.id === entry.id)
     if (i >= 0) out[i] = entry
     else extra.push(entry)
@@ -140,6 +143,16 @@ export default function Library() {
   const location = useLocation()
   const [builtIn, setSections] = useState([]) // from library.md
   const [managed, setManaged] = useState([]) // published in the console
+  // The Library is also a console page (slug "library"): its first Card heads
+  // the index, and any sections after it follow the index. Entries are the
+  // Library entry documents (reference cards: title, rich entry, sources).
+  const [pagesPublished, setPagesPublished] = useState([])
+  const libraryDoc = useLiveDocuments('page', pagesPublished).find((d) => d.slug === 'library')
+  const libraryPage = libraryDoc?.data ?? BUILT_IN_PAGES.library
+  const pageSections = (libraryPage.sections ?? []).map(asCurrent)
+  const heading = pageSections[0]?._type === 'card' ? pageSections[0] : null
+  const after = (heading ? pageSections.slice(1) : pageSections).filter((b) => BLOCKS[b._type])
+  const pageMark = (b) => ({ 'data-eotm-edit': `page:${libraryDoc?.id ?? 'library'}`, 'data-eotm-item': b._id, 'data-eotm-label': b.heading || 'Library' })
   const live = useLiveDocuments('libraryArticle', managed)
   const sections = useMemo(() => mergeManaged(builtIn, live), [builtIn, live])
   useConsoleOrder('libraryArticle', sections)
@@ -159,6 +172,7 @@ export default function Library() {
   useEffect(() => {
     let active = true
     fetchPublished('libraryArticle').then((docs) => active && setManaged(docs))
+    fetchPublished('page').then((docs) => active && setPagesPublished(docs))
     return () => {
       active = false
     }
@@ -535,13 +549,11 @@ export default function Library() {
             {/* ---- Index landing ---- */}
             {!slug && (
               <>
-                <header className="lib-hero">
-                  <p className="eyebrow">Knowledge Base</p>
-                  <h1>Uranium Glass Library</h1>
-                  <p className="lib-hero-sub">
-                    {sections.length} entries on identifying, dating, and caring
-                    for uranium glass jewelry. Pick an entry to begin.
-                  </p>
+                <header className="lib-hero" {...(heading ? pageMark(heading) : {})}>
+                  {heading?.eyebrow && <p className="eyebrow">{heading.eyebrow}</p>}
+                  <h1>{heading?.heading || 'Uranium Glass Library'}</h1>
+                  <p className="lib-hero-sub">{sections.length} entries</p>
+                  {heading?.body && <div className="lib-hero-sub page-rich" dangerouslySetInnerHTML={{ __html: heading.body }} />}
                 </header>
 
                 <ol className="lib-index-list">
@@ -565,6 +577,11 @@ export default function Library() {
                     </li>
                   ))}
                 </ol>
+                {/* Any further sections of the Library's console page. */}
+                {after.map((b) => {
+                  const Block = BLOCKS[b._type]
+                  return <Block key={b._id} block={b} marks={pageMark(b)} />
+                })}
               </>
             )}
 
@@ -597,6 +614,13 @@ export default function Library() {
                   <ReactMarkdown components={mdComponents}>
                     {current.body}
                   </ReactMarkdown>
+                )}
+                {current.sources?.some((src) => src.url) && (
+                  <ul className="lib-sources">
+                    {current.sources.filter((src) => src.url).map((src) => (
+                      <li key={src._id ?? src.url}><SourceLink url={src.url} title={src.title} /></li>
+                    ))}
+                  </ul>
                 )}
 
                 <nav className="lib-prevnext" aria-label="More entries">
