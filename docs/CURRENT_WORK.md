@@ -650,6 +650,9 @@ StoryShaped's own part of it:
   eBay, which is slow and error-prone. Once a field is owned here, Marketplace
   edits to it are overwritten, so Whitney (who edits on Etsy today) moves her
   edits here. Reconciliation waits until the wiring is complete.
+- **Tags and categories are site-owned (2026-09-29, user's instruction),**
+  reversing the line above for those two; shipping profile stays on each
+  Marketplace. `docs/adr/0008-listings-are-console-documents.md`.
 
 **E4a. Merge items and components into one Stock Item table (decided
 2026-09-27, `docs/adr/0002-one-stock-item-table.md`).** Components are sold on
@@ -696,6 +699,20 @@ onto Stock Items and BOMs.
   Marketplaces use variations today, with different rules. Every Variation is
   its own SKU. Price lives on the Variation, with an optional per-Marketplace
   override.
+- **Listing model built 2026-09-29** as the console's `listing` type
+  (`docs/adr/0008-listings-are-console-documents.md`): photos labelled Light or
+  Dark (a missing one warns at Publish; the toggle then filters the photo
+  there is), shop section, Etsy category path, eBay
+  category id, up to 13 tags, materials, who and when made, supply flag, and
+  Variations each with option, SKU, price and an eBay price. Not yet deployed
+  to the console or reloaded on Manage; nothing imported.
+- **Etsy reviewed 2026-09-29 (public shop only):** 619 active listings in 18
+  shop sections; 5 to 8 photos each (daylight, blacklight, half-and-half,
+  scale); categories are Etsy paths such as `Jewelry < Rings < Statement Rings`
+  and `Craft Supplies & Tools < Beads, Gems & Cabochons < Beads`; variations
+  seen: ring size (5 to 10+ US), bead lot quantity. Tags and SKUs are not
+  public: they need Trunk or the Etsy API.
+- **Trunk not yet reviewed:** it needs Whitney's or Chris's sign-in.
 - **Trunk syncs with Etsy and eBay today** (user report, **unverified**). If it
   syncs quantity, it and the site would both write counts to the Marketplaces
   once the site starts pushing, so Trunk's sync must be switched off the day
@@ -709,6 +726,8 @@ awaiting Whitney's sign-off. #38, #39, #41, #42 are blocked on her (Track D).
 per image, its daylight and blacklight versions, so the toggle is applied from
 data rather than by hand-pairing paths in `UvPhoto` calls. Should feed the
 `resize_asset.py` pipeline and the E2 editor's upload flow.
+- For Listings this is the console `photos` field's Light / Dark index (E6,
+  ADR-0008): the nth Light pairs with the nth Dark.
 
 **E9. Design review with AI tools.** Evaluate design applications/AI agents to
 punch up the design within the current template parameters: the one-hue ramp

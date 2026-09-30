@@ -62,7 +62,7 @@ function Values({ block, marks }) {
   )
 }
 
-// The paired daylight/blacklight shot when both exist; one photo otherwise.
+// The paired daylight/blacklight shot, or the one shot there is, toggled by a filter.
 function PhotoFeature({ block, marks }) {
   const photos = block.photos ?? []
   const light = photos.find((p) => p.index === 'Light')
@@ -72,12 +72,9 @@ function PhotoFeature({ block, marks }) {
   return (
     <section className="section page-photo" {...marks}>
       <figure className="hero-figure deco-corners">
-        {light && dark ? (
-          <UvPhoto daylight={light.src} blacklight={dark.src} widths={[]} alt={light.alt ?? ''}
-            sizes="(max-width: 820px) 92vw, 760px" loading="lazy" />
-        ) : (
-          <img className="page-img" src={only.src} alt={only.alt ?? ''} width={only.width} height={only.height} loading="lazy" />
-        )}
+        {/* One shot or a pair, it toggles with the page; a lone shot is filtered (UvPhoto). */}
+        <UvPhoto daylight={light?.src} blacklight={dark?.src} widths={[]} alt={only.alt ?? ''}
+          sizes="(max-width: 820px) 92vw, 760px" loading="lazy" />
       </figure>
       {block.caption && <p className="hero-credit">{block.caption}</p>}
     </section>

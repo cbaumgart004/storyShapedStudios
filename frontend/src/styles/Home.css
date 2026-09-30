@@ -598,6 +598,20 @@ body {
 .uv-photo.is-lit .uv-photo-lit {
   opacity: 1;
 }
+/* One shot only (UvPhoto, is-single): the missing state is a filter on the one
+   photograph. A daylight shot under "blacklight" goes dark and uranium green
+   with the accent's glow; a blacklight shot in "daylight" is softened toward
+   the citron daylight palette. Filters fake the glow, so a real pair is always
+   preferred; this only keeps the toggle meaningful when one is missing. */
+.uv-photo.is-single img {
+  transition: filter 0.6s ease;
+}
+.uv-photo.is-single.is-from-day.is-lit img {
+  filter: sepia(1) hue-rotate(52deg) saturate(3.4) brightness(0.78) contrast(1.15) drop-shadow(0 0 14px var(--accent));
+}
+.uv-photo.is-single.is-from-night:not(.is-lit) img {
+  filter: saturate(0.4) sepia(0.3) brightness(1.2) contrast(0.95);
+}
 
 /* Per-image switch, sitting UNDER the photo as a caption rather than over it.
    It used to be `position: absolute; bottom: 0`, overlaying the bottom strip of

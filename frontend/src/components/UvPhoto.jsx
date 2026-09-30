@@ -22,6 +22,11 @@
 // Both images render stacked and the blacklight one fades in on top, which
 // avoids a flash of missing image on the first toggle and preloads both states.
 //
+// A piece with only one shot (a Listing with no blacklight photo, say) still
+// toggles: the one photograph stays, and the other state is faked with a CSS
+// filter (Home.css, `.uv-photo.is-single`): a daylight shot takes a blacklight
+// tint and glow, a blacklight shot a softened daylight look.
+//
 // `daylight` / `blacklight` are asset paths WITHOUT the width suffix, matching
 // what `scripts/resize_asset.py --preset hero` writes:
 //   /assets/hero-necklace-daylight  ->  -900.jpg and -1600.jpg
@@ -44,27 +49,29 @@ export default function UvPhoto({
   useEffect(() => setOverride(null), [lit])
 
   const showLit = override === null ? lit : override
+  const single = !daylight || !blacklight
+  const from = daylight ? 'day' : 'night'
   // No widths: the paths are whole image URLs (a console upload), not bases.
   const srcSet = (base) => (widths.length ? widths.map((w) => `${base}-${w}.jpg ${w}w`).join(', ') : undefined)
   const fallback = (base) => (widths.length ? `${base}-${widths[widths.length - 1]}.jpg` : base)
 
   return (
-    <span className={`uv-photo${showLit ? ' is-lit' : ''}${className ? ` ${className}` : ''}`}>
+    <span className={`uv-photo${showLit ? ' is-lit' : ''}${single ? ` is-single is-from-${from}` : ''}${className ? ` ${className}` : ''}`}>
       {/* The two stacked shots get their own box so the switch below can sit in
           normal flow. The lit image is absolutely positioned against THIS
           element, not the whole component, which is what keeps it covering the
           photo alone rather than the switch too (board #34). */}
       <span className="uv-photo-frame">
         <img
-          src={fallback(daylight)}
-          srcSet={srcSet(daylight)}
+          src={fallback(daylight || blacklight)}
+          srcSet={srcSet(daylight || blacklight)}
           sizes={sizes}
           alt={alt}
           loading={loading}
         />
         {/* Decorative duplicate: same subject, so it carries no alt text of its
             own — screen readers get the description once, from the image above. */}
-        <img
+        {!single && <img
           className="uv-photo-lit"
           src={fallback(blacklight)}
           srcSet={srcSet(blacklight)}
@@ -72,7 +79,7 @@ export default function UvPhoto({
           alt=""
           aria-hidden="true"
           loading={loading}
-        />
+        />}
       </span>
 
       <button
