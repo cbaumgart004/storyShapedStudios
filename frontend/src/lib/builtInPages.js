@@ -157,5 +157,23 @@ const shop = {
 
 const asCards = (page) => ({ ...page, sections: page.sections.map(toCard) })
 
-// By page slug; Home's is "home" and it shows at "/".
-export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library, shop }
+// A page not ready for visitors yet, started as a draft: the owner previews and
+// publishes it from the editor. Nothing here is shown to visitors, and a
+// draft page with no console document is simply not found.
+const images = {
+  title: 'Images',
+  sections: [
+    {
+      _id: 'intro', _type: 'card', eyebrow: 'Gallery', heading: 'Uranium glass in both lights',
+      body: '<p>Pieces photographed in daylight and under blacklight.</p>',
+      images: [], links: [], byline: '', bylineNote: '', look: 'text',
+    },
+  ],
+}
+
+// By page slug; Home's is "home" and it shows at "/". These render for visitors
+// when the console has no document yet.
+export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library }
+
+// Started as drafts (scripts/seed-editor.mjs); never shown from here.
+export const DRAFT_PAGES = { shop, images }

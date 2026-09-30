@@ -1244,3 +1244,10 @@ body {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+
+/* A menu link to a Page not yet published: only the owner sees it, while
+   editing (lib/siteConsole.js, useMenu). */
+.sss-navlinks a.is-draft {
+  opacity: 0.55;
+  font-style: italic;
+}

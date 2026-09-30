@@ -24,7 +24,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
-import { useOwner, openEditor, useSiteSettings } from '@/lib/siteConsole'
+import { useOwner, openEditor, useSiteSettings, useMenu } from '@/lib/siteConsole'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -57,7 +57,8 @@ export default function SiteHeader({ featured = false }) {
   const owner = useOwner()
   // Name, menu and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
-  const navLinks = settings?.navLinks?.length
+  const menu = useMenu()
+  const navLinks = menu ? menu.links : settings?.navLinks?.length
     ? settings.navLinks.filter((l) => l.label && l.url).map((l) => ({ to: l.url, label: l.label, soon: l.soon }))
     : NAV_LINKS
   const siteName = settings?.siteName || 'StoryShaped Studios'
@@ -73,12 +74,12 @@ export default function SiteHeader({ featured = false }) {
   // strands a divider at the end of a line — a <span> pipe in the flow would.
   const renderLink = (l) => (
     <span key={l.label} className="sss-navitem">
-      {l.soon ? (
+      {l.soon || !l.to ? (
         <span className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
           {l.label}
         </span>
       ) : (
-        <Link to={l.to}>{l.label}</Link>
+        <Link to={l.to} className={l.draft ? 'is-draft' : undefined} title={l.draft ? 'Draft: only you see this link until the page is published' : undefined}>{l.label}</Link>
       )}
     </span>
   )
@@ -93,7 +94,8 @@ export default function SiteHeader({ featured = false }) {
         )}
 
         <div className="sss-nav-bar">
-          <nav className="sss-navlinks" aria-label="Primary">
+          <nav className="sss-navlinks" aria-label="Primary"
+            data-eotm-edit={menu ? `menu:${menu.docId}` : 'menu:menu'} data-eotm-label="Menu">
             {links.map(renderLink)}
 
             {/* The toggle is the last cell of the link grid, so on a phone it

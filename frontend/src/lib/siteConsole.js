@@ -145,6 +145,40 @@ export function useSiteSettings() {
   return doc ? { ...doc.data, docId: doc.id } : null
 }
 
+// The site's menu (the console's `menu`, one per site): its items in order,
+// each a Page or an address. An item naming a Page shows to visitors only once
+// that Page is published; while the owner edits, every item shows. Null until a
+// Menu exists; the header then uses the older Site header and footer list, or
+// its built-in one.
+export function useMenu() {
+  const [menus, setMenus] = useState([])
+  const [pages, setPages] = useState([])
+  useEffect(() => {
+    let active = true
+    fetchPublished('menu').then((docs) => active && setMenus(docs))
+    fetchPublished('page').then((docs) => active && setPages(docs))
+    return () => { active = false }
+  }, [])
+  const menu = useLiveDocuments('menu', menus)[0]
+  const livePages = useLiveDocuments('page', pages)
+  return useMemo(() => {
+    if (!menu) return null
+    const editing = Boolean(window.EOTM?.editing)
+    const published = new Set(pages.map((p) => p.id))
+    const byId = new Map(livePages.map((p) => [p.id, p]))
+    const links = []
+    for (const item of menu.data?.items ?? []) {
+      const page = item.page ? byId.get(item.page) : null
+      if (item.page && !published.has(item.page) && !editing && !item.soon) continue
+      const url = page ? (page.slug === 'home' ? '/' : `/${page.slug}`) : item.url
+      const label = item.label || page?.data?.title
+      if (!label || (!url && !item.soon)) continue
+      links.push({ to: url, label, soon: item.soon, draft: item.page && !published.has(item.page) })
+    }
+    return { links, docId: menu.id }
+  }, [menu, pages, livePages])
+}
+
 // Whether this browser belongs to the site's owner. The console is the judge:
 // after any sign-in here, GET /me with the editor token answers the login's role
 // on this site, and only 'owner' is remembered (localStorage, so it outlasts the

@@ -13,6 +13,10 @@ export default function SiteFooter({ brand = true }) {
   // Name and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
   const siteName = settings?.siteName || 'StoryShaped Studios'
+  // "© <year> <owner>. <notice>": both from the Site header and footer; an
+  // owner blank there is the site's name, a notice blank there is left out.
+  const owner = settings?.copyrightOwner || siteName
+  const notice = settings ? settings.copyrightNotice : 'All rights reserved.'
   return (
     <footer className="sss-footer" data-eotm-edit={`siteSettings:${settings?.docId ?? 'sitesettings'}`} data-eotm-label="Header and footer">
       {brand && (
@@ -31,7 +35,7 @@ export default function SiteFooter({ brand = true }) {
       {/* Year is derived, not hardcoded, so the notice does not go stale
           (board #31). Whitney asked for this twice in the notes doc. */}
       <p className="footer-note">
-        &copy; {new Date().getFullYear()} {siteName}
+        &copy; {new Date().getFullYear()} {owner}.{notice ? ` ${notice}` : ''}
       </p>
     </footer>
   )
