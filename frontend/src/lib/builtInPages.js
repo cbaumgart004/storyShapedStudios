@@ -159,13 +159,3 @@ const asCards = (page) => ({ ...page, sections: page.sections.map(toCard) })
 
 // By page slug; Home's is "home" and it shows at "/".
 export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library, shop }
-
-// The theme as shipped: Home.css's colours per mode (the console's `theme`;
-// blank fonts keep Poiret One and the body face). Seeded so the editor shows
-// real values rather than blanks.
-export const BUILT_IN_THEME = {
-  headingFont: '',
-  bodyFont: '',
-  blacklight: { background: '#060806', accent: '#00fb00', text: '#d9f2d9', muted: '#72ca72', glow: '', glowStrength: 100, glowSpread: 100, glowPulse: '' },
-  daylight: { background: '#0f1512', accent: '#d9ff6b', text: '#eef2d9', muted: '#b3ca73', glow: '', glowStrength: 20, glowSpread: 100, glowPulse: '' },
-}

@@ -109,6 +109,18 @@ Still to do: the Neon preview branch and its parameter (step 1 below), Etsy and 
 8. **Reconnect Etsy and eBay.** Update each app's redirect URL to the site's `/oauth/...-callback`, then open
    `https://<site>/auth/etsy` and `/auth/ebay` once each; the tokens land in `marketplace_tokens`.
 
+## Monitoring
+
+Alerts go to the Operator only (CONTEXT.md), never the Owner.
+
+- **CloudWatch alarms** (created 2026-09-30): `Errors` and `Throttles` of 1 or more in 5 minutes, on
+  `storyshaped-api`, `storyshaped-api-preview` and `eotm-console-api`, alarm and recovery both to the SNS topic
+  `eotm-operator-alerts`, which emails `keeper@theedgeofthemap.com` once its confirmation link is clicked.
+- **UptimeRobot** (to add): a monitor on each backend function URL's `GET /`, which needs no database or login.
+- **Neon compute** (after Go-Live): an hourly check from the console API against the month's allowance
+  (100 compute-hours on the free plan, read 2026-09-27): warning at 80%, critical at 90%, both to the Operator
+  by push and email; warning once a month, critical when crossed and daily while above; shown on Manage.
+
 ### Not verified
 
 - The Lambda handler is tested with a function-URL-shaped event locally, not on AWS.

@@ -28,32 +28,53 @@ const a = (n) => Math.min(1, Math.round(n * 1000) / 1000)
 // by --sss-glow-pulse, which an animation drives (movementCss). As in Home.css the glow is
 // the accent unless a glow colour is given; with no accent, glow or strength
 // set it is left alone, so daylight keeps its near-flat look.
-function tokens(m = {}, { defaultGlow, defaultStrength, wash }) {
+// Each mode's glow as Home.css draws it today, layer by layer: blur in px, alpha,
+// and whether the layer is part of the haze (the soft, diffuse outer bloom).
+// At 100% strength, haze and reach these reproduce Home.css exactly, so a
+// Theme that only changes a colour recolours the glow and keeps its shape.
+const SHAPES = {
+  blacklight: {
+    glow: '#00fb00', line: 0.35, wash: 0.12,
+    glow1: [[5, 0.7]],
+    strong: [[3, 1], [9, 1], [22, 0.45, 'haze'], [44, 0.2, 'haze']],
+    frame: [[10, 0.5], [12, 0.18, 'inset']],
+  },
+  daylight: {
+    glow: '#d9ff6b', line: 0.28, wash: 0.1,
+    glow1: [[1, 0.4]],
+    strong: [[1, 0.5]],
+    frame: [],
+  },
+}
+
+function tokens(m = {}, mode) {
+  const shape = SHAPES[mode]
   const out = []
   if (m.background) out.push(`--void: ${m.background};`)
   if (m.accent) out.push(`--accent: ${m.accent};`)
   if (m.text) out.push(`--bone: ${m.text};`)
   if (m.muted) out.push(`--muted: ${m.muted};`)
   let background = null
-  if (m.glow || m.accent || m.glowStrength != null || m.glowSpread != null || m.glowPulse) {
-    const g = rgb(m.glow || m.accent || defaultGlow)
-    const k = (m.glowStrength ?? defaultStrength) / 100
-    const r = k * ((m.glowSpread ?? 100) / 100)
+  const touched = m.glow || m.accent || m.glowStrength != null || m.glowHaze != null || m.glowSpread != null || m.glowPulse
+  if (touched) {
+    const g = rgb(m.glow || m.accent || shape.glow)
+    const k = (m.glowStrength ?? 100) / 100
+    const h = (m.glowHaze ?? 100) / 100
+    const r = (m.glowSpread ?? 100) / 100
     const al = (n) => (m.glowPulse ? `calc(${a(n)} * var(--sss-glow-pulse, 1))` : a(n))
+    const layer = ([blur, alpha, kind]) => `${kind === 'inset' ? 'inset ' : ''}0 0 ${px(blur * r)} rgba(${g}, ${al(alpha * (kind === 'haze' ? h : k))})`
+    const list = (layers) => (layers.length ? layers.map(layer).join(', ') : 'inset 0 0 0 rgba(0, 0, 0, 0)')
     out.push(
-      `--line: rgba(${g}, 0.35);`,
-      `--glow-1: 0 0 ${px(5 * r)} rgba(${g}, ${al(0.7 * k)});`,
-      `--glow-strong: 0 0 ${px(3 * r)} rgba(${g}, ${al(k)}), 0 0 ${px(9 * r)} rgba(${g}, ${al(k)}), 0 0 ${px(22 * r)} rgba(${g}, ${al(0.45 * k)}), 0 0 ${px(44 * r)} rgba(${g}, ${al(0.2 * k)});`,
-      `--frame-glow: 0 0 ${px(10 * r)} rgba(${g}, ${al(0.5 * k)}), inset 0 0 ${px(12 * r)} rgba(${g}, ${al(0.18 * k)});`,
+      `--line: rgba(${g}, ${a(shape.line)});`,
+      `--glow-1: ${list(shape.glow1)};`,
+      `--glow-strong: ${list(shape.strong)};`,
+      `--frame-glow: ${list(shape.frame)};`,
     )
-    background = `radial-gradient(120% 90% at 50% -10%, rgba(${g}, ${a(wash * k)}), transparent 55%), var(--void)`
+    background = `radial-gradient(120% 90% at 50% -10%, rgba(${g}, ${a(shape.wash * h)}), transparent 55%), var(--void)`
   }
   return { vars: out.join(' '), background }
 }
 
-// A moving glow: one registered number, --sss-glow-pulse (1 = full), that the
-// mode's page animates and every glow layer's alpha reads, so the text itself
-// never re-lays out. Less motion asked for: it stays at 1.
 const MOVES = {
   breathe: { name: 'sss-glow-breathe', frames: '0%, 100% { --sss-glow-pulse: 1; } 50% { --sss-glow-pulse: 0.45; }', run: '5s ease-in-out infinite' },
   flicker: { name: 'sss-glow-flicker', frames: '0%, 39%, 45%, 71%, 100% { --sss-glow-pulse: 1; } 40% { --sss-glow-pulse: 0.3; } 42% { --sss-glow-pulse: 0.85; } 43% { --sss-glow-pulse: 0.4; } 72% { --sss-glow-pulse: 0.6; }', run: '3.2s steps(1, end) infinite' },
@@ -77,8 +98,8 @@ export function themeCss(t = {}) {
 
   // Same pairing as Home.css: blacklight on the page and on a lit photo,
   // daylight on a daylight page and on an unlit photo.
-  const night = tokens(t.blacklight, { defaultGlow: '#00fb00', defaultStrength: 100, wash: 0.12 })
-  const day = tokens(t.daylight, { defaultGlow: '#d9ff6b', defaultStrength: 20, wash: 0.1 })
+  const night = tokens(t.blacklight, 'blacklight')
+  const day = tokens(t.daylight, 'daylight')
   // Night rules name the page as "not daylight": a bare `:root .sss-home` ties
   // Home.css's daylight rule on specificity and, coming later, would win it.
   const nightPage = ":root .sss-home:not([data-mode='daylight'])"

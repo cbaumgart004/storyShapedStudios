@@ -7,8 +7,8 @@
 //     Artist story, Framed photo) are rewritten as Cards (lib/cards.js) with the
 //     same section ids; a page that was live is published again, one with
 //     unpublished edits is saved as a draft and named.
-//   - Theme: created with the site's current colours (BUILT_IN_THEME) when there
-//     is none.
+//   - Theme: created blank when there is none. Blank is the site's own look
+//     exactly; the editor shows each current value as the field's hint.
 //   - Site header and footer: created from the schema's defaults (the menu,
 //     social and shop links as shipped) when there is none.
 //
@@ -21,7 +21,7 @@
 // The token: "Copy an editor token" on Manage (8 hours, this site only). Run it
 // after the site's schema is reloaded on Manage.
 
-import { BUILT_IN_PAGES, BUILT_IN_THEME } from '../src/lib/builtInPages.js'
+import { BUILT_IN_PAGES } from '../src/lib/builtInPages.js'
 import { toCard, RETIRED } from '../src/lib/cards.js'
 
 const API = process.env.EOTM_API ?? 'https://admin.theedgeofthemap.com/api/sites/storyshaped'
@@ -68,7 +68,7 @@ for (const [slug, data] of Object.entries(BUILT_IN_PAGES)) {
 }
 
 // Theme, and the Site header and footer (one of each)
-for (const [type, data, label] of [['theme', BUILT_IN_THEME, 'theme'], ['siteSettings', {}, 'header and footer']]) {
+for (const [type, data, label] of [['theme', {}, 'theme'], ['siteSettings', {}, 'header and footer']]) {
   if ((await call('GET', `/documents?type=${type}`)).length) {
     console.log(`${label.padEnd(10)} already there`)
     continue
