@@ -1,4 +1,4 @@
-/* Pages written in the console (pages/Page.jsx). Everything else comes from
+/* Pages written in the console (components/SitePage.jsx). Everything else comes from
    Home.css; this only covers what Home builds by hand and a page gets as data. */
 
 /* A figure outside the hero is not in the hero's centred flex column. */

@@ -1,7 +1,7 @@
 // src/App.jsx
 
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { UvModeProvider } from '@/context/UvMode'
 import ScrollToTop from '@/components/ScrollToTop'
 import Home from '@/pages/Home'
@@ -36,6 +36,8 @@ function App() {
           <Route path="/glossary" element={<Glossary />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/preview" element={<ToEditor />} />
+          {/* Home is the console page "home"; the editor's preview of it lands here. */}
+          <Route path="/home" element={<Navigate to="/" replace />} />
           {/* Pages written in the console; the named routes above win. */}
           <Route path="/:slug" element={<Page />} />
         </Routes>
