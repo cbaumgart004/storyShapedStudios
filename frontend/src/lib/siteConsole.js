@@ -129,6 +129,22 @@ export function signInThroughConsole(back = location.pathname + location.search)
   location.replace(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}&origin=${encodeURIComponent(location.origin)}`)
 }
 
+// The site's header and footer (the console's `siteSettings`, one per site):
+// its name, menu, social and shop links, and the toggle's labels. Null until
+// one exists; the header and footer then use their built-in values.
+let settingsPromise = null
+export function useSiteSettings() {
+  const [published, setPublished] = useState([])
+  useEffect(() => {
+    let active = true
+    settingsPromise ??= fetchPublished('siteSettings')
+    settingsPromise.then((docs) => active && setPublished(docs))
+    return () => { active = false }
+  }, [])
+  const doc = useLiveDocuments('siteSettings', published)[0]
+  return doc ? { ...doc.data, docId: doc.id } : null
+}
+
 // Whether this browser belongs to the site's owner. The console is the judge:
 // after any sign-in here, GET /me with the editor token answers the login's role
 // on this site, and only 'owner' is remembered (localStorage, so it outlasts the

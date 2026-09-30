@@ -7,6 +7,9 @@ import ebayIcon from '@/assets/coming-soon/ebay.png'
 import facebookIcon from '@/assets/coming-soon/facebook.png'
 import instagramIcon from '@/assets/coming-soon/instagram.png'
 
+// By the `icon` a Site header and footer entry names (the console's siteSettings).
+export const ICONS = { etsy: etsyIcon, ebay: ebayIcon, facebook: facebookIcon, instagram: instagramIcon }
+
 export const socials = [
   { href: 'https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt', icon: etsyIcon, label: 'Etsy' },
   { href: 'https://www.ebay.com/str/storyshapedstudios', icon: ebayIcon, label: 'eBay' },
@@ -20,3 +23,12 @@ export const socials = [
 export const connectSocials = socials.filter(
   (s) => s.label === 'Facebook' || s.label === 'Instagram'
 )
+
+// The links from the console's Site header and footer when it has any, in the
+// built-in shape ({ href, icon, label }); `band` keeps only those shown under
+// the menu.
+export function socialsFrom(settings, { band = false } = {}) {
+  const list = settings?.socials?.filter((s) => s.url && s.label)
+  if (!list?.length) return band ? connectSocials : socials
+  return list.filter((s) => !band || s.inBand).map((s) => ({ href: s.url, icon: ICONS[s.icon] ?? ICONS.facebook, label: s.label }))
+}

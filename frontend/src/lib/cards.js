@@ -2,7 +2,7 @@
 // The Card is the site's most general component: small heading, heading, rich
 // text, images, links (shown by title only), an optional signature, and a look
 // (Text or Story). It replaced four narrower ones on 2026-09-30; a page saved
-// with those still renders, through toCard, until scripts/migrate-pages.mjs
+// with those still renders, through toCard, until scripts/seed-editor.mjs
 // rewrites it. Plain JS, no React, so Node can import it.
 
 const blankCard = { eyebrow: '', heading: '', body: '', images: [], links: [], byline: '', bylineNote: '', look: 'text' }

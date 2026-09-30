@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { apiFetch as rawFetch } from '@/lib/api'
+import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
 import { editorToken, signInThroughConsole, CONSOLE_API } from '@/lib/siteConsole'
 import '@/styles/AdminInventory.css'
 
@@ -187,7 +187,7 @@ export default function AdminInventory() {
       setError(err.message)
     }
   }, [])
-  useEffect(() => { if (signedIn) load() }, [load, signedIn])
+  useEffect(() => { if (signedIn && HAS_BACKEND) load() }, [load, signedIn])
   useEffect(() => {
     if (signedIn) listingsBySku().then(setListings).catch((err) => setListingError(err.message))
   }, [signedIn])
@@ -229,7 +229,15 @@ export default function AdminInventory() {
         <Link to="/" className="ai-back-link">← Back to site</Link>
       </header>
 
-      {!signedIn ? (
+      {!HAS_BACKEND ? (
+        // This build has no backend (VITE_API_URL=none, the Go-Live frontend and
+        // its preview), and stock lives in the backend's tables (ADR-0002).
+        <section className="ai-section">
+          <p>Inventory is not connected on this copy of the site yet. Stock lives in the site&rsquo;s own
+            database, which this build does not reach. The Trunk import (2,043 items) is ready and loads
+            once the backend is deployed.</p>
+        </section>
+      ) : !signedIn ? (
         <section className="ai-section">
           <p>Stock is for the studio only. Sign in with your Edge of the Map login to see it.</p>
           <button type="button" onClick={signInThroughConsole}>Sign in</button>

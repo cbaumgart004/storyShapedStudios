@@ -22,9 +22,9 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
-import { connectSocials } from '@/components/socials'
+import { socialsFrom } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
-import { useOwner, openEditor } from '@/lib/siteConsole'
+import { useOwner, openEditor, useSiteSettings } from '@/lib/siteConsole'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -55,10 +55,17 @@ export default function SiteHeader({ featured = false }) {
   // Sign in is the owner's (the console confirms the role); hidden from
   // everyone else until customer accounts exist.
   const owner = useOwner()
+  // Name, menu and links from the console's Site header and footer, when there is one.
+  const settings = useSiteSettings()
+  const navLinks = settings?.navLinks?.length
+    ? settings.navLinks.filter((l) => l.label && l.url).map((l) => ({ to: l.url, label: l.label, soon: l.soon }))
+    : NAV_LINKS
+  const siteName = settings?.siteName || 'StoryShaped Studios'
+  const edit = { 'data-eotm-edit': `siteSettings:${settings?.docId ?? 'sitesettings'}`, 'data-eotm-label': 'Header and footer' }
 
   // Hide the current page's own link. Library article URLs (/library/:slug)
   // count as being on Library, hence the prefix check rather than equality.
-  const links = NAV_LINKS.filter(
+  const links = navLinks.filter(
     (l) => !(l.to === pathname || (l.to !== '/' && pathname.startsWith(`${l.to}/`)))
   )
   // Every item sits in its own .sss-navitem cell. The pipe between items is
@@ -78,10 +85,10 @@ export default function SiteHeader({ featured = false }) {
 
   return (
     <>
-      <header className="sss-nav">
+      <header className="sss-nav" {...edit}>
         {pathname !== '/' && (
           <Link to="/" className="sss-wordmark">
-            StoryShaped Studios
+            {siteName}
           </Link>
         )}
 
@@ -100,7 +107,7 @@ export default function SiteHeader({ featured = false }) {
                 aria-pressed={lit}
                 title="Toggle blacklight"
               >
-                <span className="uv-label">{lit ? 'Blacklight' : 'Daylight'}</span>
+                <span className="uv-label">{lit ? settings?.blacklightLabel || 'Blacklight' : settings?.daylightLabel || 'Daylight'}</span>
                 <span className="uv-switch" aria-hidden="true" />
               </button>
             </span>
@@ -110,10 +117,11 @@ export default function SiteHeader({ featured = false }) {
 
       <section
         className={`sss-social-bar${featured ? ' is-featured' : ''}`}
-        aria-label="Connect with StoryShaped Studios"
+        aria-label={`Connect with ${siteName}`}
+        {...edit}
       >
         <div className="sss-social-icons">
-          {connectSocials.map((s) => (
+          {socialsFrom(settings, { band: true }).map((s) => (
             <a
               key={s.label}
               href={s.href}

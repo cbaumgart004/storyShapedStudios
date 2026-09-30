@@ -6,11 +6,11 @@ import { UvModeProvider } from '@/context/UvMode'
 import ScrollToTop from '@/components/ScrollToTop'
 import Home from '@/pages/Home'
 import MeetTheArtist from '@/pages/MeetTheArtist'
-import Shop from '@/pages/Shop'
 import Library from '@/pages/Library'
 import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
 import Page from '@/pages/Page'
+import SitePage from '@/components/SitePage'
 import SiteTheme from '@/components/SiteTheme'
 import { useConsoleNavigation, signInThroughConsole } from '@/lib/siteConsole'
 
@@ -30,7 +30,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />
-          <Route path="/shop" element={<Shop />} />
+          <Route path="/shop" element={<SitePage slug="shop" />} />
           <Route path="/library" element={<Library />} />
           <Route path="/library/:slug" element={<Library />} />
           <Route path="/glossary" element={<Glossary />} />

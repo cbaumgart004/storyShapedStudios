@@ -3,7 +3,7 @@
 // a title and a list of sections, each one of the schema's components (blocks
 // in the console's schema/sites/storyshaped.json). A page renders from its
 // console document when there is one (components/SitePage.jsx) and from here
-// when there is not, and scripts/import-pages.mjs copies these into the console.
+// when there is not, and scripts/seed-editor.mjs copies these into the console.
 // Plain data, no React or bundled assets, so Node can import it. The sections
 // below are written in the narrower shapes they were first built in and turned
 // into Cards on export (lib/cards.js, toCard), keeping the copy easy to read.
@@ -138,7 +138,34 @@ const library = {
   ],
 }
 
+// The Shop, until selling here is built: where the pieces are listed now.
+const shop = {
+  title: 'Shop',
+  sections: [
+    {
+      _id: 'intro', _type: 'card', eyebrow: 'Shop', heading: 'Shop the Collection',
+      body: '<p>Our pieces are listed on Etsy and eBay while the shop here is being built.</p>',
+      images: [],
+      links: [
+        { _id: 'shop-etsy', title: 'StoryShaped Studios on Etsy', url: 'https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt' },
+        { _id: 'shop-ebay', title: 'StoryShaped Studios on eBay', url: 'https://www.ebay.com/str/storyshapedstudios' },
+      ],
+      byline: '', bylineNote: '', look: 'text',
+    },
+  ],
+}
+
 const asCards = (page) => ({ ...page, sections: page.sections.map(toCard) })
 
 // By page slug; Home's is "home" and it shows at "/".
-export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library }
+export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library, shop }
+
+// The theme as shipped: Home.css's colours per mode (the console's `theme`;
+// blank fonts keep Poiret One and the body face). Seeded so the editor shows
+// real values rather than blanks.
+export const BUILT_IN_THEME = {
+  headingFont: '',
+  bodyFont: '',
+  blacklight: { background: '#060806', accent: '#00fb00', text: '#d9f2d9', muted: '#72ca72', glow: '', glowStrength: 100, glowSpread: 100, glowPulse: '' },
+  daylight: { background: '#0f1512', accent: '#d9ff6b', text: '#eef2d9', muted: '#b3ca73', glow: '', glowStrength: 20, glowSpread: 100, glowPulse: '' },
+}
