@@ -41,7 +41,7 @@ function Hero({ block, marks }) {
       <h1 className="hero-logo-wrap">
         <img className="hero-logo" src={block.logo?.src || heroLogo} alt={block.logo?.alt || 'StoryShaped Studios'} />
       </h1>
-      {block.tagline && <p className="hero-tagline">{block.tagline}</p>}
+      {block.tagline && <p className="hero-tagline" data-eotm-text="tagline">{block.tagline}</p>}
       {buttons.length > 0 && (
         <div className="hero-actions">
           {buttons.map((b, i) => (
@@ -61,7 +61,7 @@ function Hero({ block, marks }) {
           />
         )} />
       </figure>
-      {block.credit && <p className="hero-credit">{block.credit}</p>}
+      {block.credit && <p className="hero-credit" data-eotm-text="credit">{block.credit}</p>}
     </section>
   )
 }
@@ -71,14 +71,14 @@ function Values({ block, marks }) {
     <section className="section" {...marks}>
       {block.heading && (
         <div className="section-head">
-          <h2>{block.heading}</h2>
+          <h2 data-eotm-text="heading">{block.heading}</h2>
         </div>
       )}
       <div className="values-grid">
         {(block.items ?? []).map((v) => (
           <div className="value" key={v._id ?? v.title}>
-            <h3>{v.title}</h3>
-            {v.text && <p>{v.text}</p>}
+            <h3 data-eotm-text="title" data-eotm-in={v._id}>{v.title}</h3>
+            {v.text && <p data-eotm-text="text" data-eotm-in={v._id}>{v.text}</p>}
           </div>
         ))}
       </div>
@@ -108,8 +108,8 @@ function Card({ block, marks }) {
   const story = block.look === 'story'
   const head = (eyebrow || heading) && (
     <>
-      {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-      {heading && <h2>{heading}</h2>}
+      {eyebrow && <p className="eyebrow" data-eotm-text="eyebrow">{eyebrow}</p>}
+      {heading && <h2 data-eotm-text="heading">{heading}</h2>}
     </>
   )
   const hasText = body || byline || links.length > 0
@@ -137,7 +137,7 @@ function Card({ block, marks }) {
           {byline && (
             <p className="artist-sign">
               {byline}
-              {bylineNote && <span>{bylineNote}</span>}
+              {bylineNote && <span data-eotm-text="bylineNote">{bylineNote}</span>}
             </p>
           )}
           {links.length > 0 && (story ? (

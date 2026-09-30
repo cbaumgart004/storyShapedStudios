@@ -594,7 +594,7 @@ export default function Library() {
                   ← Library
                 </Link>
                 <div className="lib-entry-head">
-                  <h2>{current.title}</h2>
+                  <h2 data-eotm-text="title">{current.title}</h2>
                   <button
                     type="button"
                     className="lib-copy"

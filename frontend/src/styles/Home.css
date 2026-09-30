@@ -893,8 +893,11 @@ body {
 .piece-card:hover img {
   transform: scale(1.06);
 }
+/* Daylight barely touches photos: the heavier saturate(0.72) brightness(0.94)
+   left skin tones looking flushed and red-eyed on Meet the Artist (2026-09-30),
+   the same tinting board #6 asked to stop. */
 .sss-home[data-mode='daylight'] .piece-card img {
-  filter: saturate(0.72) brightness(0.94);
+  filter: saturate(0.92) brightness(0.98);
 }
 .piece-meta {
   display: flex;

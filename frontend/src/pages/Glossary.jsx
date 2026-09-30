@@ -38,8 +38,8 @@ const NONE = []
 // or plain text from the built-in glossary and the first import.
 function Definition({ html }) {
   if (!html) return null
-  if (!/^\s*</.test(html)) return <p>{html}</p>
-  return <div className="gl-def" dangerouslySetInnerHTML={{ __html: html }} />
+  if (!/^\s*</.test(html)) return <p data-eotm-richtext="definition">{html}</p>
+  return <div className="gl-def" data-eotm-richtext="definition" dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 export default function Glossary() {
@@ -152,7 +152,7 @@ export default function Glossary() {
               {g.terms.map((t) => (
                 <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term}
                   {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-item': t._id, 'data-eotm-label': t.term } : {})}>
-                  <h2>{t.term}</h2>
+                  <h2 data-eotm-text="term">{t.term}</h2>
                   <Definition html={t.definition} />
                   {t.details?.length > 0 && (
                     <ul className="gl-sub">
