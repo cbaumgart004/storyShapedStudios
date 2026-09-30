@@ -1,4 +1,8 @@
 // src/pages/Glossary.jsx
+// The page is the console's Reference Page Layout for /glossary (edited in the
+// Edge of the Map console; drafts render live). Until one exists, or when the
+// console cannot be reached, it is built from the data below in the same shape.
+//
 // Searchable glossary of uranium-glass terms, sourced from the studio's
 // "Glossary of Terms" reference (see src/data/glossaryTerms.js), plus a curated
 // index into the Library. The search box filters term titles, definitions, and
@@ -8,91 +12,47 @@
 // in .sss-home[data-mode] to inherit
 // Home's daylight/blacklight design tokens.
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { slugify } from '@/lib/librarySlug'
-import { GLOSSARY_TERMS, CATEGORY_ORDER } from '@/data/glossaryTerms'
+import { BUILT_IN } from '@/lib/glossaryPage'
+import { fetchPublished, useLiveDocuments } from '@/lib/siteConsole'
+import SourceLink from '@/components/SourceLink'
 import '@/styles/Glossary.css'
-
-// Curated jump-in points into the Library. Each string is the EXACT Library
-// heading; slugify() turns it into the same anchor the Library page assigns.
-const LIBRARY_INDEX = [
-  {
-    group: 'Start here',
-    items: [
-      'What is uranium glass?',
-      'Why does uranium glass jewelry matter?',
-      'Is uranium glass still made?',
-    ],
-  },
-  {
-    group: 'Is it safe?',
-    items: [
-      'Is uranium glass radioactive?',
-      'Is wearing uranium glass safe?',
-      'Is uranium the same thing as radium? Have you heard of the Radium Girls?',
-    ],
-  },
-  {
-    group: 'Identifying & hunting',
-    items: [
-      'Are your pieces real uranium glass?',
-      'What kind of blacklight do I use when I go hunting?',
-      'Should I use a Geiger counter to identify uranium glass?',
-      'Which Geiger counter should I get?',
-      'How do I know if a gems or beads in a piece of jewelry are made of glass?',
-    ],
-  },
-  {
-    group: 'Dating & makers',
-    items: [
-      'How can I date a piece of uranium glass jewelry?',
-      'How do I identify the maker of my vintage uranium glass jewelry pieces?',
-      'How old are my uranium glass beads?',
-    ],
-  },
-  {
-    group: 'Caring for your piece',
-    items: [
-      'How do I care for my uranium glass jewelry?',
-      'How do I determine my ring size?',
-    ],
-  },
-]
 
 const libLink = (title) => `/library/${slugify(title)}`
 const termId = (term) => `term-${slugify(term)}`
 
 function matches(term, q) {
   if (!q) return true
-  if (term.term.toLowerCase().includes(q)) return true
-  if (term.def.toLowerCase().includes(q)) return true
-  if (term.sub) {
-    return term.sub.some(
-      (s) =>
-        s.label.toLowerCase().includes(q) || s.text.toLowerCase().includes(q)
-    )
-  }
-  return false
+  const has = (v) => String(v ?? '').toLowerCase().includes(q)
+  return has(term.term) || has(term.definition) || (term.details ?? []).some((d) => has(d.label) || has(d.text))
 }
+
+const NONE = []
 
 export default function Glossary() {
   const { mode } = useUvMode()
   const [query, setQuery] = useState('')
+  const [published, setPublished] = useState(NONE)
+  useEffect(() => {
+    let active = true
+    fetchPublished('referencePage').then((docs) => active && setPublished(docs))
+    return () => { active = false }
+  }, [])
+  const doc = useLiveDocuments('referencePage', published).find((d) => d.data?.path === '/glossary')
+  const page = doc?.data ?? BUILT_IN
+  const allTerms = useMemo(() => (page.sections ?? []).flatMap((sec) => sec.terms ?? []), [page])
 
   const q = query.trim().toLowerCase()
 
-  // Group matching terms by category, preserving CATEGORY_ORDER.
-  const grouped = useMemo(() => {
-    const filtered = GLOSSARY_TERMS.filter((t) => matches(t, q))
-    return CATEGORY_ORDER.map((cat) => ({
-      category: cat,
-      terms: filtered.filter((t) => t.category === cat),
-    })).filter((g) => g.terms.length > 0)
-  }, [q])
+  // Matching terms, section by section in the page's order.
+  const grouped = useMemo(() => (page.sections ?? [])
+    .map((sec) => ({ category: sec.heading, terms: (sec.terms ?? []).filter((t) => matches(t, q)) }))
+    .filter((g) => g.terms.length > 0), [page, q])
 
   const total = useMemo(
     () => grouped.reduce((n, g) => n + g.terms.length, 0),
@@ -108,12 +68,13 @@ export default function Glossary() {
     <div className="sss-home glossary-page" data-mode={mode}>
       <SiteHeader />
 
-      <div className="gl-shell">
+      <div className="gl-shell" {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-label': page.title } : {})}>
         <header className="gl-hero">
-          <p className="eyebrow">Reference</p>
-          <h1>Glossary of Terms</h1>
+          {page.eyebrow && <p className="eyebrow">{page.eyebrow}</p>}
+          <h1>{page.title}</h1>
+          {page.intro && <p className="gl-hero-sub">{page.intro}</p>}
           <p className="gl-hero-sub">
-            {GLOSSARY_TERMS.length} terms on uranium glass, jewelry, gems, and
+            {allTerms.length} terms on uranium glass, jewelry, gems, and
             metals — search or browse by category. Looking for the how-to
             articles? Visit the{' '}
             <Link to="/library" className="gl-inline-link">
@@ -181,12 +142,12 @@ export default function Glossary() {
             </p>
             <div className="gl-term-grid">
               {g.terms.map((t) => (
-                <article className="gl-card" id={termId(t.term)} key={t.term}>
+                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term} data-eotm-item={t._id}>
                   <h2>{t.term}</h2>
-                  <p>{t.def}</p>
-                  {t.sub && (
+                  <p>{t.definition}</p>
+                  {t.details?.length > 0 && (
                     <ul className="gl-sub">
-                      {t.sub.map((s) => (
+                      {t.details.map((s) => (
                         <li key={s.label + s.text}>
                           {s.label && <strong>{s.label}: </strong>}
                           {s.text}
@@ -194,14 +155,11 @@ export default function Glossary() {
                       ))}
                     </ul>
                   )}
-                  {t.links && (
+                  {t.sources?.length > 0 && (
                     <ul className="gl-links">
-                      {t.links.map((href) => (
-                        <li key={href}>
-                          <a href={href} target="_blank" rel="noreferrer">
-                            {href.replace(/^https?:\/\/(www\.)?/, '').slice(0, 42)}
-                            …
-                          </a>
+                      {t.sources.filter((src) => src.url).map((src) => (
+                        <li key={src._id ?? src.url}>
+                          <SourceLink url={src.url} title={src.title} />
                         </li>
                       ))}
                     </ul>
@@ -219,17 +177,17 @@ export default function Glossary() {
         )}
 
         {/* ---------- Index into the Library ---------- */}
-        {!q && (
+        {!q && page.libraryIndex?.length > 0 && (
           <section className="gl-section" aria-labelledby="gl-index-head">
             <p className="eyebrow" id="gl-index-head">
               Library index
             </p>
             <div className="gl-index-grid">
-              {LIBRARY_INDEX.map((col) => (
-                <div className="gl-index-col" key={col.group}>
+              {(page.libraryIndex ?? []).map((col) => (
+                <div className="gl-index-col" key={col._id ?? col.group}>
                   <h3>{col.group}</h3>
                   <ul>
-                    {col.items.map((title) => (
+                    {(col.entries ?? []).map(({ title }) => (
                       <li key={title}>
                         <Link to={libLink(title)}>{title}</Link>
                       </li>

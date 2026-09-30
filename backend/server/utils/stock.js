@@ -13,6 +13,9 @@
 // `quantity` is Calculated: never typed in, only moved by those rows.
 // `counted_quantity` / `counted_at` are Previous, the last Physical Count.
 //
+// import_snapshots keeps every imported row unmodified (ADR-0004), with what the
+// import did with it, so Reconciliation can re-read fields nobody mapped.
+//
 // Takes a pg Pool (or anything with query() and connect()), so the tests run
 // the same SQL against PGlite.
 
@@ -59,6 +62,17 @@ const SCHEMA = `
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE INDEX IF NOT EXISTS idx_stock_movements_item ON stock_movements(stock_item_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS import_snapshots (
+    id           SERIAL PRIMARY KEY,
+    source       TEXT NOT NULL CHECK (source IN ('trunk', 'etsy', 'ebay')),
+    external_key TEXT NOT NULL,
+    sku          TEXT,
+    raw          JSONB NOT NULL,
+    outcome      TEXT NOT NULL,
+    imported_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX IF NOT EXISTS idx_import_snapshots_key ON import_snapshots(source, external_key)
 `
 
 // Any number of servers may start at once; the lock makes the Phase 1 copy
@@ -239,6 +253,43 @@ export function createStock(db) {
         used_in: usedIn.map((u) => ({ ...u, quantity_per_unit: num(u.quantity_per_unit) })),
         movements: movements.map((m) => ({ ...m, delta: num(m.delta), resulting_quantity: num(m.resulting_quantity) })),
       }
+    }),
+
+    // Rows read off Trunk's Inventory list: { title, sku, stock, variants?, linked? }.
+    // Each is kept as an Import Snapshot. A SKU not yet here becomes a sellable
+    // Stock Item whose opening count is Trunk's stock; a SKU already here is
+    // left alone (Reconciliation waits until the wiring is complete, and a
+    // Physical Count settles a difference). A variant group (a variant count, or
+    // a SKU with # placeholders, e.g. 10mmSqRing_###) is not an item: its
+    // variants are, and it becomes a Listing's Variations (ADR-0008).
+    importTrunk: guard(async (rows) => {
+      if (!Array.isArray(rows)) throw new StockError(400, 'Send the rows as a JSON array.')
+      const out = { created: [], existing: [], groups: [], invalid: [] }
+      for (const raw of rows) {
+        const sku = String(raw?.sku ?? '').trim()
+        const title = String(raw?.title ?? '').trim()
+        const stock = Number(raw?.stock)
+        let outcome
+        if (!sku || !title || !Number.isFinite(stock) || stock < 0) outcome = 'invalid'
+        else if (Number(raw.variants) > 0 || sku.includes('#')) outcome = 'group'
+        else if ((await db.query('SELECT 1 FROM stock_items WHERE sku = $1', [sku])).rows.length) outcome = 'existing'
+        else outcome = 'created'
+        await inTransaction(db, async (c) => {
+          if (outcome === 'created') {
+            const { rows: [item] } = await c.query(
+              `INSERT INTO stock_items (sku, name, sellable, quantity, counted_quantity, counted_at)
+               VALUES ($1, $2, true, $3, $3, now()) RETURNING id`, [sku, title, stock])
+            await c.query(
+              `INSERT INTO stock_movements (stock_item_id, kind, delta, resulting_quantity, note) VALUES ($1, 'opening', $2, $2, 'Trunk import')`,
+              [item.id, stock])
+          }
+          await c.query(
+            'INSERT INTO import_snapshots (source, external_key, sku, raw, outcome) VALUES ($1, $2, $3, $4, $5)',
+            ['trunk', sku || title || 'unnamed', sku || null, JSON.stringify(raw ?? null), outcome])
+        })
+        out[{ created: 'created', existing: 'existing', group: 'groups', invalid: 'invalid' }[outcome]].push(sku || title)
+      }
+      return out
     }),
 
     // A starting quantity is the item's first Physical Count.

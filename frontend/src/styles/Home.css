@@ -277,6 +277,16 @@ body {
 .sss-nav-util:focus-visible {
   opacity: 0.8;
 }
+/* Sign in: the one icon with something behind it (the console's sign-in). */
+.sss-nav-util.is-live {
+  color: var(--accent);
+  opacity: 0.9;
+  cursor: pointer;
+}
+.sss-nav-util.is-live:hover,
+.sss-nav-util.is-live:focus-visible {
+  opacity: 1;
+}
 
 /* ==================== SOCIAL STRIP (under the nav) ==================== */
 /* Non-sticky bar directly beneath the navbar. Two variants:

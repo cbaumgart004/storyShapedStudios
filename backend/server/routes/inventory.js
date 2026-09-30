@@ -11,6 +11,7 @@
 //   PUT    /stock/:id/bom/:componentId           { quantity_per_unit }
 //   DELETE /stock/:id/bom/:componentId
 //   POST   /stock/:id/movements                  { kind: restock|sale|build|count, quantity, note? }
+//   POST   /import/trunk                         [{ title, sku, stock, variants?, linked? }] (scripts/import-trunk.mjs)
 //
 // Every count change, a Marketplace sale included, enters through
 // POST /stock/:id/movements. Phase 1's /items and /components routes are gone
@@ -86,6 +87,10 @@ router.post('/stock/:id/movements', handle('POST /stock/:id/movements', async (r
   const result = await stock.move(id(req.params.id), req.body ?? {})
   if (result.lowStock.length) notifyLowStock(result.lowStock)
   res.status(201).json(result)
+}))
+
+router.post('/import/trunk', handle('POST /import/trunk', async (req, res) => {
+  res.json(await stock.importTrunk(req.body))
 }))
 
 export default router

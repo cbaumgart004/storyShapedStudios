@@ -712,7 +712,22 @@ onto Stock Items and BOMs.
   and `Craft Supplies & Tools < Beads, Gems & Cabochons < Beads`; variations
   seen: ring size (5 to 10+ US), bead lot quantity. Tags and SKUs are not
   public: they need Trunk or the Etsy API.
-- **Trunk not yet reviewed:** it needs Whitney's or Chris's sign-in.
+- **Trunk reviewed 2026-09-30 (list view only), signed in as Whitney's organization:** no export
+  anywhere (Settings has Account, Organization with only a name and a delete button, and Billing),
+  and the list loads no JSON over HTTP (likely a websocket; **unverified**). The Inventory list is
+  42 pages of about 12 rows: title, SKU, stock, and per-Marketplace linked-listing counts. Some rows
+  carry a variant count (15, 17, 14) with a disclosure; clicking it, and clicking a row, changed
+  nothing through browser automation, so variant rows and any item detail are **not yet read**.
+  SKUs use `#` placeholders for variants (`10mmSqRing_###`).
+- **Trunk read in full 2026-09-30** through its own app's data store (not its API directly, which
+  needs the app's sign-in token): **496 products, 2,043 variants**, every variant with its own SKU,
+  none repeated, none with components. Saved as `trunk.json` in Chris's Downloads (not committed:
+  business data). A variant carries name ("Size: 7"), SKU, properties, on-hand and available counts.
+  Dry run of `importTrunk` against PGlite: 2,043 Stock Items created, 18,658 units, no invalid
+  rows. **Not loaded:** the Stock Item code is not on a deployed backend yet; then
+  `API_URL=... EOTM_TOKEN=... node backend/scripts/import-trunk.mjs trunk.json`.
+- Listings from Trunk would be drafts only (title, Variations and SKUs): Trunk has no price,
+  section, category, tags or photos. Complete Listings need the Etsy API.
 - **Trunk syncs with Etsy and eBay today** (user report, **unverified**). If it
   syncs quantity, it and the site would both write counts to the Marketplaces
   once the site starts pushing, so Trunk's sync must be switched off the day

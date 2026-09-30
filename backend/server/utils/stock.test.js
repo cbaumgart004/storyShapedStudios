@@ -119,3 +119,24 @@ test('copies Phase 1 inventory once and keeps the old tables as phase1_*', async
   resetStockTablesForTests()
   assert.equal((await createStock(poolFor(pg)).list()).length, 3)
 })
+
+test('a Trunk import creates new SKUs, leaves known ones and variant groups, and keeps every row', async () => {
+  const { pg, stock } = await fresh()
+  await stock.create({ name: 'Emerald necklace', sku: '1111EmeraldCut', quantity: 2, sellable: true })
+  const out = await stock.importTrunk([
+    { title: '20mm Marble Green White Blue Swirl', sku: '1010marble', stock: 1, linked: { etsy: 1, ebay: 1 } },
+    { title: 'Sterling Emerald Cut Necklace', sku: '1111EmeraldCut', stock: 4 },
+    { title: 'Sterling Square Princess Ring', sku: '10mmSqRing_###', stock: 45, variants: 15 },
+    { title: '', sku: 'x', stock: 1 },
+  ])
+  assert.deepEqual(out, { created: ['1010marble'], existing: ['1111EmeraldCut'], groups: ['10mmSqRing_###'], invalid: ['x'] })
+
+  const [marble] = (await stock.list()).filter((i) => i.sku === '1010marble')
+  assert.equal(marble.quantity, 1)
+  assert.equal(marble.sellable, true)
+  assert.equal((await stock.list()).find((i) => i.sku === '1111EmeraldCut').quantity, 2)
+
+  const { rows } = await pg.query('SELECT outcome, raw FROM import_snapshots ORDER BY id')
+  assert.deepEqual(rows.map((r) => r.outcome), ['created', 'existing', 'group', 'invalid'])
+  assert.deepEqual(rows[0].raw.linked, { etsy: 1, ebay: 1 })
+})

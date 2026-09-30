@@ -9,7 +9,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch as rawFetch } from '@/lib/api'
-import { editorToken, signInThroughConsole } from '@/lib/siteConsole'
+import { editorToken, signInThroughConsole, CONSOLE_API } from '@/lib/siteConsole'
 import '@/styles/AdminInventory.css'
 
 const API = '/api/inventory/stock'
@@ -24,6 +24,25 @@ async function apiFetch(path, options = {}) {
     throw err
   }
 }
+// Listings are console documents (ADR-0008), drafts included here: each
+// Variation names its Stock Item by SKU. Read with the same editor token, so a
+// Stock Item shows what sells it and a Listing SKU with no Stock Item is caught
+// before any Marketplace push. An unreachable console leaves the column empty.
+async function listingsBySku() {
+  const res = await fetch(`${CONSOLE_API}/documents?type=listing`, { headers: { Authorization: `Bearer ${editorToken()}` } })
+  if (!res.ok) throw new Error(`Listings did not load (${res.status}).`)
+  const bySku = new Map()
+  for (const doc of await res.json()) {
+    for (const v of doc.data?.variations ?? []) {
+      const sku = String(v.sku ?? '').trim()
+      if (!sku) continue
+      bySku.set(sku, [...(bySku.get(sku) ?? []), { title: doc.data?.title || doc.slug, status: doc.status, option: v.option }])
+    }
+  }
+  return bySku
+}
+const LISTING_STATUS = { draft: 'draft', published: 'live', changed: 'live, edited' }
+
 const EMPTY_ITEM = { name: '', sku: '', unit: 'each', sellable: false, quantity: '', low_stock_threshold: '' }
 
 const isLow = (s) => Number(s.quantity) <= Number(s.low_stock_threshold)
@@ -157,6 +176,8 @@ export default function AdminInventory() {
   const [filter, setFilter] = useState('all')
   const [newItem, setNewItem] = useState(EMPTY_ITEM)
   const [signedIn, setSignedIn] = useState(() => Boolean(editorToken()))
+  const [listings, setListings] = useState(null) // Map sku -> [{ title, status, option }]
+  const [listingError, setListingError] = useState('')
   onSignedOut = () => setSignedIn(false)
 
   const load = useCallback(async () => {
@@ -167,6 +188,11 @@ export default function AdminInventory() {
     }
   }, [])
   useEffect(() => { if (signedIn) load() }, [load, signedIn])
+  useEffect(() => {
+    if (signedIn) listingsBySku().then(setListings).catch((err) => setListingError(err.message))
+  }, [signedIn])
+  const known = new Set(stock.map((s) => s.sku).filter(Boolean))
+  const orphans = listings ? [...listings.keys()].filter((sku) => !known.has(sku)) : []
 
   const shown = stock.filter((s) =>
     filter === 'products' ? s.sellable : filter === 'components' ? s.is_component : filter === 'low' ? isLow(s) : true)
@@ -211,6 +237,10 @@ export default function AdminInventory() {
       ) : (
       <>
       {error && <p className="ai-error">{error}</p>}
+      {listingError && <p className="ai-error">{listingError}</p>}
+      {orphans.length > 0 && (
+        <p className="ai-error">Listing SKUs with no stock item (a Marketplace push would refuse these): {orphans.join(', ')}</p>
+      )}
 
       <section className="ai-section">
         <div className="ai-inline-form">
@@ -229,6 +259,7 @@ export default function AdminInventory() {
               <th>Calculated</th>
               <th>Low at</th>
               <th>Sellable</th>
+              <th>Listing</th>
               <th />
             </tr>
           </thead>
@@ -242,6 +273,12 @@ export default function AdminInventory() {
                   <td>{s.low_stock_threshold}</td>
                   <td><input type="checkbox" checked={s.sellable} onChange={() => toggleSellable(s)} aria-label={`${s.name} is sellable`} /></td>
                   <td>
+                    {!listings ? '…' : (listings.get(s.sku) ?? []).map((l) => (
+                      <div key={`${l.title}-${l.option}`}>{l.title}{l.option ? ` (${l.option})` : ''} <span className="ai-muted">{LISTING_STATUS[l.status] ?? l.status}</span></div>
+                    ))}
+                    {listings && s.sellable && !listings.has(s.sku) && <span className="ai-muted">No listing</span>}
+                  </td>
+                  <td>
                     <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)}>
                       {open === s.id ? 'Hide' : 'Manage'}
                     </button>
@@ -249,14 +286,14 @@ export default function AdminInventory() {
                 </tr>
                 {open === s.id && (
                   <tr className="ai-bom-row">
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <Detail id={s.id} all={stock} onChanged={load} setError={setError} />
                     </td>
                   </tr>
                 )}
               </React.Fragment>
             ))}
-            {shown.length === 0 && <tr><td colSpan={6}>No stock items here yet.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={7}>No stock items here yet.</td></tr>}
           </tbody>
         </table>
 

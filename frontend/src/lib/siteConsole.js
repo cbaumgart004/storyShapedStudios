@@ -116,10 +116,14 @@ export function editorToken() {
   }
 }
 
-// Sign in on the admin page, which hands a fresh token back to this path.
-export function signInThroughConsole() {
-  const back = location.pathname + location.search
-  location.assign(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}`)
+// Sign in on the admin page, which hands a fresh token back to this path and
+// opens the editor there. Already signed in on the admin page, it passes
+// straight through; a first sign-in on an operator's temporary password asks
+// for her own password first, then carries on. The site it opens is the
+// console's first allowed origin for StoryShaped (the preview), so /preview
+// on the production domain lands on the preview with the editor open.
+export function signInThroughConsole(back = location.pathname + location.search) {
+  location.replace(`${new URL(CONSOLE_API).origin}/?handoff=storyshaped&return=${encodeURIComponent(back)}`)
 }
 
 // Visible text of a rich-text field, for search. DOMParser builds an inert

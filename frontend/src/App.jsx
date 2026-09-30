@@ -12,7 +12,7 @@ import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
 import Page from '@/pages/Page'
 import SiteTheme from '@/components/SiteTheme'
-import { useConsoleNavigation } from '@/lib/siteConsole'
+import { useConsoleNavigation, signInThroughConsole } from '@/lib/siteConsole'
 
 // Lets the Edge of the Map console open a document's page through the router.
 function ConsoleNavigation() {
@@ -35,6 +35,7 @@ function App() {
           <Route path="/library/:slug" element={<Library />} />
           <Route path="/glossary" element={<Glossary />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
+          <Route path="/preview" element={<ToEditor />} />
           {/* Pages written in the console; the named routes above win. */}
           <Route path="/:slug" element={<Page />} />
         </Routes>
@@ -44,3 +45,10 @@ function App() {
 }
 
 export default App
+
+// /preview: the one address the owner needs to remember. It hands over to the
+// console's sign-in and comes back to the home page with the editor open.
+function ToEditor() {
+  React.useEffect(() => { signInThroughConsole('/') }, [])
+  return <p style={{ padding: '2rem', textAlign: 'center' }}>Opening the editor…</p>
+}
