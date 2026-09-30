@@ -51,7 +51,7 @@ Prefer these as the source of truth; do not duplicate them here.
 | Inventory API | Stock Items (ADR-0002). `POST /api/inventory/import/trunk` (`importTrunk`, `backend/scripts/import-trunk.mjs`) keeps every row as an `import_snapshots` row and creates only SKUs not yet here; a variant group is skipped. The admin page shows each item's Listing (console `listing` documents, matched by Variation SKU) and flags Listing SKUs with no Stock Item. Stock Items: one table where a Product is sellable and a Component is in another's Bill of Materials; counts move only through logged Build / Sale / Restock / Physical Count movements (ADR-0003), with low-stock detection. Phase 1's tables are copied in once and renamed `phase1_*` | `backend/server/routes/inventory.js` (HTTP), `utils/stock.js` (rules + schema), `utils/stock.test.js` (PGlite, `npm test` in `backend/`), `utils/notifyLowStock.js` |
 | Admin UI (minimal) | Internal page, behind a console sign-in, listing Stock Items (filter: products, components, low), each with its count actions, Bill of Materials, where it is used, and history | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
 | Database | Postgres (Neon) — Library view counts, inventory (`stock_items`, `stock_bom`, `stock_movements`) | `backend/server/utils/db.js`, `routes/libraryViews.js`, `utils/stock.js` |
-| Token storage | File-based persistence of Etsy/eBay access tokens | `backend/server/utils/*TokenStorage.js` |
+| Token storage | Etsy/eBay OAuth tokens in Neon's `marketplace_tokens` (a file per Marketplace only without a database, locally) | `backend/server/utils/tokens.js`, `utils/*TokenStorage.js` |
 | Asset pipeline | Downscales designer-supplied art to the sizes the site serves, before it lands in `public/assets/`. Output widths live in one `PRESETS` table | `scripts/resize_asset.py` |
 
 ## API Endpoints (backend, port 3000)
@@ -121,7 +121,7 @@ and keeps a yes for a minute per token; an unreachable console answers 503, neve
   `utils/stock.js`; no migration tooling yet. `utils/stock.js` also copies the Phase 1
   `inventory_*` tables in once, under an advisory lock, and renames them `phase1_*`.
 - API contracts: `backend/server/routes/` (per-router files).
-- Deployment: frontend on Vercel (needs `VITE_API_URL` = backend origin, and a SPA rewrite
+- Deployment: what runs, calling what, with which settings, is [DEPLOY-MAP.md](../DEPLOY-MAP.md) (backend on Lambda behind the Amplify app's `/api`, `/auth`, `/oauth` rewrites; `.github/workflows/backend-api.yml`). Before that move: frontend on Vercel (needs `VITE_API_URL` = backend origin, and a SPA rewrite
   via `frontend/vercel.json`); backend on Railway (needs `DATABASE_URL`). Both auto-deploy
   from `main` — after merging, confirm Railway picked up the new commit.
 

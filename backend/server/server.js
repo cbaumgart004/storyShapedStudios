@@ -115,7 +115,7 @@ app.get('/oauth/etsy-callback', async (req, res) => {
       }
     )
     const tokenObject = response.data
-    saveEtsyToken(tokenObject)
+    await saveEtsyToken(tokenObject)
     console.log('✅ Etsy access token:', tokenObject.access_token)
     res.send('Etsy authorization successful. You may close this window.')
   } catch (error) {
@@ -128,7 +128,7 @@ app.get('/oauth/etsy-callback', async (req, res) => {
 })
 
 app.get('/api/etsy/validate-token', async (req, res) => {
-  const tokenData = loadEtsyToken()
+  const tokenData = await loadEtsyToken()
   const accessToken = tokenData?.access_token
   if (!accessToken) {
     return res.status(400).json({ error: 'Missing Etsy access token.' })
@@ -184,7 +184,7 @@ app.get('/oauth/ebay-callback', async (req, res) => {
     )
 
     const tokenObject = response.data
-    saveEbayToken(tokenObject)
+    await saveEbayToken(tokenObject)
     console.log('✅ eBay access token:', tokenObject.access_token)
     res.send('eBay authorization successful. You may close this window.')
   } catch (error) {
@@ -197,7 +197,7 @@ app.get('/oauth/ebay-callback', async (req, res) => {
 })
 
 app.get('/api/ebay/validate-token', async (req, res) => {
-  const tokenData = loadEbayToken()
+  const tokenData = await loadEbayToken()
   const accessToken = tokenData?.access_token
 
   if (!accessToken) {
@@ -224,7 +224,10 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found.' })
 })
 
-app.listen(PORT, () => {
+// On Lambda (lambda.js) the app is handed requests, never listens; everywhere
+// else it runs as a server on PORT.
+export default app
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME) app.listen(PORT, async () => {
   console.log(`🌐 Unified OAuth server running on port ${PORT}`)
 
   const urls = [
@@ -241,8 +244,8 @@ app.listen(PORT, () => {
   console.log(`🔍 eBay validate URL:       ${urls[3]}`)
   console.log(`🧪 Dummy listing endpoint:  ${urls[4]}`)
 
-  const etsyTokenData = loadEtsyToken()
-  const ebayTokenData = loadEbayToken()
+  const etsyTokenData = await loadEtsyToken()
+  const ebayTokenData = await loadEbayToken()
 
   if (!etsyTokenData || !etsyTokenData.access_token) {
     console.warn('⚠️ No saved Etsy token found.')

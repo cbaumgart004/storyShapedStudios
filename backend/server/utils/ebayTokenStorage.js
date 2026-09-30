@@ -1,26 +1,7 @@
-// backend/server/utils/ebayTokenStorage.js
+// server/utils/ebayTokenStorage.js
+// The eBay OAuth token, kept by utils/tokens.js (Neon, or a file locally).
 
-import fs from 'fs'
-import path from 'path'
+import { saveToken as save, loadToken as load } from './tokens.js'
 
-const EBAY_TOKEN_FILE = path.resolve('./ebay_token.json')
-
-export function saveToken(token) {
-  fs.writeFileSync(EBAY_TOKEN_FILE, JSON.stringify(token, null, 2))
-  console.log('💾 eBay token saved.')
-}
-
-export function loadToken() {
-  if (!fs.existsSync(EBAY_TOKEN_FILE)) {
-    console.warn('⚠️ No saved eBay token found.')
-    return null
-  }
-
-  const rawData = fs.readFileSync(EBAY_TOKEN_FILE)
-  try {
-    return JSON.parse(rawData)
-  } catch (err) {
-    console.error('⚠️ Failed to parse saved eBay token:', err)
-    return null
-  }
-}
+export const saveToken = (token) => save('ebay', token)
+export const loadToken = () => load('ebay')

@@ -1,0 +1,63 @@
+# Deploys the backend Lambda on every push that touches backend/: the `preview`
+# branch to storyshaped-api-preview, `main` to storyshaped-api. Tests first; then
+# the zip (lambda.js, server/, production node_modules) is uploaded. Amplify
+# forwards /api/*, /auth/* and /oauth/* on each site to its function URL
+# (DEPLOY-MAP.md), so the frontend needs no rebuild for a backend change.
+#
+# AWS access is GitHub's OIDC: no AWS keys in GitHub. One-time setup is in
+# DEPLOY-MAP.md ("Backend on Lambda"). Until the repo variable
+# AWS_DEPLOY_ROLE_ARN is set, the deploy job is skipped and tests still run.
+
+name: Backend API
+
+on:
+  push:
+    branches: [preview, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-api-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults: { run: { working-directory: backend } }
+    env:
+      FUNCTION: ${{ github.ref_name == 'main' && 'storyshaped-api' || 'storyshaped-api-preview' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci --omit=dev
+      - name: Build backend.zip
+        run: zip -qr backend.zip lambda.js package.json server node_modules -x 'server/**/*.test.js'
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Upload backend.zip
+        run: |
+          aws lambda update-function-code --function-name "$FUNCTION" --zip-file fileb://backend.zip --query 'LastModified' --output text
+          aws lambda wait function-updated --function-name "$FUNCTION"

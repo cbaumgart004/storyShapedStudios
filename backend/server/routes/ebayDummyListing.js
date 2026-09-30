@@ -25,7 +25,7 @@ const fallbackListing = {
 }
 
 router.get('/api/ebay/dummy-listing', async (req, res) => {
-  const tokenData = loadEbayToken()
+  const tokenData = await loadEbayToken()
   const accessToken = tokenData?.access_token
 
   if (!accessToken) {
