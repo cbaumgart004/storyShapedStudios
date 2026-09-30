@@ -25,16 +25,22 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
      /me (who may edit), uploads                           marketplace_tokens
    Neon control + StoryShaped site project:              (a Neon branch per environment)
      pages, theme, listings, Library entries …
-   S3 shared photo bucket (sites/storyshaped/),          Etsy API, eBay API (OAuth, listings)
-     via CloudFront at MEDIA_BASE_URL
+   S3 bucket eotm-storyshaped-media (StoryShaped's        Etsy API, eBay API (OAuth, listings)
+     own), uploads/ publicly readable, served from S3
 ```
 
 - **Today each Amplify branch names its function.** `VITE_API_URL` is set per branch to that branch's
   function URL (decided 2026-09-30, to go live without depending on per-branch rewrites). Later the site can
   call its own address instead: Amplify forwards `/api/*`, `/auth/*` and `/oauth/*` and the build uses
   `VITE_API_URL=same` (`frontend/src/lib/api.js`).
-- **Photos do not touch the backend.** The editor uploads straight to the shared bucket through the console
-  API's presigned URLs (console README, "Photos"). The backend needs no S3 access.
+- **Photos do not touch the backend.** The editor uploads straight to StoryShaped's own bucket,
+  `eotm-storyshaped-media` (the site's "Own photo bucket" on Manage), through the console API's presigned URLs;
+  photos are served from S3 at `uploads/…` (public read on that prefix only; no CloudFront). Verified
+  2026-09-30: the console issues upload URLs for it, and a photo was uploaded on 2026-09-29. The bucket's CORS
+  allows `PUT` from the preview address and `storyshapedstudios.com` (with `www`) only, so an upload from any
+  other address, such as Amplify's `main` branch address during Go-Live checks, is refused until it is added.
+  The backend needs no S3 access. The console's shared bucket (`MEDIA_BUCKET`) is not set up, which matters
+  only to a site without a bucket of its own.
 - **Who may edit is the console's answer.** `/api/inventory/*` asks the console's `GET /me` with the editor
   token (`backend/server/utils/requireEditor.js`); the backend keeps no users.
 - **Tokens outlive containers.** Etsy and eBay OAuth tokens are rows in `marketplace_tokens`
