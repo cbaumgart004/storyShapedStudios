@@ -29,9 +29,10 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
      via CloudFront at MEDIA_BASE_URL
 ```
 
-- **The site calls its own address.** Amplify forwards `/api/*`, `/auth/*` and `/oauth/*` to the backend
-  Lambda, so the frontend is built with `VITE_API_URL=same` (`frontend/src/lib/api.js`): no CORS, no backend
-  URL baked into the build, and one build works in front of either function.
+- **Today each Amplify branch names its function.** `VITE_API_URL` is set per branch to that branch's
+  function URL (decided 2026-09-30, to go live without depending on per-branch rewrites). Later the site can
+  call its own address instead: Amplify forwards `/api/*`, `/auth/*` and `/oauth/*` and the build uses
+  `VITE_API_URL=same` (`frontend/src/lib/api.js`).
 - **Photos do not touch the backend.** The editor uploads straight to the shared bucket through the console
   API's presigned URLs (console README, "Photos"). The backend needs no S3 access.
 - **Who may edit is the console's answer.** `/api/inventory/*` asks the console's `GET /me` with the editor
@@ -56,7 +57,7 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 
 | Setting | Used by | Value |
 |---|---|---|
-| `DATABASE_URL` | `utils/db.js` | That environment's Neon connection string. Kept on the function, never in the repo |
+| `DATABASE_PARAM` | `lambda.js` | Parameter Store name of that environment's Neon connection (SecureString), read at cold start ([ADR-0009](docs/adr/0009-backend-shares-the-console-site-database.md)): production `/eotm/sites/storyshaped/database` (the console's StoryShaped project), preview `/eotm/sites/storyshaped/database-preview` (its Neon branch) |
 | `EOTM_SITE_API` | `utils/requireEditor.js` | Optional; default `https://admin.theedgeofthemap.com/api/sites/storyshaped` |
 | `ETSY_CLIENT_ID`, `ETSY_CLIENT_SECRET` | `server.js` | Etsy app credentials |
 | `ETSY_REDIRECT_URI` | `server.js` | `https://<site>/oauth/etsy-callback` |
@@ -64,13 +65,28 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 | `EBAY_REDIRECT_URI` | `server.js` | eBay's RuName for `https://<site>/oauth/ebay-callback` |
 | `EBAY_ENVIRONMENT` | `server.js` | `sandbox` or `production` |
 
-On Amplify, each branch's build needs `VITE_API_URL=same` (today: `none` on the preview).
+On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=none` with its function URL:
+`preview` → `storyshaped-api-preview` (set 2026-09-30). `main` is added at the Go-Live gate
+(docs/CURRENT_WORK.md).
+
+### Created (2026-09-30, AWS CLI, us-east-1)
+
+- Role `storyshaped-api-role`: basic Lambda logging, plus `ssm:GetParameter` on the two parameters above and
+  `kms:Decrypt` through SSM only.
+- Functions `storyshaped-api` and `storyshaped-api-preview`: Node.js 24, `lambda.handler`, 512 MB, 20 s,
+  public function URLs. Verified: both answer `GET /`; production wrote a Library view to Neon; preview
+  answers 503 on database routes until `database-preview` exists.
+- Role `storyshaped-backend-deploy` (GitHub OIDC, this repo's `preview` and `main`), and the repo variable
+  `AWS_DEPLOY_ROLE_ARN`.
+
+Still to do: the Neon preview branch and its parameter (step 1 below), Etsy and eBay settings, the rewrites
+(later), and monitoring.
 
 ### One-time setup (AWS, us-east-1, the account running the console)
 
-1. **Neon.** In the backend's Neon project (the one Railway's `DATABASE_URL` names today), create a branch
-   `preview`. Copy both connection strings. **Unverified:** which Neon project that is; read it from Railway's
-   settings, not from here.
+1. **Neon.** In StoryShaped's Neon project (the one `/eotm/sites/storyshaped/database` names), create a branch
+   `preview` and store its connection string, from your own PowerShell, never in a file:
+   `aws ssm put-parameter --profile eotm --name /eotm/sites/storyshaped/database-preview --type SecureString --value '<connection string>'`
 2. **Functions.** Lambda → Create function `storyshaped-api-preview`: Node.js 22.x, new execution role with basic
    logging only. Handler `lambda.handler`, memory 512 MB, timeout 20 s. Configuration → Function URL → Auth type
    NONE. Configuration → Environment variables → the settings above. Repeat for `storyshaped-api` when

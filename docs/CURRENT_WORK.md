@@ -582,6 +582,32 @@ StoryShaped's own part of it:
 - Click-to-edit marks are on console Pages (each section), Library entries (the article; images in
   the body drag to size) and Home (each block opens the page layout).
 
+## Go-Live gate (decided 2026-09-30)
+
+`preview` merges into `main` only when both hold: the AWS setup in DEPLOY-MAP.md is in place (Amplify
+`main` and `preview`, both Lambdas, Neon branch, deploy role), and Chris has confirmed the editor holds.
+The merge sets `UTILITY_ICONS_VISIBLE = false`; Shop stays out of the nav. Then Amplify builds `main`,
+it is verified on Amplify's own address, DNS moves, and Vercel and Railway retire once it holds.
+
+"The editor holds" means each of these passes on the Preview Site with no error:
+
+1. Sign-in: a fresh private window at `/preview` reaches the console sign-in and returns with the editor
+   open; a second tab opens signed in.
+2. Every entry has real content: Pages (Home, Meet the Artist, Library, Shop) with the 35 Library
+   entries under them; Theme; Site header and footer (menu, four links); Page layouts (Home) with the
+   Glossary (130 terms) under them; Inventory opens its page; Listings may be empty.
+3. Edit round trip: one word in Home's Our Story shows on the page while typing, the panel says Saved,
+   it survives a reload, To the Developer reports 1 change not yet pushed, Push to Production turns it
+   to Everything is live and a private window shows it; then it is changed back.
+4. Click-to-edit opens the right document from a Home Section, a Glossary card, a Library entry, and the
+   header or footer.
+5. Theme: every field applies visibly and reverts: heading font, body font, and per mode (blacklight,
+   daylight) background, accent, text, quiet text, glow colour, glow strength, glow reach, glow movement.
+6. Phone width (about 400 px): the panel drags and scrolls, and one edit saves.
+
+Out of scope for the gate: how things look (heading sizes, glow levels, the moved artist photos) and any
+Section type other than Card.
+
 ## To-Do
 
 **E1. Hosting: migrate Railway (backend) and Vercel (frontend) to AWS.**

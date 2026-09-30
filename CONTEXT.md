@@ -25,6 +25,37 @@ The password-protected copy of the site the client reviews before a change reach
 with its own stock data kept apart from Production's.
 _Avoid_: staging, test site, dev site
 
+### People
+
+**Owner**:
+The person who runs StoryShaped Studios and edits its site: Whitney. Signs in to edit; never
+sees platform alerts.
+_Avoid_: admin, client, user
+
+**Operator**:
+The person who runs the platform the site is built and hosted on: Chris, at Edge of the Map.
+Receives every uptime, error and usage alert.
+_Avoid_: admin, developer, super-user
+
+**Customer**:
+A visitor who buys, or will sign in to see past orders. Not built yet; never the Owner.
+_Avoid_: user, buyer, client
+
+### Pages
+
+**Page**:
+One page of the site, edited by the owner, made of Sections in order. Home is a Page.
+_Avoid_: screen, view
+
+**Section**:
+One placed piece of a Page, e.g. the Our Story text on Home. Each is of one Section type.
+_Avoid_: component, block, module
+
+**Section type**:
+A kind of Section a Page may use, e.g. Card, Hero, Values grid, Product card. Card is the general
+one; the others are particular.
+_Avoid_: component, block, template
+
 ### Inventory and selling
 
 **Source of Truth**:
@@ -67,7 +98,8 @@ _Avoid_: dump, cache
 
 **Component**:
 A Stock Item in its role of being used in another Stock Item's Bill of Materials, e.g. a bead
-inside a bracelet. Counted in its own unit, which may be fractional.
+inside a bracelet. Counted in its own unit, which may be fractional. Never a piece of a Page
+(that is a Section).
 _Avoid_: material, supply
 
 **Bill of Materials**:
