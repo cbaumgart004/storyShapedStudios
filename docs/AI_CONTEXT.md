@@ -143,11 +143,11 @@ and keeps a yes for a minute per token; an unreachable console answers 503, neve
   strings, not numbers — `utils/stock.js` converts them (`row()`) before returning.
 - `/api/inventory/*` trusts the console for sign-in and membership: a login removed from the site
   on the admin page keeps working here for up to a minute (the cached yes).
-- **`UvMode` already defaults to blacklight** (`context/UvMode.jsx`) — it returns
-  `'blacklight'` unless `localStorage` holds a valid saved mode. A report that "the site
-  opens in daylight" is a *persisted visitor preference*, not a wrong default, and changing
-  the default constant will not fix it. Whether the saved preference should be honoured at
-  all is an open product call (board #38).
+- **The mode a visit opens in is the Theme's** (`context/UvMode.jsx`): "Opens in" (`defaultMode`,
+  blacklight when unset) and "Remember each visitor's last choice" (`rememberChoice`, off when unset). Off,
+  every visit opens in the Theme's look and nothing is kept, which settles board #38; on, a returning visitor
+  gets what they last chose (`localStorage` `sss-uv-mode`). Changing the default constant does nothing while
+  a Theme says otherwise.
 - **`--glow-strong` is all one green on purpose (board #45).** Its innermost layer used
   to be a pale mint `--halo` (`#b9ffbc`), which bloomed over glyphs and made the hero
   tagline read as a whiter green than the rest of the accent text — a colour mismatch
