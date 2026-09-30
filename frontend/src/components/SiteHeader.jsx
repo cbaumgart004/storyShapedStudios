@@ -24,7 +24,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
-import { useOwner, openEditor, useSiteSettings, useMenu } from '@/lib/siteConsole'
+import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu } from '@/lib/siteConsole'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -54,7 +54,9 @@ export default function SiteHeader({ featured = false }) {
   const { pathname } = useLocation()
   // Sign in is the owner's (the console confirms the role); hidden from
   // everyone else until customer accounts exist.
-  const owner = useOwner()
+  // Customer view hides it, so the owner sees the header a visitor gets.
+  const customer = useCustomerView()
+  const owner = useOwner() && !customer
   // Name, menu and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
   const menu = useMenu()

@@ -153,7 +153,30 @@ export function useSiteSettings() {
 // Every document of a type, drafts included, for the Owner only: drafts are not
 // public, and her editor token reads them, so she can see (dimmed in the menu)
 // and open a page before publishing it. Everyone else gets [].
+// Customer view (console 1.2.0): while the owner looks at the site as a
+// visitor would, the editor says so through window.EOTM.previewing, and every
+// owner-only part here (the edit icon, draft pages, dimmed menu items) hides.
+export function useCustomerView() {
+  const [on, setOn] = useState(() => Boolean(window.EOTM?.previewing))
+  useEffect(() => {
+    let unsubscribe = null
+    let timer = null
+    const wire = () => {
+      if (!window.EOTM) { timer = setTimeout(wire, 50); return }
+      setOn(Boolean(window.EOTM.previewing))
+      unsubscribe = window.EOTM.subscribe((c) => c.type === '$preview' && setOn(Boolean(window.EOTM.previewing)))
+    }
+    wire()
+    return () => {
+      clearTimeout(timer)
+      if (unsubscribe) unsubscribe()
+    }
+  }, [])
+  return on
+}
+
 export function useOwnerDrafts(type) {
+  const customer = useCustomerView()
   const [drafts, setDrafts] = useState([])
   useEffect(() => {
     const token = editorToken()
@@ -165,13 +188,15 @@ export function useOwnerDrafts(type) {
       .catch(() => {})
     return () => { active = false }
   }, [type])
-  return drafts
+  return customer ? NO_DRAFTS : drafts
 }
+const NO_DRAFTS = []
 
 export function useMenu() {
   const [menus, setMenus] = useState([])
   const [pages, setPages] = useState([])
   const drafts = useOwnerDrafts('page')
+  const customer = useCustomerView()
   useEffect(() => {
     let active = true
     fetchPublished('menu').then((docs) => active && setMenus(docs))
@@ -182,7 +207,7 @@ export function useMenu() {
   const livePages = useLiveDocuments('page', pages)
   return useMemo(() => {
     if (!menu) return null
-    const owner = Boolean(window.EOTM?.editing) || isRememberedOwner()
+    const owner = (Boolean(window.EOTM?.editing) || isRememberedOwner()) && !customer
     const published = new Set(pages.map((p) => p.id))
     const byId = new Map([...drafts, ...livePages].map((p) => [p.id, p]))
     const links = []
@@ -195,7 +220,7 @@ export function useMenu() {
       links.push({ to: url, label, soon: item.soon, draft: item.page && !published.has(item.page) })
     }
     return { links, docId: menu.id }
-  }, [menu, pages, livePages, drafts])
+  }, [menu, pages, livePages, drafts, customer])
 }
 
 // Whether this browser belongs to the site's owner. The console is the judge:
