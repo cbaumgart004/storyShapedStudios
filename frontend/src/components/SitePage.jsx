@@ -18,7 +18,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BLOCKS, current, labelOf } from '@/components/Blocks'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
-import { fetchPublished, useLiveDocuments, usePageLayout } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts } from '@/lib/siteConsole'
 import '@/styles/Home.css'
 import '@/styles/Page.css'
 
@@ -62,7 +62,9 @@ export default function SitePage({ slug, path = `/${slug}`, featured = false }) 
     return () => { active = false }
   }, [])
   const pages = useLiveDocuments('page', published ?? NONE)
-  const doc = pages.find((p) => p.slug === slug)
+  // A draft page opens for the Owner (a dimmed menu link); visitors never get one.
+  const drafts = useOwnerDrafts('page')
+  const doc = pages.find((p) => p.slug === slug) ?? drafts.find((p) => p.slug === slug)
   const page = doc?.data ?? BUILT_IN_PAGES[slug]
   const sections = useMemo(() => (page?.sections ?? []).map(current).filter((b) => BLOCKS[b._type]), [page])
   const idsKey = sections.map((b) => b._id).join('|')

@@ -150,9 +150,28 @@ export function useSiteSettings() {
 // from everyone but the Owner (a browser the console confirmed as hers, or one
 // with the editor open), who sees it dimmed. Null until a Menu exists; the
 // header then uses the older Site header and footer list, or its built-in one.
+// Every document of a type, drafts included, for the Owner only: drafts are not
+// public, and her editor token reads them, so she can see (dimmed in the menu)
+// and open a page before publishing it. Everyone else gets [].
+export function useOwnerDrafts(type) {
+  const [drafts, setDrafts] = useState([])
+  useEffect(() => {
+    const token = editorToken()
+    if (!token || !isRememberedOwner()) return undefined
+    let active = true
+    fetch(`${CONSOLE_API}/documents?type=${encodeURIComponent(type)}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((docs) => active && setDrafts(docs))
+      .catch(() => {})
+    return () => { active = false }
+  }, [type])
+  return drafts
+}
+
 export function useMenu() {
   const [menus, setMenus] = useState([])
   const [pages, setPages] = useState([])
+  const drafts = useOwnerDrafts('page')
   useEffect(() => {
     let active = true
     fetchPublished('menu').then((docs) => active && setMenus(docs))
@@ -165,7 +184,7 @@ export function useMenu() {
     if (!menu) return null
     const owner = Boolean(window.EOTM?.editing) || isRememberedOwner()
     const published = new Set(pages.map((p) => p.id))
-    const byId = new Map(livePages.map((p) => [p.id, p]))
+    const byId = new Map([...drafts, ...livePages].map((p) => [p.id, p]))
     const links = []
     for (const item of menu.data?.items ?? []) {
       const page = item.page ? byId.get(item.page) : null
@@ -176,7 +195,7 @@ export function useMenu() {
       links.push({ to: url, label, soon: item.soon, draft: item.page && !published.has(item.page) })
     }
     return { links, docId: menu.id }
-  }, [menu, pages, livePages])
+  }, [menu, pages, livePages, drafts])
 }
 
 // Whether this browser belongs to the site's owner. The console is the judge:
