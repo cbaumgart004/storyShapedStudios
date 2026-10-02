@@ -887,18 +887,16 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
-  filter: saturate(1.05);
-  transition: transform 0.5s ease, filter 0.6s ease;
+  transition: transform 0.5s ease;
 }
 .piece-card:hover img {
   transform: scale(1.06);
 }
-/* Daylight barely touches photos: the heavier saturate(0.72) brightness(0.94)
-   left skin tones looking flushed and red-eyed on Meet the Artist (2026-09-30),
-   the same tinting board #6 asked to stop. */
-.sss-home[data-mode='daylight'] .piece-card img {
-  filter: saturate(0.92) brightness(0.98);
-}
+/* Photographs of people and work are never filtered, in either mode. Any
+   saturate/brightness here reddened skin and eyes on Meet the Artist: first
+   saturate(0.72) brightness(0.94), then even the toned-down saturate(0.92)
+   brightness(0.98) / blacklight saturate(1.05) (Whitney, 2026-09-30 and
+   2026-10-02; board #6 asked for the same). Same rule as UvPhoto.jsx. */
 .piece-meta {
   display: flex;
   align-items: baseline;
@@ -943,11 +941,6 @@ body {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   display: block;
-  filter: saturate(1.1) brightness(1.05);
-  transition: filter 0.6s ease;
-}
-.sss-home[data-mode='daylight'] .glow-story .story-img img {
-  filter: saturate(0.65) brightness(0.9);
 }
 .glow-story h2 {
   font-family: var(--font-heading);
