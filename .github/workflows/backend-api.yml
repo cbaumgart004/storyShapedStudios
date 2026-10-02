@@ -1,5 +1,5 @@
 # Deploys the backend Lambda on every push that touches backend/: the `preview`
-# branch to storyshaped-api-preview, `main` to storyshaped-api. Tests first; then
+# branch to storyshaped-api-preview, `production` to storyshaped-api. Tests first; then
 # the zip (lambda.js, server/, production node_modules) is uploaded. Amplify
 # forwards /api/*, /auth/* and /oauth/* on each site to its function URL
 # (DEPLOY-MAP.md), so the frontend needs no rebuild for a backend change.
@@ -12,7 +12,7 @@ name: Backend API
 
 on:
   push:
-    branches: [preview, main]
+    branches: [preview, production]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-api.yml'
@@ -45,7 +45,7 @@ jobs:
       id-token: write
     defaults: { run: { working-directory: backend } }
     env:
-      FUNCTION: ${{ github.ref_name == 'main' && 'storyshaped-api' || 'storyshaped-api-preview' }}
+      FUNCTION: ${{ github.ref_name == 'production' && 'storyshaped-api' || 'storyshaped-api-preview' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

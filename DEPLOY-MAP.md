@@ -38,7 +38,7 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
   photos are served from S3 at `uploads/…` (public read on that prefix only; no CloudFront). Verified
   2026-09-30: the console issues upload URLs for it, and a photo was uploaded on 2026-09-29. The bucket's CORS
   allows `PUT` from the preview address and `storyshapedstudios.com` (with `www`) only, so an upload from any
-  other address, such as Amplify's `main` branch address during Go-Live checks, is refused until it is added.
+  other address, such as Amplify's `production` branch address during Go-Live checks, is refused until it is added.
   The backend needs no S3 access. The console's shared bucket (`MEDIA_BUCKET`) is not set up, which matters
   only to a site without a bucket of its own.
 - **Who may edit is the console's answer.** `/api/inventory/*` asks the console's `GET /me` with the editor
@@ -51,9 +51,13 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
 | | Preview | Production |
 |---|---|---|
 | Lambda function | `storyshaped-api-preview` | `storyshaped-api` |
-| Deployed from | `preview` branch | `main` branch |
-| Frontend in front of it | Amplify branch `preview` | Amplify branch `main` (production domain) |
+| Deployed from | `preview` branch | `production` branch |
+| Frontend in front of it | Amplify branch `preview` | Amplify branch `production` (production domain) |
 | Database | Neon branch `preview` of the backend project | Neon main branch |
+
+Production builds from `production`, not `main`, because `main` is still what Vercel serves on the live
+domain (decided 2026-10-02). The cutover is a DNS change to the Amplify `production` branch; `main` and
+Vercel are retired after it.
 
 Runtime Node.js 22 or later, handler `lambda.handler`, 512 MB, 20 s timeout, function URL with auth NONE (the
 Amplify rewrite is the way in; the admin routes check the editor token themselves).
@@ -72,7 +76,7 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 | `EBAY_ENVIRONMENT` | `server.js` | `sandbox` or `production` |
 
 On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=none` with its function URL:
-`preview` → `storyshaped-api-preview` (set 2026-09-30). `main` is added at the Go-Live gate
+`preview` → `storyshaped-api-preview` (set 2026-09-30). `production` is added at the Go-Live gate
 (docs/CURRENT_WORK.md).
 
 ### Created (2026-09-30, AWS CLI, us-east-1)
@@ -84,11 +88,11 @@ On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=
   branch; preview: the Neon `preview` branch, whose parameter was stored the same day).
 - Stock loaded into both from Trunk (2,043 Stock Items, 18,658 units each). The preview branch did not carry
   production's data when created, so it was loaded separately; from here the two stay apart.
-- Role `storyshaped-backend-deploy` (GitHub OIDC, this repo's `preview` and `main`), and the repo variable
+- Role `storyshaped-backend-deploy` (GitHub OIDC, this repo's `preview` and `production`), and the repo variable
   `AWS_DEPLOY_ROLE_ARN`.
 
 Still to do: Etsy and eBay settings (step 8), the UptimeRobot backend monitors, the rewrites (later), and the
-Amplify `main` branch at the Go-Live gate.
+Amplify `production` branch at the Go-Live gate.
 
 ### One-time setup (AWS, us-east-1, the account running the console)
 
@@ -101,7 +105,7 @@ Amplify `main` branch at the Go-Live gate.
    production follows.
 3. **Deploy role.** The console's GitHub OIDC provider already exists. IAM → Roles → Create role → Web identity:
    that provider, audience `sts.amazonaws.com`, organization `cbaumgart004`, repository `storyShapedStudios`,
-   branches `preview` and `main`. Name it `storyshaped-backend-deploy`. One inline policy:
+   branches `preview` and `production`. Name it `storyshaped-backend-deploy`. One inline policy:
    `lambda:UpdateFunctionCode`, `lambda:GetFunction`, `lambda:GetFunctionConfiguration` on both functions' ARNs.
 4. **GitHub.** Repo → Settings → Secrets and variables → Actions → Variables → `AWS_DEPLOY_ROLE_ARN` = that role's
    ARN. The next push touching `backend/` deploys; or run the workflow by hand.
