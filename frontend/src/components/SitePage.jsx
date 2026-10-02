@@ -16,9 +16,9 @@ import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
-import { BLOCKS, current, labelOf } from '@/components/Blocks'
+import { BLOCKS, CustomSection, current, labelOf } from '@/components/Blocks'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
-import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts, useSchema } from '@/lib/siteConsole'
 import '@/styles/Home.css'
 import '@/styles/Page.css'
 
@@ -27,13 +27,15 @@ const NONE = []
 // A zigzag rule opens every row after the first, so blocks set side by side
 // share one. A block that joins a row is marked, so it takes its own rule when
 // the grid stacks on a phone.
-function arrange(layout, sections, pageMark) {
+function arrange(layout, sections, pageMark, schema) {
   const byId = new Map(sections.map((b) => [b._id, b]))
   const cells = []
   let used = 12
   layout.forEach(({ key, span }, i) => {
     const block = byId.get(key)
-    const Block = block && BLOCKS[block._type]
+    // A built-in section, or one of the owner's own types drawn from its fields.
+    const def = block && !BLOCKS[block._type] ? schema?.blocks?.[block._type] : null
+    const Block = block && (BLOCKS[block._type] ?? (def ? CustomSection : null))
     if (!Block) return
     const joins = used + span <= 12
     if (!joins) {
@@ -41,12 +43,13 @@ function arrange(layout, sections, pageMark) {
       used = 0
     }
     used += span
-    const label = labelOf(block)
+    // The owner's own type is named by its label ("Testimonial"), not its id.
+    const label = def ? def.label : labelOf(block)
     cells.push(
       <div key={key} className={`sss-block${joins ? ' is-joined' : ''}`} style={{ '--span': span }}
         data-eotm-block={key} data-eotm-label={label} data-eotm-span={span}
         {...(layout.docId ? { 'data-eotm-edit': `pageLayout:${layout.docId}` } : {})}>
-        <Block block={block} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label }} />
+        <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label }} />
       </div>
     )
   })
@@ -66,7 +69,8 @@ export default function SitePage({ slug, path = `/${slug}`, featured = false }) 
   const drafts = useOwnerDrafts('page')
   const doc = pages.find((p) => p.slug === slug) ?? drafts.find((p) => p.slug === slug)
   const page = doc?.data ?? BUILT_IN_PAGES[slug]
-  const sections = useMemo(() => (page?.sections ?? []).map(current).filter((b) => BLOCKS[b._type]), [page])
+  const schema = useSchema()
+  const sections = useMemo(() => (page?.sections ?? []).map(current).filter((b) => BLOCKS[b._type] || schema?.blocks?.[b._type]), [page, schema])
   const idsKey = sections.map((b) => b._id).join('|')
   const keys = useMemo(() => (idsKey ? idsKey.split('|') : []), [idsKey])
   const layout = usePageLayout(path, keys)
@@ -80,7 +84,7 @@ export default function SitePage({ slug, path = `/${slug}`, featured = false }) 
       <SiteHeader featured={featured} />
       {page ? (
         <main className="sss-layout" data-eotm-layout>
-          {arrange(layout, sections, `page:${doc?.id ?? slug}`)}
+          {arrange(layout, sections, `page:${doc?.id ?? slug}`, schema)}
         </main>
       ) : published === null ? <main /> : (
         <main>

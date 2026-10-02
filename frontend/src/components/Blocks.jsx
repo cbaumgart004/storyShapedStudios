@@ -201,3 +201,70 @@ export const current = (block) => toCard(block)
 export function labelOf(block) {
   return block.heading || (block._type === 'hero' && 'Hero') || block.byline || block.eyebrow || (block._type === 'card' && 'Card') || block._type
 }
+
+// A section type the owner designed in the console (Types and names), drawn
+// from its fields in the Card's style until it is given a design of its own.
+// The rules follow Spirit Seeds' CustomSection: the first short text is the
+// heading, formatted text is HTML, a photo is framed, a link is an arrow link
+// (labelled by the text field just before it, if any), a list repeats its own
+// fields. Text fields can be changed where they stand (data-eotm-text).
+function CustomValue({ field, value, row }) {
+  if (value == null || value === '' || (Array.isArray(value) && !value.length)) return null
+  const inRow = row ? { 'data-eotm-in': row } : {}
+  switch (field.kind) {
+    case 'text':
+    case 'textarea':
+      return <p className={`custom__${field.name}`} data-eotm-text={field.name} {...inRow}>{value}</p>
+    case 'richtext':
+      return <div className="page-rich" data-eotm-richtext={field.name} dangerouslySetInnerHTML={{ __html: value }} />
+    case 'image':
+      return value?.src ? <figure className="artist-cabinet deco-corners"><img src={value.src} alt={value.alt ?? ''} /></figure> : null
+    case 'url':
+      return <LinkTo url={value} className="prose-link">{field.label}<span className="arrow" aria-hidden="true">→</span></LinkTo>
+    case 'number':
+    case 'date':
+      return <p className={`custom__${field.name}`}>{String(value)}</p>
+    case 'datetime':
+      return <p className={`custom__${field.name}`}>{new Date(value).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>
+    case 'money':
+      return value.amount != null ? <p className={`custom__${field.name}`}>{money(value)}</p> : null
+    case 'select':
+      return <p className={`custom__${field.name}`}>{field.options?.find((o) => o.value === value)?.label ?? value}</p>
+    case 'list':
+      return (
+        <ul className={`custom__${field.name}`}>
+          {value.map((item, i) => <li key={item._id ?? i}><CustomFields fields={field.fields ?? []} data={item} row={item._id} /></li>)}
+        </ul>
+      )
+    default: // boolean and colour are settings, not content
+      return null
+  }
+}
+
+function CustomFields({ fields, data, headingIndex = -1, row }) {
+  return fields.map((f, i) => {
+    if (i === headingIndex) return null
+    const next = fields[i + 1]
+    if (f.kind === 'text' && next?.kind === 'url' && data?.[next.name]) {
+      return <LinkTo key={f.name} url={data[next.name]} className="prose-link">{data[f.name] || next.label}<span className="arrow" aria-hidden="true">→</span></LinkTo>
+    }
+    if (f.kind === 'url' && fields[i - 1]?.kind === 'text' && i - 1 !== headingIndex && data?.[f.name]) return null
+    return <CustomValue key={f.name} field={f} value={data?.[f.name]} row={row} />
+  })
+}
+
+export function CustomSection({ block, def, marks }) {
+  const fields = def?.fields ?? []
+  const headingIndex = fields.findIndex((f) => f.kind === 'text')
+  const heading = headingIndex >= 0 ? block[fields[headingIndex].name] : null
+  // Colour fields become custom properties the site's CSS (or a later design) can use.
+  const colours = Object.fromEntries(fields.filter((f) => f.kind === 'color' && block[f.name]).map((f) => [`--${f.name}`, block[f.name]]))
+  return (
+    <section className="section custom-section" {...marks} style={colours}>
+      <div className="prose-block">
+        {heading && <h2 data-eotm-text={fields[headingIndex].name}>{heading}</h2>}
+        <CustomFields fields={fields} data={block} headingIndex={headingIndex} />
+      </div>
+    </section>
+  )
+}
