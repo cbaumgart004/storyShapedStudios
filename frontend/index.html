@@ -2,6 +2,32 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- A preview address is the owner's alone. Without an editor token in this
+         browser it goes to the console sign-in; a signed-in owner lands with the
+         editor open (once per tab, so closing it sticks). #eotm-token is the
+         console handing back, which the loader takes. -->
+    <script>
+      (function (site) {
+        if (!/^preview\./.test(location.hostname)) return
+        if (/eotm-token=/.test(location.hash)) {
+          try { sessionStorage.setItem('eotm:preview', '1') } catch (e) { /* private mode */ }
+          return
+        }
+        try {
+          var t = localStorage.getItem('eotm:token:' + site)
+          var p = t && JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+          if (p && p.site === site && p.exp * 1000 > Date.now()) {
+            if (!sessionStorage.getItem('eotm:preview')) {
+              sessionStorage.setItem('eotm:preview', '1')
+              sessionStorage.setItem('eotm:edit', '1')
+            }
+            return
+          }
+        } catch (e) { /* storage blocked: sign in each visit */ }
+        var back = location.pathname === '/preview' ? '/' : location.pathname + location.search
+        location.replace('https://admin.theedgeofthemap.com/?handoff=' + site + '&return=' + encodeURIComponent(back) + '&origin=' + encodeURIComponent(location.origin))
+      })('storyshaped')
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StoryShaped Studios</title>
   </head>
