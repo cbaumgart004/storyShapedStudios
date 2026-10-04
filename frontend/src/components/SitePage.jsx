@@ -18,6 +18,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BLOCKS, CustomSection, current, labelOf } from '@/components/Blocks'
 import { Extras, lookFor } from '@/components/Extras'
+import { frameOf } from '@/components/Frame'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts, useSchema } from '@/lib/siteConsole'
 import '@/styles/Home.css'
@@ -25,11 +26,12 @@ import '@/styles/Page.css'
 
 const NONE = []
 
-// A section's added Style fields (the console's "+ Add a field"), as the style
-// of its outermost element; nothing when it has none.
-const look = (schema, block) => {
-  const style = lookFor(schema, `blocks.${block._type}`, block)
-  return style ? { style } : {}
+// What a section's outermost element takes from its data: its added Style
+// fields (the console's "+ Add a field") and, when Free, its frame (ADR-0010).
+const rootOf = (schema, block) => {
+  const { root } = frameOf(block)
+  const style = { ...lookFor(schema, `blocks.${block._type}`, block), ...root.style }
+  return { ...root, ...(Object.keys(style).length ? { style } : {}) }
 }
 
 // A zigzag rule opens every row after the first, so blocks set side by side
@@ -57,8 +59,8 @@ function arrange(layout, sections, pageMark, schema) {
       <div key={key} className={`sss-block${joins ? ' is-joined' : ''}`} style={{ '--span': span }}
         data-eotm-block={key} data-eotm-label={label} data-eotm-span={span}
         {...(layout.docId ? { 'data-eotm-edit': `pageLayout:${layout.docId}` } : {})}>
-        <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label, ...look(schema, block) }} />
-        <Extras at={`blocks.${block._type}`} data={block} className="extras section-extras" />
+        <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label, ...rootOf(schema, block) }}
+          extras={<Extras at={`blocks.${block._type}`} data={block} className="extras section-extras" frame={frameOf(block)} />} />
       </div>
     )
   })

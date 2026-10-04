@@ -14,7 +14,8 @@ import { Link } from 'react-router-dom'
 import UvPhoto from '@/components/UvPhoto'
 import { fetchPublished, useLiveDocuments, useSchema } from '@/lib/siteConsole'
 import { toCard } from '@/lib/cards'
-import { CustomFields, Extras, LinkTo, money, lookFor } from '@/components/Extras'
+import { Extras, FieldParts, LinkTo, money, lookFor } from '@/components/Extras'
+import { frameOf } from '@/components/Frame'
 import '@/styles/MeetTheArtist.css'
 
 // The rect neon lockup is the logo variant without "Uranium Glass Jewelry"
@@ -41,17 +42,18 @@ function Paired({ photos, fallback, sizes = '(max-width: 820px) 92vw, 760px' }) 
 
 // Order is Whitney's, from the notes doc: big logo, tagline, the two CTAs,
 // then the paired daylight/blacklight photo, then her credit.
-function Hero({ block, marks }) {
+function Hero({ block, marks, extras }) {
   const schema = useSchema()
+  const frame = frameOf(block)
   const buttons = (block.buttons ?? []).filter((b) => b.label && b.url)
   return (
     <section className="hero" {...marks}>
-      <h1 className="hero-logo-wrap">
+      <h1 className="hero-logo-wrap" {...frame.part('logo')}>
         <img className="hero-logo" src={block.logo?.src || heroLogo} alt={block.logo?.alt || 'StoryShaped Studios'} />
       </h1>
-      {block.tagline && <p className="hero-tagline" data-eotm-text="tagline">{block.tagline}</p>}
+      {block.tagline && <p className="hero-tagline" data-eotm-text="tagline" {...frame.part('tagline')}>{block.tagline}</p>}
       {buttons.length > 0 && (
-        <div className="hero-actions">
+        <div className="hero-actions" {...frame.part('buttons')}>
           {buttons.map((b, i) => (
             <LinkTo key={b._id ?? b.label} url={b.url} className={`btn ${i === 0 ? 'btn-primary' : 'btn-ghost'}`} style={lookFor(schema, 'blocks.hero.buttons', b)}>{b.label}</LinkTo>
           ))}
@@ -59,7 +61,7 @@ function Hero({ block, marks }) {
       )}
       {/* UvPhoto carries its own switch in the caption slot. Empty: the
           floral-drop necklace, whose files carry width suffixes (resize_asset.py). */}
-      <figure className="hero-figure deco-corners">
+      <figure className="hero-figure deco-corners" {...frame.part('photos')}>
         <Paired photos={block.photos} fallback={(
           <UvPhoto
             daylight="/assets/hero-necklace-daylight"
@@ -69,21 +71,23 @@ function Hero({ block, marks }) {
           />
         )} />
       </figure>
-      {block.credit && <p className="hero-credit" data-eotm-text="credit">{block.credit}</p>}
+      {block.credit && <p className="hero-credit" data-eotm-text="credit" {...frame.part('credit')}>{block.credit}</p>}
+      {extras}
     </section>
   )
 }
 
-function Values({ block, marks }) {
+function Values({ block, marks, extras }) {
   const schema = useSchema()
+  const frame = frameOf(block)
   return (
     <section className="section" {...marks}>
       {block.heading && (
-        <div className="section-head">
+        <div className="section-head" {...frame.part('heading')}>
           <h2 data-eotm-text="heading">{block.heading}</h2>
         </div>
       )}
-      <div className="values-grid">
+      <div className="values-grid" {...frame.part('items')}>
         {(block.items ?? []).map((v) => (
           <div className="value" key={v._id ?? v.title} style={lookFor(schema, 'blocks.values.items', v)}>
             <h3 data-eotm-text="title" data-eotm-in={v._id}>{v.title}</h3>
@@ -92,18 +96,21 @@ function Values({ block, marks }) {
           </div>
         ))}
       </div>
+      {extras}
     </section>
   )
 }
 
-function PhotoFeature({ block, marks }) {
+function PhotoFeature({ block, marks, extras }) {
+  const frame = frameOf(block)
   if (!block.photos?.length) return null
   return (
     <section className="section page-photo" {...marks}>
-      <figure className="hero-figure deco-corners">
+      <figure className="hero-figure deco-corners" {...frame.part('photos')}>
         <Paired photos={block.photos} />
       </figure>
-      {block.caption && <p className="hero-credit">{block.caption}</p>}
+      {block.caption && <p className="hero-credit" {...frame.part('caption')}>{block.caption}</p>}
+      {extras}
     </section>
   )
 }
@@ -111,8 +118,9 @@ function PhotoFeature({ block, marks }) {
 // The general component. With images, the heading is the large centred one
 // over them (a gallery, a framed photo); without, it heads the text column.
 // Links show by title only. Look "story" is the longer read of Meet the Artist.
-function Card({ block, marks }) {
+function Card({ block, marks, extras }) {
   const schema = useSchema()
+  const frame = frameOf(block)
   const look = (l) => lookFor(schema, 'blocks.card.links', l)
   const { eyebrow, heading, body, byline, bylineNote } = block
   const images = (block.images ?? []).filter((i) => i?.src)
@@ -120,21 +128,21 @@ function Card({ block, marks }) {
   const story = block.look === 'story'
   const head = (eyebrow || heading) && (
     <>
-      {eyebrow && <p className="eyebrow" data-eotm-text="eyebrow">{eyebrow}</p>}
-      {heading && <h2 data-eotm-text="heading">{heading}</h2>}
+      {eyebrow && <p className="eyebrow" data-eotm-text="eyebrow" {...frame.part('eyebrow')}>{eyebrow}</p>}
+      {heading && <h2 data-eotm-text="heading" {...frame.part('heading')}>{heading}</h2>}
     </>
   )
   const hasText = body || byline || links.length > 0
   return (
     <section className="section" {...marks}>
-      {images.length > 0 && head && <div className="section-head">{head}</div>}
+      {images.length > 0 && head && <div className="section-head" {...frame.wrap}>{head}</div>}
       {images.length === 1 && (
-        <figure className="artist-cabinet deco-corners">
+        <figure className="artist-cabinet deco-corners" {...frame.part('images')}>
           <img src={images[0].src} alt={images[0].alt ?? ''} />
         </figure>
       )}
       {images.length > 1 && (
-        <div className="piece-grid artist-gallery">
+        <div className="piece-grid artist-gallery" {...frame.part('images')}>
           {images.map((p, i) => (
             <figure key={p.src ?? i} className="piece-card deco-corners">
               <div className="frame"><img src={p.src} alt={p.alt ?? ''} /></div>
@@ -143,27 +151,32 @@ function Card({ block, marks }) {
         </div>
       )}
       {(hasText || (!images.length && head)) && (
-        <div className={story ? 'artist-body' : 'prose-block'}>
+        <div className={story ? 'artist-body' : 'prose-block'} {...frame.wrap}>
           {!images.length && head}
-          {body && <div className="page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: body }} />}
+          {body && <div className="page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: body }} {...frame.part('body')} />}
           {byline && (
-            <p className="artist-sign">
+            <p className="artist-sign" {...frame.part('byline')}>
               {byline}
               {bylineNote && <span data-eotm-text="bylineNote">{bylineNote}</span>}
             </p>
           )}
           {links.length > 0 && (story ? (
-            <div className="artist-links">
+            <div className="artist-links" {...frame.part('links')}>
               {links.map((l) => <LinkTo key={l._id ?? l.url} url={l.url} style={look(l)}>{l.title}</LinkTo>)}
             </div>
-          ) : links.map((l) => (
-            <LinkTo key={l._id ?? l.url} url={l.url} className="prose-link" style={look(l)}>
-              {l.title}
-              <span className="arrow" aria-hidden="true">→</span>
-            </LinkTo>
-          )))}
+          ) : (
+            <div {...frame.group('links')}>
+              {links.map((l) => (
+                <LinkTo key={l._id ?? l.url} url={l.url} className="prose-link" style={look(l)}>
+                  {l.title}
+                  <span className="arrow" aria-hidden="true">→</span>
+                </LinkTo>
+              ))}
+            </div>
+          ))}
         </div>
       )}
+      {extras}
     </section>
   )
 }
@@ -182,8 +195,9 @@ function useListings() {
   return useLiveDocuments('listing', published)
 }
 
-function ProductCard({ block, marks }) {
+function ProductCard({ block, marks, extras }) {
   const schema = useSchema()
+  const frame = frameOf(block)
   const listing = useListings().find((d) => d.id === block.listing)
   if (!listing) return null
   const l = listing.data ?? {}
@@ -192,7 +206,7 @@ function ProductCard({ block, marks }) {
   const price = prices.length ? money({ amount: Math.min(...prices), currency: l.variations[0].price.currency }) : null
   return (
     <section className="section" {...marks}>
-      <figure className="piece-card deco-corners product-card" style={lookFor(schema, 'types.listing', l)}>
+      <figure className="piece-card deco-corners product-card" {...frame.part('listing', lookFor(schema, 'types.listing', l))}>
         {photo && <div className="frame"><img src={photo.src} alt={photo.alt ?? l.title ?? ''} /></div>}
         <figcaption>
           <strong>{l.title}</strong>
@@ -201,6 +215,7 @@ function ProductCard({ block, marks }) {
           <Extras at="types.listing" data={l} />
         </figcaption>
       </figure>
+      {extras}
     </section>
   )
 }
@@ -218,18 +233,19 @@ function useImagePairs() {
   return useLiveDocuments('imagePair', published)
 }
 
-function PairGallery({ block, marks }) {
+function PairGallery({ block, marks, extras }) {
   const schema = useSchema()
+  const frame = frameOf(block)
   const pairs = useImagePairs().filter((d) => pairsOf(d.data?.photos).length)
   return (
     <section className="section" {...marks}>
       {block.heading && (
-        <div className="section-head">
+        <div className="section-head" {...frame.part('heading')}>
           <h2 data-eotm-text="heading">{block.heading}</h2>
         </div>
       )}
-      {block.intro && <p className="pair-gallery-intro" data-eotm-text="intro">{block.intro}</p>}
-      <div className="pair-gallery">
+      {block.intro && <p className="pair-gallery-intro" data-eotm-text="intro" {...frame.part('intro')}>{block.intro}</p>}
+      <div className="pair-gallery" {...frame.part('gallery')}>
         {pairs.map((d) => (
           <figure key={d.id} className="pair-gallery-item deco-corners" data-eotm-edit={`imagePair:${d.id}`} data-eotm-label={d.data.title}
             style={lookFor(schema, 'types.imagePair', d.data)}>
@@ -244,6 +260,7 @@ function PairGallery({ block, marks }) {
           </figure>
         ))}
       </div>
+      {extras}
     </section>
   )
 }
@@ -264,18 +281,20 @@ export function labelOf(block) {
 // heading, formatted text is HTML, a photo is framed, a link is an arrow link
 // (labelled by the text field just before it, if any), a list repeats its own
 // fields. Text fields can be changed where they stand (data-eotm-text).
-export function CustomSection({ block, def, marks }) {
+export function CustomSection({ block, def, marks, extras }) {
+  const frame = frameOf(block)
   const fields = def?.fields ?? []
   const headingIndex = fields.findIndex((f) => f.kind === 'text')
   const heading = headingIndex >= 0 ? block[fields[headingIndex].name] : null
   // Colour fields become custom properties the site's CSS (or a later design) can use.
   const colours = Object.fromEntries(fields.filter((f) => f.kind === 'color' && block[f.name]).map((f) => [`--${f.name}`, block[f.name]]))
   return (
-    <section className="section custom-section" {...marks} style={colours}>
-      <div className="prose-block">
-        {heading && <h2 data-eotm-text={fields[headingIndex].name}>{heading}</h2>}
-        <CustomFields fields={fields} data={block} headingIndex={headingIndex} />
+    <section className="section custom-section" {...marks} style={{ ...marks?.style, ...colours }}>
+      <div className="prose-block" {...frame.wrap}>
+        {heading && <h2 data-eotm-text={fields[headingIndex].name} {...frame.part(fields[headingIndex].name)}>{heading}</h2>}
+        <FieldParts fields={fields} data={block} headingIndex={headingIndex} frame={frame} />
       </div>
+      {extras}
     </section>
   )
 }

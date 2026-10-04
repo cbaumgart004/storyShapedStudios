@@ -119,13 +119,38 @@ export function addedPhotoOf(schema, at, data) {
   return f ? data[f.name] : null
 }
 
+// Fields as movable parts of a Free section (components/Frame.jsx): each one
+// its own part, named by its field, a text followed by its link as one. In a
+// Flow section the parts are no boxes of their own, so this draws exactly what
+// CustomFields does.
+export function FieldParts({ fields, data, headingIndex = -1, row, frame }) {
+  const groups = []
+  fields.forEach((f, i) => {
+    if (i === headingIndex) return
+    const prev = groups.at(-1)
+    if (f.kind === 'url' && prev?.length === 1 && prev[0].kind === 'text' && fields.indexOf(prev[0]) === i - 1) prev.push(f)
+    else groups.push([f])
+  })
+  return groups.map((g) => (
+    <div key={g[0].name} {...frame.group(g[0].name)}>
+      <CustomFields fields={g} data={data} row={row} />
+    </div>
+  ))
+}
+
 // The owner's added fields at `at`, drawn after the element's own content.
 // `skip` leaves out kinds the component already placed (a photo it shows as
-// the icon). Style fields are never drawn; useLook applies them.
-export function Extras({ at, data, row, skip = [], className = 'extras' }) {
+// the icon). Style fields are never drawn; useLook applies them. With `frame`
+// (a page section), each field is a part the owner can arrange.
+export function Extras({ at, data, row, skip = [], className = 'extras', frame = null }) {
   const schema = useSchema()
   const fields = addedAt(schema, at).filter((f) => f.kind !== 'style' && !skip.includes(f.kind))
   if (!fields.some((f) => data?.[f.name] != null && data[f.name] !== '' && !(Array.isArray(data[f.name]) && !data[f.name].length))) return null
+  if (frame) return (
+    <div className={className} {...frame.wrap}>
+      <FieldParts fields={fields} data={data} row={row} frame={frame} />
+    </div>
+  )
   return (
     <div className={className}>
       <CustomFields fields={fields} data={data} row={row} />

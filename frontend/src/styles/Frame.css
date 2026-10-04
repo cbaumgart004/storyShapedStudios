@@ -1,0 +1,49 @@
+/* Free sections (components/Frame.jsx, ADR-0010). A Flow section is untouched:
+   a group is no box of its own, so marking parts changes nothing. */
+[data-eotm-group] {
+  display: contents;
+}
+
+/* A wrapper between a Free section and its parts gives up its box, so the
+   parts are placed against the section itself (and, on a phone, ordered). */
+[data-eotm-frame='free'] [data-eotm-wrap] {
+  display: contents;
+}
+
+@media (min-width: 820px) {
+  [data-eotm-frame='free'] {
+    position: relative;
+    container-type: inline-size;
+    aspect-ratio: 100 / var(--frame-h, 50);
+  }
+  [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
+    display: block;
+  }
+  [data-eotm-frame='free'] [data-eotm-placed] {
+    position: absolute;
+    left: calc(var(--x) * 1%);
+    top: calc(var(--y) * 1cqw);
+    width: calc(var(--w) * 1%);
+    height: var(--ph, auto);
+    z-index: var(--z, auto);
+    opacity: var(--o, 1);
+    margin: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* A phone stacks a Free section: one column, its parts top to bottom. */
+@media (max-width: 819.98px) {
+  [data-eotm-frame='free'] {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
+    display: block;
+  }
+  [data-eotm-frame='free'] [data-eotm-placed] {
+    order: var(--order, 0);
+    opacity: var(--o, 1);
+  }
+}
