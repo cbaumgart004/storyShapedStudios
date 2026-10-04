@@ -42,6 +42,13 @@ function Paired({ photos, fallback, sizes = '(max-width: 820px) 92vw, 760px' }) 
 
 // Order is Whitney's, from the notes doc: big logo, tagline, the two CTAs,
 // then the paired daylight/blacklight photo, then her credit.
+// A button's classes: the style the owner chose from the schema's
+// buttonStyles, else the one the site gives that place.
+const buttonClass = (schema, look, fallback) => {
+  const styles = schema?.buttonStyles ?? []
+  return (styles.find((s) => s.value === look) ?? styles.find((s) => s.value === fallback))?.className ?? 'btn'
+}
+
 function Hero({ block, marks, extras }) {
   const schema = useSchema()
   const frame = frameOf(block)
@@ -53,9 +60,13 @@ function Hero({ block, marks, extras }) {
       </h1>
       {block.tagline && <p className="hero-tagline" data-eotm-text="tagline" {...frame.part('tagline')}>{block.tagline}</p>}
       {buttons.length > 0 && (
-        <div className="hero-actions" {...frame.part('buttons')}>
+        <div className="hero-actions" data-eotm-field="buttons" {...frame.part('buttons')}>
           {buttons.map((b, i) => (
-            <LinkTo key={b._id ?? b.label} url={b.url} className={`btn ${i === 0 ? 'btn-primary' : 'btn-ghost'}`} style={lookFor(schema, 'blocks.hero.buttons', b)}>{b.label}</LinkTo>
+            <LinkTo key={b._id ?? b.label} url={b.url} className={buttonClass(schema, b.look, i === 0 ? 'primary' : 'ghost')}
+              style={lookFor(schema, 'blocks.hero.buttons', b)} data-eotm-in={b._id}>
+              {b.icon?.src && <img className="btn-icon" src={b.icon.src} alt="" />}
+              <span data-eotm-text="label" data-eotm-in={b._id}>{b.label}</span>
+            </LinkTo>
           ))}
         </div>
       )}

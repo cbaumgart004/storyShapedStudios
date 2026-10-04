@@ -16,38 +16,56 @@
 // container units), so a Free section keeps its proportions at every width.
 // Below 820px it stacks, its parts ordered by y then x (styles/Frame.css), or,
 // with `phone: 'scale'`, keeps the desktop arrangement: ScaleBox draws it at its
-// desktop width and zooms it down whole, text included. The page's code order
+// desktop width and zooms it down whole, text included; or, with `phone:
+// 'free'`, takes the phone's own arrangement (phoneParts, phoneHeight), made in
+// the console's Arrange on a phone. The page's code order
 // is unchanged, so a screen reader reads the content in order.
 
 import React, { useEffect, useRef, useState } from 'react'
 import '@/styles/Frame.css'
 
-const NO_FRAME = { free: false, root: {}, wrap: {}, part: (name, style) => mark(name, null, style), group: (name, style) => ({ ...mark(name, null, style), 'data-eotm-group': '' }) }
+const NO_FRAME = { free: false, root: {}, wrap: {}, part: (name, style) => mark(name, null, null, style), group: (name, style) => ({ ...mark(name, null, null, style), 'data-eotm-group': '' }) }
 
-function mark(name, p, style) {
-  if (!p) return { 'data-eotm-part': name, ...(style ? { style } : {}) }
-  const vars = {
-    '--x': p.x, '--y': p.y, '--w': p.w, '--order': Math.round(p.y * 100 + p.x),
-    ...(p.h != null ? { '--ph': `${p.h}cqw` } : {}),
-    ...(p.z != null ? { '--z': p.z } : {}),
-    ...(p.opacity != null ? { '--o': p.opacity / 100 } : {}),
-    ...(p.fs != null ? { '--fs': p.fs } : {}),
+// A position as the variables Frame.css reads: --x… for the desktop layout,
+// --qx… for the phone's own (`q` for the phone's prefix).
+const varsOf = (p, q = '') => ({
+  [`--${q}x`]: p.x, [`--${q}y`]: p.y, [`--${q}w`]: p.w, [`--${q}order`]: Math.round(p.y * 100 + p.x),
+  ...(p.h != null ? { [`--${q}ph`]: `${p.h}cqw` } : {}),
+  ...(p.z != null ? { [`--${q}z`]: p.z } : {}),
+  ...(p.opacity != null ? { [`--${q}o`]: p.opacity / 100 } : {}),
+  ...(p.fs != null ? { [`--${q}fs`]: p.fs } : {}),
+})
+
+function mark(name, p, q, style) {
+  if (!p && !q) return { 'data-eotm-part': name, ...(style ? { style } : {}) }
+  return {
+    'data-eotm-part': name,
+    ...(p ? { 'data-eotm-placed': '' } : {}),
+    ...(q ? { 'data-eotm-qplaced': '' } : {}),
+    style: { ...style, ...(p ? varsOf(p) : {}), ...(q ? varsOf(q, 'q') : {}) },
   }
-  return { 'data-eotm-part': name, 'data-eotm-placed': '', style: { ...style, ...vars } }
 }
 
 export function frameOf(data) {
   const layout = data?._layout
-  if (layout?.mode !== 'free') return NO_FRAME
-  const parts = layout.parts ?? {}
+  const free = layout?.mode === 'free'
+  // A phone layout of its own works whether or not the desktop one is Free.
+  const phoneFree = layout?.phone === 'free'
+  if (!free && !phoneFree) return NO_FRAME
+  const parts = free ? layout.parts ?? {} : {}
+  const phoneParts = phoneFree ? layout.phoneParts ?? {} : {}
   return {
-    free: true,
-    scale: layout.phone === 'scale',
+    free,
+    scale: free && layout.phone === 'scale',
     // On the section's outermost element (SitePage passes it in with the marks).
-    root: { 'data-eotm-frame': 'free', ...(layout.phone === 'scale' ? { 'data-eotm-phone': 'scale' } : {}), style: { '--frame-h': layout.height ?? 50 } },
+    root: {
+      'data-eotm-frame': free ? 'free' : 'flow',
+      ...(layout.phone ? { 'data-eotm-phone': layout.phone } : {}),
+      style: { '--frame-h': layout.height ?? 50, ...(phoneFree ? { '--frame-qh': layout.phoneHeight ?? 150 } : {}) },
+    },
     wrap: { 'data-eotm-wrap': '' },
-    part: (name, style) => mark(name, parts[name], style),
-    group: (name, style) => ({ ...mark(name, parts[name], style), 'data-eotm-group': '' }),
+    part: (name, style) => mark(name, parts[name], phoneParts[name], style),
+    group: (name, style) => ({ ...mark(name, parts[name], phoneParts[name], style), 'data-eotm-group': '' }),
   }
 }
 

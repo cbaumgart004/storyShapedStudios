@@ -20,7 +20,9 @@ opacity handles, snap-to-grid or free-hand, modelled on Framer and Webflow's des
   also % of its width, so a free section keeps its proportions at every width (CSS container
   query units). A part with no `h` grows to fit its text.
 - **Below 820px a Free section stacks**: its parts fall into one column ordered by `y`, then `x`.
-  Per-phone positions are a later, optional addition.
+- **Or it has its own phone arrangement** (`phone: "free"`, `phoneParts`, `phoneHeight`, added
+  2026-10-04 at the user's request): arranging on a phone edits the phone view only, and the editor
+  says so; it works whether or not the desktop layout is Free.
 - **Or it keeps its desktop arrangement** (`phone: "scale"`, added 2026-10-04 at the user's
   request): the section is drawn at its desktop width and zoomed down whole, text included
   (`ScaleBox`, CSS `zoom`), a small preview of the desktop page. The owner chooses per section.

@@ -18,9 +18,9 @@ import { Link } from 'react-router-dom'
 import { useSchema } from '@/lib/siteConsole'
 import '@/styles/Extras.css'
 
-export function LinkTo({ url, className, children, style }) {
-  if (url.startsWith('/')) return <Link to={url} className={className} style={style}>{children}</Link>
-  return <a href={url} className={className} style={style} target="_blank" rel="noopener noreferrer">{children}</a>
+export function LinkTo({ url, className, children, style, ...rest }) {
+  if (url.startsWith('/')) return <Link to={url} className={className} style={style} {...rest}>{children}</Link>
+  return <a href={url} className={className} style={style} target="_blank" rel="noopener noreferrer" {...rest}>{children}</a>
 }
 
 export const money = (m) => (m?.amount == null ? null : new Intl.NumberFormat('en-US', { style: 'currency', currency: m.currency ?? 'USD' }).format(m.amount / 100))

@@ -68,16 +68,45 @@
 
 /* Otherwise a phone stacks a Free section: one column, its parts top to bottom. */
 @media (max-width: 819.98px) {
-  [data-eotm-frame='free']:not([data-eotm-phone='scale']) {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']):not([data-eotm-phone='free']) {
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
-  [data-eotm-frame='free']:not([data-eotm-phone='scale']) [data-eotm-group][data-eotm-placed] {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']):not([data-eotm-phone='free']) [data-eotm-group][data-eotm-placed] {
     display: block;
   }
-  [data-eotm-frame='free']:not([data-eotm-phone='scale']) [data-eotm-placed] {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']):not([data-eotm-phone='free']) [data-eotm-placed] {
     order: var(--order, 0);
     opacity: var(--o, 1);
+  }
+
+  /* The phone's own arrangement (phoneParts, the --q* variables), whether or
+     not the desktop layout is Free. */
+  [data-eotm-phone='free'][data-eotm-phone] {
+    display: block;
+    position: relative;
+    container-type: inline-size;
+    aspect-ratio: 100 / var(--frame-qh, 150);
+    padding: 0;
+  }
+  [data-eotm-phone='free'] [data-eotm-wrap] {
+    display: contents;
+  }
+  [data-eotm-phone='free'] [data-eotm-group][data-eotm-qplaced] {
+    display: block;
+  }
+  [data-eotm-phone='free'] [data-eotm-qplaced] {
+    position: absolute;
+    left: calc(var(--qx) * 1%);
+    top: calc(var(--qy) * 1cqw);
+    width: calc(var(--qw) * 1%);
+    height: var(--qph, auto);
+    z-index: var(--qz, auto);
+    opacity: var(--qo, 1);
+    font-size: calc(var(--qfs, 100) * 1%);
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
   }
 }
