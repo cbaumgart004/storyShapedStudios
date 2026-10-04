@@ -10,6 +10,13 @@
   display: contents;
 }
 
+/* A part's own text size (a corner drag or a pinch in Arrange), % of the site's. */
+[data-eotm-frame='free'] [data-eotm-placed] {
+  font-size: calc(var(--fs, 100) * 1%);
+}
+
+/* Placed: on a desktop, and on a phone for a section that keeps its desktop
+   arrangement (ScaleBox draws it at desktop width and zooms it down). */
 @media (min-width: 820px) {
   [data-eotm-frame='free'] {
     position: relative;
@@ -31,18 +38,38 @@
     box-sizing: border-box;
   }
 }
+[data-eotm-scaled] [data-eotm-frame='free'] {
+  display: block;
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 100 / var(--frame-h, 50);
+}
+[data-eotm-scaled] [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
+  display: block;
+}
+[data-eotm-scaled] [data-eotm-frame='free'] [data-eotm-placed] {
+  position: absolute;
+  left: calc(var(--x) * 1%);
+  top: calc(var(--y) * 1cqw);
+  width: calc(var(--w) * 1%);
+  height: var(--ph, auto);
+  z-index: var(--z, auto);
+  opacity: var(--o, 1);
+  margin: 0;
+  box-sizing: border-box;
+}
 
-/* A phone stacks a Free section: one column, its parts top to bottom. */
+/* Otherwise a phone stacks a Free section: one column, its parts top to bottom. */
 @media (max-width: 819.98px) {
-  [data-eotm-frame='free'] {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']) {
     display: flex;
     flex-direction: column;
     gap: 1rem;
   }
-  [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']) [data-eotm-group][data-eotm-placed] {
     display: block;
   }
-  [data-eotm-frame='free'] [data-eotm-placed] {
+  [data-eotm-frame='free']:not([data-eotm-phone='scale']) [data-eotm-placed] {
     order: var(--order, 0);
     opacity: var(--o, 1);
   }

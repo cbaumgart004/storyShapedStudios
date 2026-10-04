@@ -21,6 +21,14 @@ opacity handles, snap-to-grid or free-hand, modelled on Framer and Webflow's des
   query units). A part with no `h` grows to fit its text.
 - **Below 820px a Free section stacks**: its parts fall into one column ordered by `y`, then `x`.
   Per-phone positions are a later, optional addition.
+- **Or it keeps its desktop arrangement** (`phone: "scale"`, added 2026-10-04 at the user's
+  request): the section is drawn at its desktop width and zoomed down whole, text included
+  (`ScaleBox`, CSS `zoom`), a small preview of the desktop page. The owner chooses per section.
+  While arranging on a phone, the editor suggests turning it to landscape, which is closer to the
+  desktop width.
+- **A part's text size is its own** (`fs`, % of the site's): a corner drag or a two-finger pinch in
+  Arrange resizes the box and its text together, as Canva does; a side handle changes only the
+  width and lets the text reflow.
 - **The page's code order stays the content order.** Free placement changes what is seen, never
   what a screen reader or a search engine reads.
 - **Arranging is a separate mode** in the editor (Arrange). Outside it a click edits content, as
@@ -42,5 +50,8 @@ opacity handles, snap-to-grid or free-hand, modelled on Framer and Webflow's des
   an unmarked part cannot be moved. StoryShaped's sections are marked; library entries, glossary
   terms and the footer are not yet.
 - Between 820px and roughly 1100px a free section scales down whole; large text can crowd it.
+- A scaled section on a phone has desktop-sized text shrunk to fit, so small print can become too
+  small to read; that is the owner's trade, which is why stacking stays the default. The design
+  width is approximate (`DESIGN_WIDTH`, 1200px times the section's share of 12 columns).
 - Validation is generic (`schema/schema.js`, `checkFrame`): any section, row or document may carry
   `_layout`, held to ranges, with no schema field declaring it.
