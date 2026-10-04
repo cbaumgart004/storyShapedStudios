@@ -17,11 +17,15 @@
 
 /* Placed: on a desktop, and on a phone for a section that keeps its desktop
    arrangement (ScaleBox draws it at desktop width and zooms it down). */
+/* A Free section has no padding: its parts sit anywhere on it, measured from
+   its edges (Arrange measures them so, in units of its width). The doubled
+   attribute outranks the site's own .section padding. */
 @media (min-width: 820px) {
-  [data-eotm-frame='free'] {
+  [data-eotm-frame='free'][data-eotm-frame] {
     position: relative;
     container-type: inline-size;
     aspect-ratio: 100 / var(--frame-h, 50);
+    padding: 0;
   }
   [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
     display: block;
@@ -34,15 +38,17 @@
     height: var(--ph, auto);
     z-index: var(--z, auto);
     opacity: var(--o, 1);
+    max-width: none;
     margin: 0;
     box-sizing: border-box;
   }
 }
-[data-eotm-scaled] [data-eotm-frame='free'] {
+[data-eotm-scaled] [data-eotm-frame='free'][data-eotm-frame] {
   display: block;
   position: relative;
   container-type: inline-size;
   aspect-ratio: 100 / var(--frame-h, 50);
+  padding: 0;
 }
 [data-eotm-scaled] [data-eotm-frame='free'] [data-eotm-group][data-eotm-placed] {
   display: block;
@@ -55,6 +61,7 @@
   height: var(--ph, auto);
   z-index: var(--z, auto);
   opacity: var(--o, 1);
+  max-width: none;
   margin: 0;
   box-sizing: border-box;
 }
