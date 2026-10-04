@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom'
 import UvPhoto from '@/components/UvPhoto'
 import { fetchPublished, useLiveDocuments, useSchema } from '@/lib/siteConsole'
 import { toCard } from '@/lib/cards'
-import { Extras, FieldParts, LinkTo, money, lookFor } from '@/components/Extras'
+import { Extras, FieldParts, LinkTo, money, lookFor, photoLook } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
 import '@/styles/MeetTheArtist.css'
 
@@ -276,14 +276,69 @@ function PairGallery({ block, marks, extras }) {
   )
 }
 
-export const BLOCKS = { hero: Hero, card: Card, values: Values, photoFeature: PhotoFeature, productCard: ProductCard, pairGallery: PairGallery }
+// Image with text (the Images and Customer Creations pages): a photo, its width
+// the owner's (dragged on the page, free or snapped to the 12 columns, or set
+// in the panel; `width`, % of the section), placed left, centre or right, with
+// formatted text beneath it. Classes > "Image with text" styles every one.
+function ImageText({ block, marks, extras }) {
+  const frame = frameOf(block)
+  const width = Number(block.width) > 0 ? Number(block.width) : 100
+  const align = block.align === 'left' || block.align === 'right' ? block.align : 'center'
+  const editing = typeof window !== 'undefined' && Boolean(window.EOTM?.editing)
+  // Drag-to-size: the edge facing the free side; a centred photo grows both ways.
+  const size = { 'data-eotm-size': 'width', 'data-eotm-min': 10, 'data-eotm-max': 100, 'data-eotm-label': 'photo',
+    ...(align === 'right' ? { 'data-eotm-edge': 'left' } : {}), ...(align === 'center' ? { 'data-eotm-centered': '' } : {}) }
+  return (
+    <section className="section image-text" {...marks}>
+      {(block.image?.src || editing) && (
+        <figure className={`image-text-figure is-${align}`} data-eotm-field="image" {...size} {...frame.part('image', { '--image-w': `${width}%` })}>
+          {block.image?.src
+            ? <img src={block.image.src} alt={block.image.alt ?? ''} style={photoLook(block.image)} />
+            : <span className="image-text-empty">Add a photo in the editor</span>}
+        </figure>
+      )}
+      {block.text && <div className="page-rich image-text-body" data-eotm-richtext="text" dangerouslySetInnerHTML={{ __html: block.text }} {...frame.part('text')} />}
+      {extras}
+    </section>
+  )
+}
+
+// A banner: a large heading and a line on a framed panel, its links beneath
+// (the Shop's "Collection Coming Soon", with Etsy and eBay). The console ships
+// it as a template; Classes > "Banners" styles every one.
+function Banner({ block, marks, extras }) {
+  const schema = useSchema()
+  const frame = frameOf(block)
+  const links = (block.links ?? []).filter((l) => l.label && l.url)
+  return (
+    <section className="section banner" {...marks}>
+      <div className="banner-panel deco-corners" {...frame.wrap}>
+        {block.heading && <h2 className="banner-heading" data-eotm-text="heading" {...frame.part('heading')}>{block.heading}</h2>}
+        {block.text && <p className="banner-text" data-eotm-text="text" {...frame.part('text')}>{block.text}</p>}
+      </div>
+      {links.length > 0 && (
+        <div className="banner-links" data-eotm-field="links" {...frame.part('links')}>
+          {links.map((l) => (
+            <LinkTo key={l._id ?? l.url} url={l.url} className={buttonClass(schema, l.look, 'ghost')} data-eotm-in={l._id}>
+              <span data-eotm-text="label" data-eotm-in={l._id}>{l.label}</span>
+            </LinkTo>
+          ))}
+        </div>
+      )}
+      {extras}
+    </section>
+  )
+}
+
+export const BLOCKS = { hero: Hero, card: Card, values: Values, photoFeature: PhotoFeature, productCard: ProductCard, pairGallery: PairGallery, imageText: ImageText, banner: Banner }
 
 // A section as the page renders it: one saved in a retired shape becomes a Card.
 export const current = (block) => toCard(block)
 
 // A name for the page layout's Arrange boxes and the Edit button.
 export function labelOf(block) {
-  return block.heading || (block._type === 'hero' && 'Hero') || block.byline || block.eyebrow || (block._type === 'card' && 'Card') || block._type
+  return block.heading || (block._type === 'hero' && 'Hero') || block.byline || block.eyebrow || (block._type === 'card' && 'Card')
+    || (block._type === 'imageText' && 'Image with text') || block._type
 }
 
 // A section type the owner designed in the console (Types and names), drawn

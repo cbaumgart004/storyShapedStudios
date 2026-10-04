@@ -12,8 +12,15 @@
 //   - Site header and footer: created from the schema's defaults (social and
 //     shop links, copyright) when there is none; given the copyright fields when
 //     it has none yet.
-//   - Draft pages (DRAFT_PAGES: Shop, Images): created as drafts, never
-//     published by this script; a Shop page already live goes back to a draft.
+//   - Draft pages (DRAFT_PAGES: Shop, Images, Customer Creations): created as
+//     drafts, never published by this script; a Shop page already live goes
+//     back to a draft. A draft page still as this script first made it (never
+//     edited, version 1) takes the shipped version. Otherwise only what is
+//     missing is added: the Shop's Coming Soon banner first; on Images, an
+//     Image with text section in place of the image-pair gallery (the pairs
+//     are the editor's private Image dictionary now).
+//   - Menu: Customer Creations is added when the menu lacks it, shown only to
+//     the Owner until its page is published.
 //   - Menu: created when there is none, from the menu as shipped, each item
 //     naming its Page (Glossary by address); Images' and Shop's items are
 //     hidden from all but the Owner until their pages are published.
@@ -76,13 +83,26 @@ for (const [slug, data] of Object.entries(BUILT_IN_PAGES)) {
 // Pages not ready for visitors: drafts the owner publishes when satisfied.
 const after = await call('GET', '/documents?type=page')
 for (const [slug, data] of Object.entries(DRAFT_PAGES)) {
-  const doc = after.find((d) => d.slug === slug)
+  let doc = after.find((d) => d.slug === slug)
   if (!doc) {
     await call('POST', '/documents', { type: 'page', slug, data })
     console.log(`page       ${slug}: created as a draft`)
-  } else if (doc.status !== 'draft') {
-    await call('POST', `/documents/${doc.id}/unpublish`, { baseVersion: doc.version })
+    continue
+  }
+  if (doc.status !== 'draft') {
+    doc = await call('POST', `/documents/${doc.id}/unpublish`, { baseVersion: doc.version })
     console.log(`page       ${slug}: taken back to a draft`)
+  }
+  const sections = doc.data?.sections ?? []
+  let next = null
+  if (doc.version === 1) next = data.sections // never edited: the shipped page
+  else if (slug === 'shop' && !sections.some((b) => b._type === 'banner')) next = [data.sections[0], ...sections]
+  else if (slug === 'images' && !sections.some((b) => b._type === 'imageText')) {
+    next = [...sections.filter((b) => b._type !== 'pairGallery'), ...data.sections.filter((b) => b._type === 'imageText')]
+  }
+  if (next) {
+    await call('PUT', `/documents/${doc.id}`, { baseVersion: doc.version, data: { ...doc.data, sections: next } })
+    console.log(`page       ${slug}: ${doc.version === 1 ? 'brought up to the shipped page' : 'given what it was missing'}, still a draft`)
   }
 }
 
@@ -121,4 +141,20 @@ if (!(await call('GET', '/documents?type=menu')).length) {
   ]
   await createAndPublish({ type: 'menu', data: { items } })
   console.log('menu       created and published (Images and Shop show only to the Owner until published)')
+}
+
+// Customer Creations in a menu made before it existed, after Images; the site
+// shows it only to the Owner until its page is published.
+{
+  const [menu] = await call('GET', '/documents?type=menu')
+  const page = (await call('GET', '/documents?type=page')).find((d) => d.slug === 'customer-creations')
+  const items = menu?.data?.items ?? []
+  if (menu && page && !items.some((i) => i.page === page.id)) {
+    const at = items.findIndex((i) => i._id === 'nav-4')
+    const entry = { _id: 'nav-7', page: page.id, label: 'Customer Creations', url: '', soon: false }
+    const next = at >= 0 ? [...items.slice(0, at + 1), entry, ...items.slice(at + 1)] : [...items, entry]
+    const saved = await call('PUT', `/documents/${menu.id}`, { baseVersion: menu.version, data: { ...menu.data, items: next } })
+    if (menu.status === 'published') await call('POST', `/documents/${menu.id}/publish`, { baseVersion: saved.version })
+    console.log('menu       Customer Creations added (shown only to the Owner until its page is published)')
+  }
 }

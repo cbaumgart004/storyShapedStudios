@@ -138,28 +138,31 @@ const library = {
   ],
 }
 
-// The Shop, until selling here is built: where the pieces are listed now.
+// The Shop, until selling here is built: a "Collection Coming Soon" banner
+// (the console's Banner template) with the Etsy and eBay shops beneath it.
 const shop = {
   title: 'Shop',
   sections: [
     {
-      _id: 'intro', _type: 'card', eyebrow: 'Shop', heading: 'Shop the Collection',
-      body: '<p>Our pieces are listed on Etsy and eBay while the shop here is being built.</p>',
-      images: [],
+      _id: 'coming-soon', _type: 'banner', heading: 'Collection Coming Soon',
+      text: 'Our pieces are on Etsy and eBay while the shop here is being built.',
       links: [
-        { _id: 'shop-etsy', title: 'StoryShaped Studios on Etsy', url: 'https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt' },
-        { _id: 'shop-ebay', title: 'StoryShaped Studios on eBay', url: 'https://www.ebay.com/str/storyshapedstudios' },
+        { _id: 'shop-etsy', label: 'StoryShaped Studios on Etsy', url: 'https://www.etsy.com/shop/storyshapedstudios/?etsrc=sdt', look: 'primary' },
+        { _id: 'shop-ebay', label: 'StoryShaped Studios on eBay', url: 'https://www.ebay.com/str/storyshapedstudios', look: 'ghost' },
       ],
-      byline: '', bylineNote: '', look: 'text',
     },
   ],
 }
 
 const asCards = (page) => ({ ...page, sections: page.sections.map(toCard) })
 
-// A page not ready for visitors yet, started as a draft: the owner previews and
-// publishes it from the editor. Nothing here is shown to visitors, and a
-// draft page with no console document is simply not found.
+// Pages not ready for visitors yet, started as drafts: the owner fills them,
+// previews and publishes each from the editor when she decides. Nothing here
+// is shown to visitors, and a draft page with no console document is simply
+// not found. Both are photos with information beneath them (Image with text,
+// one section per photo; add more in the editor). The daylight / blacklight
+// pairs are not here: they are the editor's private Image dictionary.
+const imageText = (id) => ({ _id: id, _type: 'imageText', image: null, width: 100, align: '', text: '' })
 const images = {
   title: 'Images',
   sections: [
@@ -168,8 +171,18 @@ const images = {
       body: '<p>Pieces photographed in daylight and under blacklight.</p>',
       images: [], links: [], byline: '', bylineNote: '', look: 'text',
     },
-    // Every Image pair, kept in the console's Images view.
-    { _id: 'gallery', _type: 'pairGallery', heading: '', intro: '' },
+    imageText('image-1'),
+  ],
+}
+const customerCreations = {
+  title: 'Customer Creations',
+  sections: [
+    {
+      _id: 'intro', _type: 'card', eyebrow: 'Gallery', heading: 'Customer Creations',
+      body: '<p>What our customers have made.</p>',
+      images: [], links: [], byline: '', bylineNote: '', look: 'text',
+    },
+    imageText('image-1'),
   ],
 }
 
@@ -178,4 +191,4 @@ const images = {
 export const BUILT_IN_PAGES = { home: asCards(home), 'meet-the-artist': asCards(meetTheArtist), library }
 
 // Started as drafts (scripts/seed-editor.mjs); never shown from here.
-export const DRAFT_PAGES = { shop, images }
+export const DRAFT_PAGES = { shop, images, 'customer-creations': customerCreations }

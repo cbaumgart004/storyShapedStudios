@@ -34,7 +34,7 @@ export function addedAt(schema, at) {
 }
 
 // A placed photo, turned, mirrored and faded as the owner set it in the console.
-const photoLook = (v) => ({
+export const photoLook = (v) => ({
   transform: [v.rotate ? `rotate(${v.rotate}deg)` : '', v.flip ? 'scaleX(-1)' : ''].join(' ').trim() || undefined,
   opacity: v.opacity != null ? v.opacity / 100 : undefined,
 })

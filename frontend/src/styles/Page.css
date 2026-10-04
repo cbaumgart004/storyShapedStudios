@@ -108,3 +108,69 @@
   vertical-align: -0.2em;
   object-fit: contain;
 }
+
+/* Image with text (Blocks.jsx, ImageText): the photo at the owner's width,
+   placed left, centre or right, its text beneath. */
+.image-text {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2vw, 1.4rem);
+}
+.image-text-figure {
+  /* The owner's width as a variable, so a Free section's placement wins. */
+  width: var(--image-w, 100%);
+  margin: 0;
+  max-width: 100%;
+}
+.image-text-figure.is-center {
+  margin-inline: auto;
+}
+.image-text-figure.is-right {
+  margin-left: auto;
+}
+.image-text-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.image-text-empty {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.image-text-body {
+  max-width: 62ch;
+  margin-inline: auto;
+}
+
+/* Banner (Blocks.jsx, Banner): a framed panel with a large heading, its links
+   beneath. */
+.banner-panel {
+  position: relative;
+  padding: clamp(1.5rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem);
+  border: 1px solid var(--line);
+  --len: 30px;
+  box-shadow: var(--frame-glow);
+  text-align: center;
+}
+.banner-heading {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 3.2rem);
+}
+.banner-text {
+  margin: 0.75rem auto 0;
+  max-width: 52ch;
+  color: var(--muted);
+}
+.banner-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: clamp(1rem, 3vw, 1.75rem);
+}
