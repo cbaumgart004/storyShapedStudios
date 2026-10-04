@@ -8,6 +8,41 @@
   align-items: center;
   gap: clamp(1.1rem, 2.6vw, 2rem);
 }
+/* A photo field holding several daylight / blacklight pairs shows each. */
+.hero-figure .uv-photo + .uv-photo {
+  margin-top: 14px;
+}
+
+/* Image pairs gallery (Blocks.jsx, PairGallery): every Image pair, two across. */
+.pair-gallery-intro {
+  max-width: 62ch;
+  margin: 0 auto 1.5rem;
+  text-align: center;
+  color: var(--muted);
+}
+.pair-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: clamp(1rem, 3vw, 2rem);
+}
+.pair-gallery-item {
+  position: relative;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  --len: 24px;
+  box-shadow: var(--frame-glow);
+}
+.pair-gallery-item figcaption {
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 0.75rem;
+  text-align: center;
+}
+.pair-gallery-item figcaption span {
+  color: var(--muted);
+}
+
 .page-img {
   display: block;
   width: 100%;

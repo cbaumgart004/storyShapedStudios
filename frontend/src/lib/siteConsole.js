@@ -245,7 +245,7 @@ export function useMenu() {
       const url = page ? (page.slug === 'home' ? '/' : `/${page.slug}`) : item.url
       const label = item.label || page?.data?.title
       if (!label || (!url && !item.soon)) continue
-      links.push({ to: url, label, soon: item.soon, draft: item.page && !published.has(item.page) })
+      links.push({ to: url, label, soon: item.soon, draft: item.page && !published.has(item.page), row: item })
     }
     return { links, docId: menu.id }
   }, [menu, pages, livePages, drafts, customer])

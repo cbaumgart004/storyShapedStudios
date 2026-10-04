@@ -168,6 +168,8 @@ const images = {
       body: '<p>Pieces photographed in daylight and under blacklight.</p>',
       images: [], links: [], byline: '', bylineNote: '', look: 'text',
     },
+    // Every Image pair, kept in the console's Images view.
+    { _id: 'gallery', _type: 'pairGallery', heading: '', intro: '' },
   ],
 }
 

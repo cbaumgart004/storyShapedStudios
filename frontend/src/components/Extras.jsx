@@ -1,0 +1,145 @@
+// src/components/Extras.jsx
+// What the owner adds in the console, drawn without code of its own. Three
+// parts share the rules here:
+//   * CustomFields: an owner-designed section type (Blocks.jsx, CustomSection);
+//   * Extras: the fields the owner added to a built-in element with
+//     "+ Add a field" (the console's schema/custom.js, custom.fields), drawn
+//     after the element's own content;
+//   * useLook: an added Style field, as the CSS for that element. Named colours
+//     come from the schema's styleColors, which point at the site's own theme
+//     variables, so a styled element follows Daylight and Blacklight.
+// `at` names where a field lives in the schema: "types.listing", "blocks.hero",
+// "types.siteSettings.socials" (a list's rows). Every component that draws a
+// console element calls Extras and useLook once; a new added field then needs
+// no site code.
+
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { useSchema } from '@/lib/siteConsole'
+import '@/styles/Extras.css'
+
+export function LinkTo({ url, className, children, style }) {
+  if (url.startsWith('/')) return <Link to={url} className={className} style={style}>{children}</Link>
+  return <a href={url} className={className} style={style} target="_blank" rel="noopener noreferrer">{children}</a>
+}
+
+export const money = (m) => (m?.amount == null ? null : new Intl.NumberFormat('en-US', { style: 'currency', currency: m.currency ?? 'USD' }).format(m.amount / 100))
+
+// The fields defined at `at` in a schema that the owner added, or [].
+export function addedAt(schema, at) {
+  const [kind, name, ...rest] = String(at ?? '').split('.')
+  let fields = schema?.[kind]?.[name]?.fields
+  for (const part of rest) fields = fields?.find((f) => f.name === part)?.fields
+  return (fields ?? []).filter((f) => f.added)
+}
+
+// A placed photo, turned, mirrored and faded as the owner set it in the console.
+const photoLook = (v) => ({
+  transform: [v.rotate ? `rotate(${v.rotate}deg)` : '', v.flip ? 'scaleX(-1)' : ''].join(' ').trim() || undefined,
+  opacity: v.opacity != null ? v.opacity / 100 : undefined,
+})
+
+function CustomValue({ field, value, row }) {
+  if (value == null || value === '' || (Array.isArray(value) && !value.length)) return null
+  const inRow = row ? { 'data-eotm-in': row } : {}
+  switch (field.kind) {
+    case 'text':
+    case 'textarea':
+      return <p className={`custom__${field.name}`} data-eotm-text={field.name} {...inRow}>{value}</p>
+    case 'richtext':
+      return <div className="page-rich" data-eotm-richtext={field.name} dangerouslySetInnerHTML={{ __html: value }} />
+    case 'image':
+      return value?.src ? <figure className="artist-cabinet deco-corners"><img src={value.src} alt={value.alt ?? ''} style={photoLook(value)} /></figure> : null
+    case 'url':
+      return <LinkTo url={value} className="prose-link">{field.label}<span className="arrow" aria-hidden="true">→</span></LinkTo>
+    case 'number':
+    case 'date':
+      return <p className={`custom__${field.name}`}>{String(value)}</p>
+    case 'datetime':
+      return <p className={`custom__${field.name}`}>{new Date(value).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>
+    case 'money':
+      return value.amount != null ? <p className={`custom__${field.name}`}>{money(value)}</p> : null
+    case 'select':
+      return <p className={`custom__${field.name}`}>{field.options?.find((o) => o.value === value)?.label ?? value}</p>
+    case 'list':
+      return (
+        <ul className={`custom__${field.name}`}>
+          {value.map((item, i) => <li key={item._id ?? i}><CustomFields fields={field.fields ?? []} data={item} row={item._id} /></li>)}
+        </ul>
+      )
+    default: // boolean and colour are settings, not content
+      return null
+  }
+}
+
+export function CustomFields({ fields, data, headingIndex = -1, row }) {
+  return fields.map((f, i) => {
+    if (i === headingIndex) return null
+    const next = fields[i + 1]
+    if (f.kind === 'text' && next?.kind === 'url' && data?.[next.name]) {
+      return <LinkTo key={f.name} url={data[next.name]} className="prose-link">{data[f.name] || next.label}<span className="arrow" aria-hidden="true">→</span></LinkTo>
+    }
+    if (f.kind === 'url' && fields[i - 1]?.kind === 'text' && i - 1 !== headingIndex && data?.[f.name]) return null
+    return <CustomValue key={f.name} field={f} value={data?.[f.name]} row={row} />
+  })
+}
+
+
+const SIZES = { small: '0.875em', large: '1.25em', xlarge: '1.6em' }
+const FONTS = { heading: 'var(--font-heading)', body: 'var(--font-body)' }
+
+// One Style value as CSS. A named colour is the site's own variable.
+export function lookToCss(schema, look) {
+  if (!look || typeof look !== 'object') return undefined
+  const colour = (v) => (!v ? undefined : schema?.styleColors?.find((c) => c.value === v)?.css ?? (/^#[0-9a-f]{6}$/i.test(v) ? v : undefined))
+  const css = {
+    fontSize: SIZES[look.size], fontFamily: FONTS[look.font], fontWeight: look.weight === 'bold' ? 700 : look.weight === 'normal' ? 400 : undefined,
+    textAlign: look.align, color: colour(look.color), background: colour(look.background),
+    ...(look.width ? { width: `${look.width}%`, maxWidth: '100%', marginInline: 'auto' } : {}),
+    ...(look.background ? { padding: '0.75em 1em' } : {}),
+  }
+  const out = Object.fromEntries(Object.entries(css).filter(([, v]) => v != null))
+  return Object.keys(out).length ? out : undefined
+}
+
+// The CSS of the Style fields the owner added at `at`, for `data`.
+export function useLook(at, data) {
+  const schema = useSchema()
+  return lookFor(schema, at, data)
+}
+export function lookFor(schema, at, data) {
+  const styles = addedAt(schema, at).filter((f) => f.kind === 'style').map((f) => lookToCss(schema, data?.[f.name])).filter(Boolean)
+  return styles.length ? Object.assign({}, ...styles) : undefined
+}
+
+// The first added Photo with a picture in it, for an element with a natural
+// place for one (a social link's icon). Null without.
+export function addedPhotoOf(schema, at, data) {
+  const f = addedAt(schema, at).find((x) => x.kind === 'image' && data?.[x.name]?.src)
+  return f ? data[f.name] : null
+}
+
+// The owner's added fields at `at`, drawn after the element's own content.
+// `skip` leaves out kinds the component already placed (a photo it shows as
+// the icon). Style fields are never drawn; useLook applies them.
+export function Extras({ at, data, row, skip = [], className = 'extras' }) {
+  const schema = useSchema()
+  const fields = addedAt(schema, at).filter((f) => f.kind !== 'style' && !skip.includes(f.kind))
+  if (!fields.some((f) => data?.[f.name] != null && data[f.name] !== '' && !(Array.isArray(data[f.name]) && !data[f.name].length))) return null
+  return (
+    <div className={className}>
+      <CustomFields fields={fields} data={data} row={row} />
+    </div>
+  )
+}
+
+// A social link's mark (SiteHeader, SiteFooter): a photo the owner added to the
+// link wins over the built-in icon; with neither, the link's name. The built-in
+// icons are the artwork the owner asked for, so a Style never touches them.
+export function SocialMark({ schema, social }) {
+  const photo = addedPhotoOf(schema, 'types.siteSettings.socials', social.row)
+  const style = lookFor(schema, 'types.siteSettings.socials', social.row)
+  if (photo) return <img src={photo.src} alt={photo.alt || social.label} style={{ ...photoLook(photo), ...style }} />
+  if (social.icon) return <img src={social.icon} alt={social.label} />
+  return <span className="social-name" style={style}>{social.label}</span>
+}

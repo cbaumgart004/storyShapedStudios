@@ -5,13 +5,15 @@ import React from 'react'
 
 import logo from '/assets/StoryShapedStudiosLogo_GmailOptimized.png'
 import { socialsFrom } from '@/components/socials'
-import { useSiteSettings } from '@/lib/siteConsole'
+import { useSiteSettings, useSchema } from '@/lib/siteConsole'
+import { Extras, SocialMark } from '@/components/Extras'
 
 // `brand={false}` drops the logo + wordmark: Home already leads with the logo,
 // and Whitney's notes ask for it gone there but kept on the other pages.
 export default function SiteFooter({ brand = true }) {
   // Name and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
+  const schema = useSchema()
   const siteName = settings?.siteName || 'StoryShaped Studios'
   // "© <year> <owner>. <notice>": both from the Site header and footer; an
   // owner blank there is the site's name, a notice blank there is left out.
@@ -28,7 +30,7 @@ export default function SiteFooter({ brand = true }) {
       <div className="footer-socials">
         {socialsFrom(settings).map((s) => (
           <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer">
-            <img src={s.icon} alt={s.label} />
+            <SocialMark schema={schema} social={s} />
           </a>
         ))}
       </div>
@@ -37,6 +39,7 @@ export default function SiteFooter({ brand = true }) {
       <p className="footer-note">
         &copy; {new Date().getFullYear()} {owner}.{notice ? ` ${notice}` : ''}
       </p>
+      <Extras at="types.siteSettings" data={settings} className="extras footer-extras" />
     </footer>
   )
 }

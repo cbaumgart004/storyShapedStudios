@@ -37,8 +37,9 @@ import SiteFooter from '@/components/SiteFooter'
 import { API_BASE, HAS_BACKEND } from '@/lib/api'
 import { slugify } from '@/lib/librarySlug'
 import { parseSections } from '@/lib/libraryMarkdown'
-import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
+import { Extras, lookFor } from '@/components/Extras'
 import { BLOCKS, current as asCurrent } from '@/components/Blocks'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import '@/styles/Library.css'
@@ -83,7 +84,7 @@ function mergeManaged(builtIn, docs) {
   for (const d of docs) {
     const title = (d.data?.title ?? '').trim()
     if (!title) continue
-    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), sources: d.data.sources ?? [], draft: isDraft(d), order: d.data.order, after: d.data.after ?? '', docId: d.id }
+    const entry = { id: slugify(title), slug: d.slug, title, html: d.data.body ?? '', body: textOf(d.data.body), sources: d.data.sources ?? [], draft: isDraft(d), order: d.data.order, after: d.data.after ?? '', docId: d.id, data: d.data }
     const i = out.findIndex((s) => s.id === entry.id)
     if (i >= 0) out[i] = entry
     else extra.push(entry)
@@ -137,6 +138,7 @@ const mdComponents = {
 }
 
 export default function Library() {
+  const schema = useSchema()
   const { mode } = useUvMode()
   const { slug } = useParams()
   const navigate = useNavigate()
@@ -587,7 +589,7 @@ export default function Library() {
 
             {/* ---- Single article ---- */}
             {slug && current && (
-              <article className="lib-entry lib-entry--solo" id={current.id}
+              <article className="lib-entry lib-entry--solo" id={current.id} style={lookFor(schema, 'types.libraryArticle', current.data)}
                 /* Click-to-edit in the console, for an entry it holds. */
                 {...(current.docId ? { 'data-eotm-edit': `libraryArticle:${current.docId}`, 'data-eotm-label': current.title } : {})}>
                 <Link to="/library" className="lib-back">
@@ -615,6 +617,7 @@ export default function Library() {
                     {current.body}
                   </ReactMarkdown>
                 )}
+                <Extras at="types.libraryArticle" data={current.data} />
                 {current.sources?.some((src) => src.url) && (
                   <ul className="lib-sources">
                     {current.sources.filter((src) => src.url).map((src) => (

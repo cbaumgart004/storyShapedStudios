@@ -30,5 +30,7 @@ export const connectSocials = socials.filter(
 export function socialsFrom(settings, { band = false } = {}) {
   const list = settings?.socials?.filter((s) => s.url && s.label)
   if (!list?.length) return band ? connectSocials : socials
-  return list.filter((s) => !band || s.inBand).map((s) => ({ href: s.url, icon: ICONS[s.icon] ?? ICONS.facebook, label: s.label }))
+  // `row` is the console's own entry, for fields the owner added to it (a photo
+  // in place of the icon, a Style): components/Extras.jsx.
+  return list.filter((s) => !band || s.inBand).map((s) => ({ href: s.url, icon: ICONS[s.icon] ?? null, label: s.label, row: s }))
 }

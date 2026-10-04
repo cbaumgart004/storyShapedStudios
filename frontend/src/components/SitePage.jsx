@@ -17,12 +17,20 @@ import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BLOCKS, CustomSection, current, labelOf } from '@/components/Blocks'
+import { Extras, lookFor } from '@/components/Extras'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts, useSchema } from '@/lib/siteConsole'
 import '@/styles/Home.css'
 import '@/styles/Page.css'
 
 const NONE = []
+
+// A section's added Style fields (the console's "+ Add a field"), as the style
+// of its outermost element; nothing when it has none.
+const look = (schema, block) => {
+  const style = lookFor(schema, `blocks.${block._type}`, block)
+  return style ? { style } : {}
+}
 
 // A zigzag rule opens every row after the first, so blocks set side by side
 // share one. A block that joins a row is marked, so it takes its own rule when
@@ -49,7 +57,8 @@ function arrange(layout, sections, pageMark, schema) {
       <div key={key} className={`sss-block${joins ? ' is-joined' : ''}`} style={{ '--span': span }}
         data-eotm-block={key} data-eotm-label={label} data-eotm-span={span}
         {...(layout.docId ? { 'data-eotm-edit': `pageLayout:${layout.docId}` } : {})}>
-        <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label }} />
+        <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label, ...look(schema, block) }} />
+        <Extras at={`blocks.${block._type}`} data={block} className="extras section-extras" />
       </div>
     )
   })

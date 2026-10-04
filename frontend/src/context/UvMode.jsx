@@ -47,6 +47,23 @@ export function UvModeProvider({ children }) {
     } catch { /* private mode: nothing kept */ }
   }, [mode, remember])
 
+  // While the owner edits the Daylight or Blacklight theme, the console asks
+  // the page to show that look ({ type: '$mode' }, console bridge 5+). It is
+  // not the visitor's choice, so nothing is remembered.
+  useEffect(() => {
+    let unsubscribe = null
+    let timer = null
+    const wire = () => {
+      if (!window.EOTM) { timer = setTimeout(wire, 50); return }
+      unsubscribe = window.EOTM.subscribe((c) => c.type === '$mode' && valid(c.mode) && setMode(c.mode))
+    }
+    wire()
+    return () => {
+      clearTimeout(timer)
+      if (unsubscribe) unsubscribe()
+    }
+  }, [])
+
   const toggle = () => {
     chosen.current = true
     setMode((m) => (m === 'blacklight' ? 'daylight' : 'blacklight'))

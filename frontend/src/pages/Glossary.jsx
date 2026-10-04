@@ -19,8 +19,9 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { slugify } from '@/lib/librarySlug'
 import { BUILT_IN } from '@/lib/glossaryPage'
-import { fetchPublished, useLiveDocuments, textOf } from '@/lib/siteConsole'
+import { fetchPublished, useLiveDocuments, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
+import { Extras, lookFor } from '@/components/Extras'
 import '@/styles/Glossary.css'
 
 const libLink = (title) => `/library/${slugify(title)}`
@@ -43,6 +44,7 @@ function Definition({ html }) {
 }
 
 export default function Glossary() {
+  const schema = useSchema()
   const { mode } = useUvMode()
   const [query, setQuery] = useState('')
   const [published, setPublished] = useState(NONE)
@@ -150,10 +152,11 @@ export default function Glossary() {
             </p>
             <div className="gl-term-grid">
               {g.terms.map((t) => (
-                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term}
+                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term} style={lookFor(schema, 'types.referencePage.sections.terms', t)}
                   {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-item': t._id, 'data-eotm-label': t.term } : {})}>
                   <h2 data-eotm-text="term">{t.term}</h2>
                   <Definition html={t.definition} />
+                  <Extras at="types.referencePage.sections.terms" data={t} row={t._id} />
                   {t.details?.length > 0 && (
                     <ul className="gl-sub">
                       {t.details.map((s) => (

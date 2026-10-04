@@ -24,7 +24,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
-import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu } from '@/lib/siteConsole'
+import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
+import { SocialMark, lookFor } from '@/components/Extras'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -59,6 +60,7 @@ export default function SiteHeader({ featured = false }) {
   const owner = useOwner() && !customer
   // Name, menu and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
+  const schema = useSchema()
   const menu = useMenu()
   const navLinks = menu ? menu.links : settings?.navLinks?.length
     ? settings.navLinks.filter((l) => l.label && l.url).map((l) => ({ to: l.url, label: l.label, soon: l.soon }))
@@ -75,7 +77,7 @@ export default function SiteHeader({ featured = false }) {
   // that cell's right border, so it survives wrapping into rows and never
   // strands a divider at the end of a line — a <span> pipe in the flow would.
   const renderLink = (l) => (
-    <span key={l.label} className="sss-navitem">
+    <span key={l.label} className="sss-navitem" style={lookFor(schema, 'types.menu.items', l.row)}>
       {l.soon || !l.to ? (
         <span className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
           {l.label}
@@ -134,7 +136,7 @@ export default function SiteHeader({ featured = false }) {
               aria-label={s.label}
               title={s.label}
             >
-              <img src={s.icon} alt={s.label} />
+              <SocialMark schema={schema} social={s} />
             </a>
           ))}
 
