@@ -21,7 +21,8 @@ import { slugify } from '@/lib/librarySlug'
 import { BUILT_IN } from '@/lib/glossaryPage'
 import { fetchPublished, useLiveDocuments, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
-import { Extras, lookFor } from '@/components/Extras'
+import { Extras, Elements, lookFor } from '@/components/Extras'
+import { frameOf } from '@/components/Frame'
 import '@/styles/Glossary.css'
 
 const libLink = (title) => `/library/${slugify(title)}`
@@ -37,10 +38,10 @@ const NONE = []
 
 // A definition is rich text from the console (sanitized by its API on save),
 // or plain text from the built-in glossary and the first import.
-function Definition({ html }) {
+function Definition({ html, marks }) {
   if (!html) return null
-  if (!/^\s*</.test(html)) return <p data-eotm-richtext="definition">{html}</p>
-  return <div className="gl-def" data-eotm-richtext="definition" dangerouslySetInnerHTML={{ __html: html }} />
+  if (!/^\s*</.test(html)) return <p data-eotm-richtext="definition" {...marks}>{html}</p>
+  return <div className="gl-def" data-eotm-richtext="definition" dangerouslySetInnerHTML={{ __html: html }} {...marks} />
 }
 
 export default function Glossary() {
@@ -151,14 +152,20 @@ export default function Glossary() {
               {g.category}
             </p>
             <div className="gl-term-grid">
-              {g.terms.map((t) => (
-                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term} style={lookFor(schema, 'types.referencePage.sections.terms', t)}
+              {g.terms.map((t) => {
+                // Each term's parts, for the console's Arrange (components/Frame.jsx).
+                const frame = frameOf(t)
+                const { style: frameStyle, ...frameMarks } = frame.root
+                return (
+                <article className="gl-card" id={termId(t.term)} key={t._id ?? t.term} {...frameMarks}
+                  style={{ ...lookFor(schema, 'types.referencePage.sections.terms', t), ...frameStyle }}
                   {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-item': t._id, 'data-eotm-label': t.term } : {})}>
-                  <h2 data-eotm-text="term">{t.term}</h2>
-                  <Definition html={t.definition} />
-                  <Extras at="types.referencePage.sections.terms" data={t} row={t._id} />
+                  <h2 data-eotm-text="term" {...frame.part('term')}>{t.term}</h2>
+                  <Definition html={t.definition} marks={frame.part('definition')} />
+                  <Extras at="types.referencePage.sections.terms" data={t} row={t._id} frame={frame} />
+                  <Elements data={t} frame={frame} />
                   {t.details?.length > 0 && (
-                    <ul className="gl-sub">
+                    <ul className="gl-sub" {...frame.part('details')}>
                       {t.details.map((s) => (
                         <li key={s.label + s.text}>
                           {s.label && <strong>{s.label}: </strong>}
@@ -168,7 +175,7 @@ export default function Glossary() {
                     </ul>
                   )}
                   {t.sources?.length > 0 && (
-                    <ul className="gl-links">
+                    <ul className="gl-links" {...frame.part('sources')}>
                       {t.sources.filter((src) => src.url).map((src) => (
                         <li key={src._id ?? src.url}>
                           <SourceLink url={src.url} title={src.title} />
@@ -177,7 +184,8 @@ export default function Glossary() {
                     </ul>
                   )}
                 </article>
-              ))}
+                )
+              })}
             </div>
           </section>
         ))}

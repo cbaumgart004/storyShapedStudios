@@ -46,8 +46,11 @@ function mark(name, p, q, style) {
   }
 }
 
-export function frameOf(data) {
-  const layout = data?._layout
+// `key`: one of several arranged regions of one document (a header and a
+// button bar, both Site settings), kept as _layout_<key>; the region's element
+// carries data-eotm-frame-key="<key>" so the console writes there.
+export function frameOf(data, key) {
+  const layout = data?.[key ? `_layout_${key}` : '_layout']
   const free = layout?.mode === 'free'
   // A phone layout of its own works whether or not the desktop one is Free.
   const phoneFree = layout?.phone === 'free'

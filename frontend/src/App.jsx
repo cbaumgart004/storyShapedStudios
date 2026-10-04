@@ -12,6 +12,7 @@ import AdminInventory from '@/pages/Admin/Inventory'
 import Page from '@/pages/Page'
 import SitePage from '@/components/SitePage'
 import SiteTheme from '@/components/SiteTheme'
+import ClassStyles from '@/components/ClassStyles'
 import { useConsoleNavigation, signInThroughConsole } from '@/lib/siteConsole'
 
 // Lets the Edge of the Map console open a document's page through the router.
@@ -27,6 +28,7 @@ function App() {
         <ScrollToTop />
         <ConsoleNavigation />
         <SiteTheme />
+        <ClassStyles />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/meet-the-artist" element={<MeetTheArtist />} />

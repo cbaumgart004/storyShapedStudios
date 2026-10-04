@@ -21,3 +21,14 @@
   font-size: 0.85rem;
   letter-spacing: 0.04em;
 }
+
+/* The owner's own elements (components/Extras.jsx, Elements). A box is empty
+   until its class or Style gives it a background, so it keeps some height. */
+.eotm-el--box {
+  min-height: 4rem;
+}
+img.eotm-el--image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}

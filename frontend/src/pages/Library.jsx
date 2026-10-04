@@ -39,7 +39,8 @@ import { slugify } from '@/lib/librarySlug'
 import { parseSections } from '@/lib/libraryMarkdown'
 import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
-import { Extras, lookFor } from '@/components/Extras'
+import { Extras, Elements, lookFor } from '@/components/Extras'
+import { frameOf } from '@/components/Frame'
 import { BLOCKS, current as asCurrent } from '@/components/Blocks'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import '@/styles/Library.css'
@@ -588,16 +589,21 @@ export default function Library() {
             )}
 
             {/* ---- Single article ---- */}
-            {slug && current && (
-              <article className="lib-entry lib-entry--solo" id={current.id} style={lookFor(schema, 'types.libraryArticle', current.data)}
+            {slug && current && (() => {
+              // The entry's parts, for the console's Arrange (components/Frame.jsx).
+              const frame = frameOf(current.data)
+              const { style: frameStyle, ...frameMarks } = frame.root
+              return (
+              <article className="lib-entry lib-entry--solo" id={current.id} {...frameMarks}
+                style={{ ...lookFor(schema, 'types.libraryArticle', current.data), ...frameStyle }}
                 /* Click-to-edit in the console, for an entry it holds. */
                 {...(current.docId ? { 'data-eotm-edit': `libraryArticle:${current.docId}`, 'data-eotm-label': current.title } : {})}>
-                <Link to="/library" className="lib-back">
+                <Link to="/library" className="lib-back" {...frame.part('back')}>
                   ← Library
                 </Link>
-                <div className="lib-entry-head">
-                  <h2 data-eotm-text="title">{current.title}</h2>
-                  <button
+                <div className="lib-entry-head" {...frame.wrap}>
+                  <h2 data-eotm-text="title" {...frame.part('title')}>{current.title}</h2>
+                  <button {...frame.part('copyLink')}
                     type="button"
                     className="lib-copy"
                     onClick={() => copyLink(current.id)}
@@ -611,22 +617,25 @@ export default function Library() {
                 {current.html != null ? (
                   // Sanitized by the console API on save; drafts come from the
                   // owner's own editor on this page.
-                  <div className={`lib-html${current.draft ? ' is-draft' : ''}`} data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: current.html }} />
+                  <div className={`lib-html${current.draft ? ' is-draft' : ''}`} data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: current.html }} {...frame.part('body')} />
                 ) : (
-                  <ReactMarkdown components={mdComponents}>
-                    {current.body}
-                  </ReactMarkdown>
+                  <div {...frame.group('body')}>
+                    <ReactMarkdown components={mdComponents}>
+                      {current.body}
+                    </ReactMarkdown>
+                  </div>
                 )}
-                <Extras at="types.libraryArticle" data={current.data} />
+                <Extras at="types.libraryArticle" data={current.data} frame={frame} />
+                <Elements data={current.data} frame={frame} />
                 {current.sources?.some((src) => src.url) && (
-                  <ul className="lib-sources">
+                  <ul className="lib-sources" {...frame.part('sources')}>
                     {current.sources.filter((src) => src.url).map((src) => (
                       <li key={src._id ?? src.url}><SourceLink url={src.url} title={src.title} /></li>
                     ))}
                   </ul>
                 )}
 
-                <nav className="lib-prevnext" aria-label="More entries">
+                <nav className="lib-prevnext" aria-label="More entries" {...frame.part('prevNext')}>
                   {prev ? (
                     <Link
                       to={`/library/${encodeURIComponent(prev.id)}`}
@@ -651,7 +660,8 @@ export default function Library() {
                   )}
                 </nav>
               </article>
-            )}
+              )
+            })()}
 
             {/* ---- Unknown slug ---- */}
             {slug && !current && (

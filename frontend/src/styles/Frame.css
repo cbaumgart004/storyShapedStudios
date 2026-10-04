@@ -10,6 +10,13 @@
   display: contents;
 }
 
+/* The canvas its parts are placed on. Zero specificity, so a region the site
+   pins (a fixed menu bar, which already places what is inside it) keeps its
+   own position. */
+:where([data-eotm-frame='free'], [data-eotm-phone='free']) {
+  position: relative;
+}
+
 /* A part's own text size (a corner drag or a pinch in Arrange), % of the site's. */
 [data-eotm-frame='free'] [data-eotm-placed] {
   font-size: calc(var(--fs, 100) * 1%);
@@ -22,7 +29,6 @@
    attribute outranks the site's own .section padding. */
 @media (min-width: 820px) {
   [data-eotm-frame='free'][data-eotm-frame] {
-    position: relative;
     container-type: inline-size;
     aspect-ratio: 100 / var(--frame-h, 50);
     padding: 0;
@@ -45,7 +51,6 @@
 }
 [data-eotm-scaled] [data-eotm-frame='free'][data-eotm-frame] {
   display: block;
-  position: relative;
   container-type: inline-size;
   aspect-ratio: 100 / var(--frame-h, 50);
   padding: 0;
@@ -85,7 +90,6 @@
      not the desktop layout is Free. */
   [data-eotm-phone='free'][data-eotm-phone] {
     display: block;
-    position: relative;
     container-type: inline-size;
     aspect-ratio: 100 / var(--frame-qh, 150);
     padding: 0;

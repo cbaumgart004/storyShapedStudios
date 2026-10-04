@@ -17,7 +17,7 @@ import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { BLOCKS, CustomSection, current, labelOf } from '@/components/Blocks'
-import { Extras, lookFor } from '@/components/Extras'
+import { Extras, Elements, lookFor } from '@/components/Extras'
 import { frameOf, ScaleBox } from '@/components/Frame'
 import { BUILT_IN_PAGES } from '@/lib/builtInPages'
 import { fetchPublished, useLiveDocuments, usePageLayout, useOwnerDrafts, useSchema } from '@/lib/siteConsole'
@@ -61,7 +61,10 @@ function arrange(layout, sections, pageMark, schema) {
         {...(layout.docId ? { 'data-eotm-edit': `pageLayout:${layout.docId}` } : {})}>
         <ScaleBox on={frameOf(block).scale} span={span}>
           <Block block={block} def={def} marks={{ 'data-eotm-edit': pageMark, 'data-eotm-item': block._id, 'data-eotm-label': label, ...rootOf(schema, block) }}
-            extras={<Extras at={`blocks.${block._type}`} data={block} className="extras section-extras" frame={frameOf(block)} />} />
+            extras={<>
+              <Extras at={`blocks.${block._type}`} data={block} className="extras section-extras" frame={frameOf(block)} />
+              <Elements data={block} frame={frameOf(block)} />
+            </>} />
         </ScaleBox>
       </div>
     )

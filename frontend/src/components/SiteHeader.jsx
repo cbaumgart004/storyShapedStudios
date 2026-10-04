@@ -26,6 +26,7 @@ import { socialsFrom } from '@/components/socials'
 import { utilityIcons } from '@/components/navIcons'
 import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
 import { SocialMark, lookFor } from '@/components/Extras'
+import { frameOf } from '@/components/Frame'
 
 // Order matters on a phone: the row is a 3-up grid with the UV toggle as its
 // last cell. One link is always filtered out (the page you are on), so four
@@ -67,6 +68,14 @@ export default function SiteHeader({ featured = false }) {
     : NAV_LINKS
   const siteName = settings?.siteName || 'StoryShaped Studios'
   const edit = { 'data-eotm-edit': `siteSettings:${settings?.docId ?? 'sitesettings'}`, 'data-eotm-label': 'Header and footer' }
+  // The bar and the band are two arranged regions of Site header and footer
+  // (_layout_header, _layout_band; components/Frame.jsx).
+  const bar = frameOf(settings, 'header')
+  const band = frameOf(settings, 'band')
+  const marksOf = (frame, key) => {
+    const { style, ...rest } = frame.root
+    return { ...rest, ...(style ? { style } : {}), 'data-eotm-frame-key': key }
+  }
 
   // Hide the current page's own link. Library article URLs (/library/:slug)
   // count as being on Library, hence the prefix check rather than equality.
@@ -90,14 +99,14 @@ export default function SiteHeader({ featured = false }) {
 
   return (
     <>
-      <header className="sss-nav" {...edit}>
+      <header className="sss-nav" {...edit} {...marksOf(bar, 'header')}>
         {pathname !== '/' && (
-          <Link to="/" className="sss-wordmark">
+          <Link to="/" className="sss-wordmark" data-eotm-field="siteName" {...bar.part('wordmark')}>
             {siteName}
           </Link>
         )}
 
-        <div className="sss-nav-bar">
+        <div className="sss-nav-bar" {...bar.part('menu')}>
           <nav className="sss-navlinks" aria-label="Primary"
             data-eotm-edit={menu ? `menu:${menu.docId}` : 'menu:menu'} data-eotm-label="Menu">
             {links.map(renderLink)}
@@ -125,8 +134,9 @@ export default function SiteHeader({ featured = false }) {
         className={`sss-social-bar${featured ? ' is-featured' : ''}`}
         aria-label={`Connect with ${siteName}`}
         {...edit}
+        {...marksOf(band, 'band')}
       >
-        <div className="sss-social-icons">
+        <div className="sss-social-icons" {...band.wrap}>
           {socialsFrom(settings, { band: true }).map((s) => (
             <a
               key={s.label}
@@ -135,6 +145,9 @@ export default function SiteHeader({ featured = false }) {
               rel="noopener noreferrer"
               aria-label={s.label}
               title={s.label}
+              data-eotm-field="socials"
+              data-eotm-in={s.row?._id}
+              {...band.part(`social:${s.row?._id ?? s.label}`)}
             >
               <SocialMark schema={schema} social={s} />
             </a>

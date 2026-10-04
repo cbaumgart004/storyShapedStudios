@@ -168,3 +168,51 @@ export function SocialMark({ schema, social }) {
   if (social.icon) return <img src={social.icon} alt={social.label} />
   return <span className="social-name" style={style}>{social.label}</span>
 }
+
+// The owner's own elements in a section (the console's schema/elements.js,
+// `_elements`): text, formatted text, a photo, a button or a box, each a part
+// named by its id, so Arrange places it in a Free section; in a Flow section
+// they follow the section's own content. Each takes its class (the site's own,
+// or the owner's .c-<name>) and its own Style. Text and button labels can be
+// typed where they stand in the editor. Formatted text is sanitized by the
+// console API on save.
+const classNameOf = (schema, name) => {
+  if (!name) return ''
+  const site = (schema?.classes ?? []).find((c) => c.name === name)
+  if (site) return /^\.[\w-]+$/.test(site.selector.trim()) ? site.selector.trim().slice(1) : ''
+  return (schema?.custom?.classes ?? []).some((c) => c.name === name) ? `c-${name}` : ''
+}
+const buttonClassOf = (schema, look) => {
+  const styles = schema?.buttonStyles ?? []
+  return (styles.find((s) => s.value === look) ?? styles[0])?.className ?? 'btn'
+}
+
+function Element({ el, frame, schema }) {
+  const cls = `eotm-el eotm-el--${el.kind} ${classNameOf(schema, el.class)}`.trim()
+  const marks = { 'data-eotm-element': el.kind, 'data-eotm-in': el._id, ...frame.part(el._id, lookToCss(schema, el.style)) }
+  switch (el.kind) {
+    case 'text': {
+      const Tag = ['h2', 'h3'].includes(el.tag) ? el.tag : 'p'
+      return <Tag className={cls} data-eotm-text="text" {...marks}>{el.text}</Tag>
+    }
+    case 'richtext':
+      return <div className={`page-rich ${cls}`} data-eotm-richtext="html" dangerouslySetInnerHTML={{ __html: el.html ?? '' }} {...marks} />
+    case 'image':
+      return el.image?.src ? <img className={cls} src={el.image.src} alt={el.image.alt ?? ''} {...marks} style={{ ...marks.style, ...photoLook(el.image) }} /> : null
+    case 'button':
+      return el.url ? (
+        <LinkTo url={el.url} className={`${buttonClassOf(schema, el.look)} ${cls}`} {...marks}>
+          {el.icon?.src && <img className="btn-icon" src={el.icon.src} alt="" />}
+          <span data-eotm-text="label" data-eotm-in={el._id}>{el.label}</span>
+        </LinkTo>
+      ) : null
+    default:
+      return <div className={cls} {...marks} />
+  }
+}
+
+export function Elements({ data, frame }) {
+  const schema = useSchema()
+  const list = Array.isArray(data?._elements) ? data._elements.filter((e) => e?._id) : []
+  return list.map((el) => <Element key={el._id} el={el} frame={frame} schema={schema} />)
+}
