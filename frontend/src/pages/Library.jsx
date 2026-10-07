@@ -156,6 +156,13 @@ export default function Library() {
   const heading = pageSections[0]?._type === 'card' ? pageSections[0] : null
   const after = (heading ? pageSections.slice(1) : pageSections).filter((b) => BLOCKS[b._type])
   const pageMark = (b) => ({ 'data-eotm-edit': `page:${libraryDoc?.id ?? 'library'}`, 'data-eotm-item': b._id, 'data-eotm-label': b.heading || 'Library' })
+  // Every part of the sidebar opens in the editor: an entry's title (in the
+  // Contents, the index and Most viewed) opens that entry; the two rail
+  // headings are the Library page's own Library sidebar fields.
+  const articleMark = (s) => ({ 'data-eotm-edit': `libraryArticle:${s.docId ?? s.slug ?? s.id}`, 'data-eotm-label': s.title })
+  const sidebar = libraryPage.librarySidebar ?? {}
+  const railLabel = { mostViewed: sidebar.mostViewed || 'Most viewed', contents: sidebar.contents || 'Contents' }
+  const railMark = { 'data-eotm-edit': `page:${libraryDoc?.id ?? 'library'}`, 'data-eotm-label': 'Library sidebar', 'data-eotm-field': 'librarySidebar' }
   const live = useLiveDocuments('libraryArticle', managed)
   const sections = useMemo(() => mergeManaged(builtIn, live), [builtIn, live])
   useConsoleOrder('libraryArticle', sections)
@@ -463,7 +470,7 @@ export default function Library() {
               {mostViewed.length > 0 && !q && (
                 <>
                   {renderRailToggle(
-                    'Most viewed',
+                    railLabel.mostViewed,
                     'lib-rail-featured',
                     featuredOpen,
                     setFeaturedOpen
@@ -475,13 +482,14 @@ export default function Library() {
                     }`}
                   >
                     <div className="lib-featured">
-                      <p className="eyebrow lib-rail-heading">Most viewed</p>
+                      <p className="eyebrow lib-rail-heading" {...railMark}>{railLabel.mostViewed}</p>
                       <div className="lib-featured-list">
                         {mostViewed.map((s) => (
                           <button
                             key={s.id}
                             type="button"
                             className="lib-chip"
+                            {...articleMark(s)}
                             onClick={() => goTo(s.id)}
                           >
                             {s.title}
@@ -495,7 +503,7 @@ export default function Library() {
               )}
 
               {renderRailToggle(
-                'Contents',
+                railLabel.contents,
                 'lib-rail-contents',
                 contentsOpen,
                 setContentsOpen,
@@ -508,13 +516,13 @@ export default function Library() {
                 }`}
               >
               <nav className="lib-toc" aria-label="Contents">
-                <p className="eyebrow lib-rail-heading">
-                  Contents
+                <p className="eyebrow lib-rail-heading" {...railMark}>
+                  {railLabel.contents}
                   <span className="lib-toc-count">{filtered.length}</span>
                 </p>
                 <ol>
                   {filtered.map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} {...articleMark(s)}>
                       <button
                         type="button"
                         className={`lib-toc-link${
@@ -561,7 +569,7 @@ export default function Library() {
 
                 <ol className="lib-index-list">
                   {sections.map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} {...articleMark(s)}>
                       <Link
                         to={`/library/${encodeURIComponent(s.id)}`}
                         className="lib-index-link"
