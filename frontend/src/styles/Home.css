@@ -1150,8 +1150,17 @@ body {
   .sss-navitem:last-child {
     border-right: none;
   }
+  /* Off home the toggle lands alone on the last row, so it takes the whole row
+     and centres. On home Shop is hidden and the toggle fills its cell. */
   .sss-navitem-toggle {
     margin-left: 0;
+    grid-column: 1 / -1;
+  }
+  .sss-navitem-home-shop {
+    display: none;
+  }
+  .sss-navitem-home-shop ~ .sss-navitem-toggle {
+    grid-column: auto;
   }
   .sss-nav-utils {
     justify-content: center;

@@ -85,8 +85,11 @@ export default function SiteHeader({ featured = false }) {
   // Every item sits in its own .sss-navitem cell. The pipe between items is
   // that cell's right border, so it survives wrapping into rows and never
   // strands a divider at the end of a line — a <span> pipe in the flow would.
+  // On home, a phone hides Shop so the toggle takes its cell and the grid stays
+  // two rows; the hero carries its own Shop button (Home.css, max-width 760px).
+  const shopOnHome = (l) => pathname === '/' && l.to === '/shop'
   const renderLink = (l) => (
-    <span key={l.label} className="sss-navitem" style={lookFor(schema, 'types.menu.items', l.row)}>
+    <span key={l.label} className={`sss-navitem${shopOnHome(l) ? ' sss-navitem-home-shop' : ''}`} style={lookFor(schema, 'types.menu.items', l.row)}>
       {l.soon || !l.to ? (
         <span className="sss-navlink-soon" aria-disabled="true" title="Coming soon">
           {l.label}
