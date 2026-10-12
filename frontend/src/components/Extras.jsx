@@ -16,6 +16,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useSchema } from '@/lib/siteConsole'
+import { frameOf } from './Frame'
 import '@/styles/Extras.css'
 
 export function LinkTo({ url, className, children, style, ...rest }) {
@@ -88,12 +89,25 @@ export function CustomFields({ fields, data, headingIndex = -1, row }) {
 const SIZES = { small: '0.875em', large: '1.25em', xlarge: '1.6em' }
 const FONTS = { heading: 'var(--font-heading)', body: 'var(--font-body)' }
 
+// A font by name (a Style's `family`): loaded from Google Fonts the first time
+// something asks for it, so a font chosen in the editor shows at once.
+const askedFonts = new Set()
+function loadWebFont(family) {
+  if (!family || askedFonts.has(family) || typeof document === 'undefined') return
+  askedFonts.add(family)
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, '+')}&display=swap`
+  document.head.append(link)
+}
+
 // One Style value as CSS. A named colour is the site's own variable.
 export function lookToCss(schema, look) {
   if (!look || typeof look !== 'object') return undefined
+  if (look.family) loadWebFont(look.family)
   const colour = (v) => (!v ? undefined : schema?.styleColors?.find((c) => c.value === v)?.css ?? (/^#[0-9a-f]{6}$/i.test(v) ? v : undefined))
   const css = {
-    fontSize: SIZES[look.size], fontFamily: FONTS[look.font], fontWeight: look.weight === 'bold' ? 700 : look.weight === 'normal' ? 400 : undefined,
+    fontSize: SIZES[look.size], fontFamily: look.family ? `'${look.family}', ${FONTS[look.font] ?? 'var(--font-body)'}` : FONTS[look.font], fontWeight: look.weight === 'bold' ? 700 : look.weight === 'normal' ? 400 : undefined,
     textAlign: look.align, color: colour(look.color), background: colour(look.background),
     ...(look.width ? { width: `${look.width}%`, maxWidth: '100%', marginInline: 'auto' } : {}),
     ...(look.background ? { padding: '0.75em 1em' } : {}),
@@ -206,6 +220,21 @@ function Element({ el, frame, schema }) {
           <span data-eotm-text="label" data-eotm-in={el._id}>{el.label}</span>
         </LinkTo>
       ) : null
+    case 'design': {
+      // A design brought in whole (a Canva PDF): its own pieces on a canvas the
+      // shape of its page, placed by its own _layout and measured from its width,
+      // so it scales as one (Frame.css). A part of its section and a section of
+      // its own pieces at once: the editor's target is the section around it.
+      const inner = frameOf(el)
+      const { style: innerStyle, ...innerMarks } = inner.root
+      return (
+        <div className={`eotm-design ${cls}`} {...marks} {...innerMarks} style={{ ...marks.style, ...innerStyle }}
+          data-eotm-item={el._id} data-eotm-label={el.label || 'Design'}
+          ref={(n) => { const edit = n?.parentElement?.closest('[data-eotm-edit]')?.dataset.eotmEdit; if (n && edit) n.dataset.eotmEdit = edit }}>
+          {(el._elements ?? []).filter((e) => e?._id && e.kind !== 'design').map((e) => <Element key={e._id} el={e} frame={inner} schema={schema} />)}
+        </div>
+      )
+    }
     default:
       return <div className={cls} {...marks} />
   }
