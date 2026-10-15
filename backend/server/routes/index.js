@@ -7,6 +7,7 @@ import about from './about.js'
 import faqs from './faqs.js'
 import libraryViews from './libraryViews.js'
 import inventory from './inventory.js'
+import marketplace from './marketplace.js'
 
 const router = express.Router()
 
@@ -17,5 +18,6 @@ router.use('/about', about)
 router.use('/faqs', faqs)
 router.use('/library/views', libraryViews)
 router.use('/inventory', inventory)
+router.use('/marketplace', marketplace)
 
 export default router

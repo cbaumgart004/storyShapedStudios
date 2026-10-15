@@ -176,3 +176,11 @@
   align-items: center;
   gap: 0.35rem;
 }
+
+/* Marketplaces: what a check would send, scrollable rather than page-wide. */
+.ai-pre {
+  max-height: 20rem;
+  overflow: auto;
+  font-size: 0.8rem;
+  white-space: pre;
+}

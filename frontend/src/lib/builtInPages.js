@@ -167,12 +167,15 @@ const images = {
   title: 'Images',
   sections: [
     {
-      _id: 'intro', _type: 'card', eyebrow: 'Gallery', heading: 'Uranium glass in both lights',
-      body: '<p>Pieces photographed in daylight and under blacklight.</p>',
+      _id: 'intro', _type: 'card', eyebrow: 'Gallery', heading: '',
+      body: '',
       images: [], links: [], byline: '', bylineNote: '', look: 'text',
     },
     imageText('image-1'),
   ],
+  // Placeholder until the owner picks one: Home's first photo (the hero's
+  // daylight necklace). Search and sharing → Image when shared, in the editor.
+  seo: { image: { src: '/assets/hero-necklace-daylight-1600.jpg', alt: 'Antique uranium glass floral-drop necklace in daylight' } },
 }
 const customerCreations = {
   title: 'Customer Creations',

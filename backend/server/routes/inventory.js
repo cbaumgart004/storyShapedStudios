@@ -27,6 +27,7 @@ import { pool, hasDb } from '../utils/db.js'
 import { createStock, StockError } from '../utils/stock.js'
 import { notifyLowStock } from '../utils/notifyLowStock.js'
 import { requireEditor } from '../utils/requireEditor.js'
+import { sync } from './marketplace.js'
 
 const router = express.Router()
 router.use(requireEditor)
@@ -86,6 +87,11 @@ router.delete('/stock/:id/bom/:componentId', handle('DELETE /stock/:id/bom', asy
 router.post('/stock/:id/movements', handle('POST /stock/:id/movements', async (req, res) => {
   const result = await stock.move(id(req.params.id), req.body ?? {})
   if (result.lowStock.length) notifyLowStock(result.lowStock)
+  // Every count that moved goes to the Marketplaces holding it (a dry run until
+  // MARKETPLACE_SYNC=on). Awaited: Lambda freezes work left after the answer.
+  // A Marketplace failure is reported, never undoes the count.
+  const skus = [result.item, ...result.consumed].map((s) => s.sku).filter(Boolean)
+  result.marketplace = sync ? await sync.pushQuantities(skus).catch((err) => ({ error: err.message })) : null
   res.status(201).json(result)
 }))
 

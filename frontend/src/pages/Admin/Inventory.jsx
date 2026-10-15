@@ -10,6 +10,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
 import { editorToken, signInThroughConsole, CONSOLE_API } from '@/lib/siteConsole'
+import Marketplaces from './Marketplaces'
 import '@/styles/AdminInventory.css'
 
 const API = '/api/inventory/stock'
@@ -28,18 +29,19 @@ async function apiFetch(path, options = {}) {
 // Variation names its Stock Item by SKU. Read with the same editor token, so a
 // Stock Item shows what sells it and a Listing SKU with no Stock Item is caught
 // before any Marketplace push. An unreachable console leaves the column empty.
-async function listingsBySku() {
+async function loadListings() {
   const res = await fetch(`${CONSOLE_API}/documents?type=listing`, { headers: { Authorization: `Bearer ${editorToken()}` } })
   if (!res.ok) throw new Error(`Listings did not load (${res.status}).`)
+  const docs = await res.json()
   const bySku = new Map()
-  for (const doc of await res.json()) {
+  for (const doc of docs) {
     for (const v of doc.data?.variations ?? []) {
       const sku = String(v.sku ?? '').trim()
       if (!sku) continue
       bySku.set(sku, [...(bySku.get(sku) ?? []), { title: doc.data?.title || doc.slug, status: doc.status, option: v.option }])
     }
   }
-  return bySku
+  return { docs, bySku }
 }
 const LISTING_STATUS = { draft: 'draft', published: 'live', changed: 'live, edited' }
 
@@ -177,6 +179,7 @@ export default function AdminInventory() {
   const [newItem, setNewItem] = useState(EMPTY_ITEM)
   const [signedIn, setSignedIn] = useState(() => Boolean(editorToken()))
   const [listings, setListings] = useState(null) // Map sku -> [{ title, status, option }]
+  const [listingDocs, setListingDocs] = useState(null)
   const [listingError, setListingError] = useState('')
   onSignedOut = () => setSignedIn(false)
 
@@ -189,7 +192,7 @@ export default function AdminInventory() {
   }, [])
   useEffect(() => { if (signedIn && HAS_BACKEND) load() }, [load, signedIn])
   useEffect(() => {
-    if (signedIn) listingsBySku().then(setListings).catch((err) => setListingError(err.message))
+    if (signedIn) loadListings().then((l) => { setListings(l.bySku); setListingDocs(l.docs) }).catch((err) => setListingError(err.message))
   }, [signedIn])
   const known = new Set(stock.map((s) => s.sku).filter(Boolean))
   const orphans = listings ? [...listings.keys()].filter((sku) => !known.has(sku)) : []
@@ -321,6 +324,8 @@ export default function AdminInventory() {
           <button type="submit">Add</button>
         </form>
       </section>
+
+      <Marketplaces apiFetch={apiFetch} listings={listingDocs} />
       </>
       )}
     </div>

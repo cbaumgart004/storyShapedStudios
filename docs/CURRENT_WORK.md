@@ -666,9 +666,25 @@ Section type other than Card.
 - ~~Add the admin-auth gate on `/api/inventory/*` and `/admin/inventory`.~~
   **Built 2026-09-29:** both need a console sign-in for this site
   (`backend/server/utils/requireEditor.js`, console `GET /me`).
-- Wire to Etsy and eBay: OAuth and token validation exist in `server.js`;
-  listing sync and sale webhooks do not. A sale should enter through the single
-  `PATCH /items/:id/quantity` endpoint (Track A decision).
+- Wire to Etsy and eBay: **scaffolded 2026-10-14**
+  (`docs/adr/0011-marketplace-sync-push-listings-pull-sales.md`): `backend/server/marketplace/`
+  translates and pushes a published Listing, pushes counts after every movement, and pulls sales
+  into `sale` movements once each; routes under `/api/marketplace`. Dry run until
+  `MARKETPLACE_SYNC=on`. OAuth now asks for write scopes and Etsy's PKCE. Tested against PGlite
+  with the Marketplaces stubbed; **no call has reached Etsy or eBay.** To go live: issue tokens
+  again, set `ETSY_SHOP_ID`, `ETSY_SHIPPING_PROFILE_ID`, `EBAY_*_POLICY_ID`, `EBAY_LOCATION_KEY`,
+  `EBAY_CONDITION`, `PUBLIC_SITE_URL`; dry-run one Listing; switch Trunk's sync off; schedule
+  `/sales/pull`; migrate eBay's existing listings to the Inventory API.
+- **Listing fields for both Marketplaces (2026-10-14, branch `marketplace-listings` here and
+  `storyshaped-listing-marketplace` in the console repo):** the `listing` type gains Sell on (site,
+  Etsy, eBay), Condition and notes, Package weight and size, an "Etsy only" group (shipping,
+  processing and return profile ids, styles, custom orders, auto-renew) and an "eBay only" group
+  (title, item specifics, offers, policy ids); materials take Etsy's alphabet. Written in the
+  editor pane (Listings, New listing). The Stock page (`/admin/inventory`, reached from the pane)
+  gained a Marketplaces section: Check (a saved draft against both, sends nothing), Push, Pull
+  sales, and snapshots of each shop from its CSV export or Etsy's API into `import_snapshots`.
+  **Not deployed:** the console schema needs a release and a reload on Manage; the Etsy app is
+  banned (appeal sent 2026-10-14); eBay has a sandbox token only.
 - **Field ownership (decided 2026-09-27):** the site owns count, SKU, price,
   title, description and photos and pushes them to both Marketplaces; category,
   shipping profile and tags stay on each Marketplace for now. The goal is for

@@ -7,6 +7,8 @@ import cors from 'cors'
 import path from 'path'
 import open from 'open'
 import { fileURLToPath } from 'url'
+import crypto from 'crypto'
+import { EBAY_SCOPES } from './marketplace/ebay.js'
 import {
   saveToken as saveEtsyToken,
   loadToken as loadEtsyToken,
@@ -29,7 +31,8 @@ console.log('🚀 Unified OAuth server booting up...')
 const app = express()
 const PORT = process.env.PORT || 3000
 
-app.use(express.json())
+// 5 MB: a Marketplace CSV snapshot (marketplace.js) is several hundred rows.
+app.use(express.json({ limit: '5mb' }))
 app.use(cors())
 
 // Externalized eBay dummy listing route
@@ -75,16 +78,24 @@ app.get('/', (req, res) => {
 // ---------------------
 // Etsy OAuth Routes
 // ---------------------
+const etsyVerifier = (state) => crypto.createHmac('sha256', CLIENT_SECRET_ETSY ?? '').update(state).digest('base64url')
+
 app.get('/auth/etsy', (req, res) => {
   console.log('🌀 Initiating Etsy auth flow...')
+  // Etsy requires PKCE. The verifier is derived from the state by HMAC, so the
+  // callback recomputes it without storing anything (a Lambda keeps no memory
+  // between requests). Scopes: read and write listings, read shops and orders.
+  const state = crypto.randomBytes(16).toString('hex')
+  const challenge = crypto.createHash('sha256').update(etsyVerifier(state)).digest('base64url')
+  const scope = ['email_r', 'profile_r', 'shops_r', 'listings_r', 'listings_w', 'transactions_r'].join('%20')
   const authUrl = `https://www.etsy.com/oauth/connect?response_type=code&redirect_uri=${encodeURIComponent(
     REDIRECT_URI_ETSY
-  )}&scope=email_r%20profile_r%20listings_r&client_id=${CLIENT_ID_ETSY}`
+  )}&scope=${scope}&client_id=${CLIENT_ID_ETSY}&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`
   res.redirect(authUrl)
 })
 
 app.get('/oauth/etsy-callback', async (req, res) => {
-  const { code, error: authError, error_description } = req.query
+  const { code, state, error: authError, error_description } = req.query
 
   if (authError || !code) {
     console.error(
@@ -105,7 +116,7 @@ app.get('/oauth/etsy-callback', async (req, res) => {
         client_id: CLIENT_ID_ETSY,
         redirect_uri: REDIRECT_URI_ETSY,
         code,
-        code_verifier: '',
+        code_verifier: etsyVerifier(String(state ?? '')),
       },
       {
         auth: {
@@ -114,9 +125,10 @@ app.get('/oauth/etsy-callback', async (req, res) => {
         },
       }
     )
-    const tokenObject = response.data
+    // obtained_at lets marketplace/etsy.js refresh it when it expires.
+    const tokenObject = { ...response.data, obtained_at: Date.now() }
     await saveEtsyToken(tokenObject)
-    console.log('✅ Etsy access token:', tokenObject.access_token)
+    console.log('✅ Etsy token saved.')
     res.send('Etsy authorization successful. You may close this window.')
   } catch (error) {
     console.error(
@@ -139,6 +151,7 @@ app.get('/api/etsy/validate-token', async (req, res) => {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+          'x-api-key': `${CLIENT_ID_ETSY}:${CLIENT_SECRET_ETSY}`,
         },
       }
     )
@@ -158,7 +171,7 @@ app.get('/api/etsy/validate-token', async (req, res) => {
 app.get('/auth/ebay', (req, res) => {
   const authUrl = `${EBAY_AUTH_URL}?client_id=${CLIENT_ID_EBAY}&response_type=code&redirect_uri=${encodeURIComponent(
     REDIRECT_URI_EBAY
-  )}&scope=https://api.ebay.com/oauth/api_scope`
+  )}&scope=${encodeURIComponent(EBAY_SCOPES.join(' '))}`
   res.redirect(authUrl)
 })
 
@@ -183,9 +196,9 @@ app.get('/oauth/ebay-callback', async (req, res) => {
       }
     )
 
-    const tokenObject = response.data
+    const tokenObject = { ...response.data, obtained_at: Date.now() }
     await saveEbayToken(tokenObject)
-    console.log('✅ eBay access token:', tokenObject.access_token)
+    console.log('✅ eBay token saved.')
     res.send('eBay authorization successful. You may close this window.')
   } catch (error) {
     console.error(
