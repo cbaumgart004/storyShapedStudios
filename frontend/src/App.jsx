@@ -9,6 +9,7 @@ import MeetTheArtist from '@/pages/MeetTheArtist'
 import Library from '@/pages/Library'
 import Glossary from '@/pages/Glossary'
 import AdminInventory from '@/pages/Admin/Inventory'
+import AdminForms from '@/pages/Admin/Forms'
 import Page from '@/pages/Page'
 import SitePage from '@/components/SitePage'
 import SiteTheme from '@/components/SiteTheme'
@@ -37,6 +38,9 @@ function App() {
           <Route path="/library/:slug" element={<Library />} />
           <Route path="/glossary" element={<Glossary />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
+          <Route path="/admin/forms" element={<AdminForms />} />
+          <Route path="/admin/forms/:folder" element={<AdminForms />} />
+          <Route path="/admin/forms/:folder/:id" element={<AdminForms />} />
           <Route path="/preview" element={<ToEditor />} />
           {/* Home is the console page "home"; the editor's preview of it lands here. */}
           <Route path="/home" element={<Navigate to="/" replace />} />

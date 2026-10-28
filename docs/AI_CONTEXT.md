@@ -51,6 +51,7 @@ Prefer these as the source of truth; do not duplicate them here.
 | Content routes | `/api/*` content endpoints, aggregated by `index.js` and mounted at `/api` | `backend/server/routes/` (`index.js` + siblings) |
 | Inventory API | Stock Items (ADR-0002). `POST /api/inventory/import/trunk` (`importTrunk`, `backend/scripts/import-trunk.mjs`) keeps every row as an `import_snapshots` row and creates only SKUs not yet here; a variant group is skipped. The admin page shows each item's Listing (console `listing` documents, matched by Variation SKU) and flags Listing SKUs with no Stock Item. Stock Items: one table where a Product is sellable and a Component is in another's Bill of Materials; counts move only through logged Build / Sale / Restock / Physical Count movements (ADR-0003), with low-stock detection. Phase 1's tables are copied in once and renamed `phase1_*` | `backend/server/routes/inventory.js` (HTTP), `utils/stock.js` (rules + schema), `utils/stock.test.js` (PGlite, `npm test` in `backend/`), `utils/notifyLowStock.js` |
 | Admin UI (minimal) | Internal page, behind a console sign-in, listing Stock Items (filter: products, components, low), each with its count actions, Bill of Materials, where it is used, and history | `frontend/src/pages/Admin/Inventory.jsx`, routed at `/admin/inventory` |
+| Admin forms | Internal pages behind a console sign-in, opened from the console tool "Forms". Templates are the console schema's `forms.<name>`; entries file into a folder named from the template title (`folderOf`: "Sales Order" -> `sales_orders`). `/admin/forms` lists templates; `/admin/forms/:folder` lists entries (drafts included) by month or status, filterable Draft / Generated / Sent / Paid, with Sent and Paid boxes, Preview and Download PDF; `/admin/forms/:folder/:id` is one entry (`?view=preview` the finished page, `&download=1` opens print). A Draft saves as it is typed; Generate numbers it per folder (sales orders from 4122) and locks it. Only the Sales Order has an editor (board item 49: owner-made templates). Sales Order: SKU picks fill description and retail from the Listing variation (else the Stock Item name); Generate asks for missing retail, skipping sets retail to price; PDFs are named `<yyyymmdd>_<customer>_<number>`. Spreadsheet template and the first issued sales order: `docs/invoices/` | `frontend/src/pages/Admin/Forms.jsx`; `backend/server/routes/forms.js`, `utils/forms.js` (+ `forms.test.js`) |
 | Database | Postgres (Neon) — Library view counts, inventory (`stock_items`, `stock_bom`, `stock_movements`) | `backend/server/utils/db.js`, `routes/libraryViews.js`, `utils/stock.js` |
 | Token storage | Etsy/eBay OAuth tokens in Neon's `marketplace_tokens` (a file per Marketplace only without a database, locally) | `backend/server/utils/tokens.js`, `utils/*TokenStorage.js` |
 | Asset pipeline | Downscales designer-supplied art to the sizes the site serves, before it lands in `public/assets/`. Output widths live in one `PRESETS` table | `scripts/resize_asset.py` |
@@ -85,15 +86,19 @@ Content routes, aggregated by `routes/index.js` and mounted at `/api`:
 | GET/PATCH/DELETE | `/api/inventory/stock/:id` | `routes/inventory.js` — one item with `bom`, `used_in` and its last 50 `movements`; PATCH edits details, never the count; DELETE answers 409 while the item is in another's Bill of Materials |
 | PUT/DELETE | `/api/inventory/stock/:id/bom/:componentId` | `routes/inventory.js` — one Bill of Materials line `{ quantity_per_unit }`; a line that makes an item part of itself at any depth answers 400 |
 | POST | `/api/inventory/stock/:id/movements` | `routes/inventory.js` — the only way a count changes: `{ kind: restock\|sale\|build\|count, quantity, note? }`. A build lowers each Component by its Bill of Materials quantity in the same transaction; a count logs Actual minus Calculated and sets Previous |
+| GET | `/api/forms` | `routes/forms.js` — entries per folder |
+| GET/POST | `/api/forms/:folder` | `routes/forms.js` — every entry in the folder, drafts included; POST starts a draft |
+| GET/PUT/DELETE/PATCH | `/api/forms/:folder/:id` | `routes/forms.js` — one entry; PUT saves and DELETE removes a draft (409 once generated); PATCH takes only `{ sent?, paid? }`, generated only |
+| POST | `/api/forms/:folder/:id/generate` | `routes/forms.js` — numbers the draft (a free typed number, else the folder's next) and locks it |
 
 Each content router uses `/` internally; the path segment (`/listings`, `/sales`, …)
 comes from the mount in `index.js`. Any other path returns `404 { error: 'Route not found.' }`.
 
-`/api/library/*` and `/api/inventory/*` need `DATABASE_URL` (Neon). Without it the backend
+`/api/library/*`, `/api/inventory/*` and `/api/forms/*` need `DATABASE_URL` (Neon). Without it the backend
 degrades gracefully: `GET` returns `{}`/`[]`, writes return `503`. The frontend falls back to
 `localStorage` for Library views; the inventory admin UI has no offline fallback.
 
-`/api/inventory/*` needs a bearer token the Edge of the Map console accepts for this site:
+`/api/inventory/*` and `/api/forms/*` need a bearer token the Edge of the Map console accepts for this site:
 `utils/requireEditor.js` asks the console's `GET /api/sites/storyshaped/me` (setting `EOTM_SITE_API`)
 and keeps a yes for a minute per token; an unreachable console answers 503, never a pass.
 `/admin/inventory` sends the editor token the console's loader keeps in `sessionStorage`
