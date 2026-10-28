@@ -75,6 +75,14 @@ test('an entry with no fields is refused; a missing one is 404', async () => {
   await assert.rejects(f.get(SO, 99), { status: 404 })
 })
 
+test('next is the number Generate would give', async () => {
+  const f = fresh()
+  assert.equal(await f.next(SO), '4122')
+  const d = await f.createDraft(SO, form())
+  await f.generate(SO, d.id, form())
+  assert.equal(await f.next(SO), '4123')
+})
+
 test('a generated entry gets a share token; the link reads it, never a draft', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())

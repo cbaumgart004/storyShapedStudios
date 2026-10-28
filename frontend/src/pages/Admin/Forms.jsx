@@ -518,7 +518,7 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
         <label className="label" htmlFor={id('sku')}>SKU</label>
         {!onAddSku ? <span className="f sku-text" id={id('sku')}>{l.sku}</span> : (
         <select className="f" id={id('sku')} value={typingNew ? NEW_SKU : l.sku} onChange={(e) => pickSku(e.target.value)}>
-          <option value="">Choose SKU…</option>
+          <option value="" aria-label="No SKU" />
           <option value="TBD">TBD · custom, not created yet</option>
           {!known && !typingNew && <option value={l.sku}>{l.sku} · not in Stock Items</option>}
           {skus.map((s) => <option key={s.sku} value={s.sku}>{s.sku} · {s.name}</option>)}
@@ -594,8 +594,12 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 
   useEffect(() => {
     if (shared) return
-    apiFetch(at).then((r) => { setRec(r); setDoc(r.data) }).catch((err) => setError(err.message))
-  }, [at, setError, shared])
+    // A draft shows its order number from the start: the next free one unless one was typed.
+    Promise.all([apiFetch(at), apiFetch(`${API}/${folder}/next`).catch(() => null)]).then(([r, next]) => {
+      setRec(r)
+      setDoc(r.status === 'draft' && !String(r.data?.i?.no ?? '').trim() && next ? { ...r.data, i: { ...r.data.i, no: next.number } } : r.data)
+    }).catch((err) => setError(err.message))
+  }, [at, folder, setError, shared])
   useEffect(() => {
     if (preview) return
     apiFetch(`${API}/${folder}`).then((rows) => {
@@ -948,7 +952,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
             <div>
               <h3>Invoice details</h3>
               <div className="fields">
-                {field('i.no', 'Order #', { placeholder: 'Numbered on Generate' })}
+                {field('i.no', 'Order #', { title: 'The next free number; Generate keeps it unless another order took it first' })}
                 {field('i.date', 'Date', { type: 'date' })}
                 <span className="label">Due</span><span className="calc">{dueDate(doc.i.date)}</span>
                 {field('i.po', 'Customer PO')}

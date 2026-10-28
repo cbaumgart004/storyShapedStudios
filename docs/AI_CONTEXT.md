@@ -88,6 +88,7 @@ Content routes, aggregated by `routes/index.js` and mounted at `/api`:
 | POST | `/api/inventory/stock/:id/movements` | `routes/inventory.js` — the only way a count changes: `{ kind: restock\|sale\|build\|count, quantity, note? }`. A build lowers each Component by its Bill of Materials quantity in the same transaction; a count logs Actual minus Calculated and sets Previous |
 | GET | `/api/forms` | `routes/forms.js` — entries per folder |
 | GET/POST | `/api/forms/:folder` | `routes/forms.js` — every entry in the folder, drafts included; POST starts a draft |
+| GET | `/api/forms/:folder/next` | `routes/forms.js`: `{ number }` Generate would give now; an open draft with no number shows it |
 | GET/PUT/DELETE/PATCH | `/api/forms/:folder/:id` | `routes/forms.js` — one entry; PUT saves and DELETE removes a draft (409 once generated); PATCH takes only `{ sent?, paid? }`, generated only |
 | POST | `/api/forms/:folder/:id/generate` | `routes/forms.js` — numbers the draft (a free typed number, else the folder's next) and locks it |
 | POST | `/api/forms/:folder/:id/share` | `routes/forms.js`: the generated entry with its share token (made if missing) |

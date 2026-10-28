@@ -6,6 +6,7 @@
 //   GET    /                              entries per folder
 //   GET    /:folder                       every entry, drafts included
 //   POST   /:folder                       new draft from the template sent
+//   GET    /:folder/next                  { number } Generate would give now
 //   GET    /:folder/:id                   one
 //   PUT    /:folder/:id                   save a draft (409 once generated)
 //   DELETE /:folder/:id                   delete a draft (409 once generated)
@@ -55,6 +56,10 @@ router.get('/:folder', handle('GET /:folder', async (req, res) => {
 
 router.post('/:folder', handle('POST /:folder', async (req, res) => {
   res.status(201).json(await forms.createDraft(req.params.folder, req.body, by(req)))
+}))
+
+router.get('/:folder/next', handle('GET /:folder/next', async (req, res) => {
+  res.json({ number: await forms.next(req.params.folder) })
 }))
 
 router.get('/:folder/:id', handle('GET /:folder/:id', async (req, res) => {

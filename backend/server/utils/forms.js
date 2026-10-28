@@ -121,6 +121,13 @@ export function createForms(db) {
       return rows.map(out)
     },
 
+    // The number Generate would give now; a draft shows it from the start.
+    async next(folder) {
+      checkFolder(folder)
+      await ensureTable(db)
+      return nextNumber(db, folder)
+    },
+
     async get(folder, id) {
       return out(await row(folder, id))
     },
