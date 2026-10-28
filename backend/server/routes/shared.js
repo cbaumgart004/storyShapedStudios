@@ -3,7 +3,8 @@
 // No login: the token is the key, made when the entry was generated
 // (utils/forms.js share token). Drafts are never returned.
 //
-//   GET  /:token   { folder, number, file, data }
+//   GET   /:token        { folder, number, file, data, signature, consent }
+//   POST  /:token/sign   { method: draw|type|upload, name, typed?, image?, consent: true }
 
 import express from 'express'
 import { pool, hasDb } from '../utils/db.js'
@@ -20,6 +21,18 @@ router.get('/:token', async (req, res) => {
   } catch (err) {
     if (err instanceof FormError) return res.status(err.status).json({ error: err.message })
     console.error('[shared] GET failed:', err.message)
+    res.status(500).json({ error: 'Request failed.' })
+  }
+})
+
+router.post('/:token/sign', async (req, res) => {
+  if (!hasDb) return res.status(503).json({ error: 'Not configured.' })
+  try {
+    const ip = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0].trim()
+    res.json(await forms.sign(req.params.token, req.body ?? {}, { ip, ua: req.headers['user-agent'] }))
+  } catch (err) {
+    if (err instanceof FormError) return res.status(err.status).json({ error: err.message })
+    console.error('[shared] sign failed:', err.message)
     res.status(500).json({ error: 'Request failed.' })
   }
 })

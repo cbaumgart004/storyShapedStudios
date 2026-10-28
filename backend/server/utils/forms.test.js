@@ -95,3 +95,22 @@ test('a generated entry gets a share token; the link reads it, never a draft', a
   assert.deepEqual([s.number, s.folder, s.data.c.name, 'sent' in s], ['4122', SO, 'Acme', false])
   await assert.rejects(f.shared('nope'), { status: 404 })
 })
+
+test('the customer signs once through the link; typed must match the name', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee' }), { status: 400 }) // no consent
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann', consent: true }), { status: 400 })
+  await assert.rejects(f.sign(g.share, { method: 'draw', name: 'Ann Lee', image: 'nope', consent: true }), { status: 400 })
+  const s = await f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'ann  lee', consent: true }, { ip: '203.0.113.9', ua: 'test' })
+  assert.deepEqual([s.signature.name, s.signature.typed, 'ip' in s.signature, s.signature.hash.length], ['Ann Lee', 'ann lee', false, 64])
+  const admin = await f.get(SO, d.id)
+  assert.equal(admin.signature.ip, '203.0.113.9')
+  assert.ok(admin.signed_at)
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee', consent: true }), { status: 409 })
+  const png = 'data:image/png;base64,iVBORw0KGgo='
+  const d2 = await f.createDraft(SO, form())
+  const g2 = await f.generate(SO, d2.id, form())
+  assert.equal((await f.sign(g2.share, { method: 'draw', name: 'Bo', image: png, consent: true })).signature.image, png)
+})

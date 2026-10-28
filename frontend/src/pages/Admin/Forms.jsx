@@ -37,6 +37,11 @@
 // (SharedInvoice, no login), then offer to tick Sent: a mailto cannot report
 // whether the message went.
 //
+// Signing: the customer's link offers SignPanel (draw, type the printed name, or
+// upload) after a consent box; the backend keeps the time, IP, browser and a
+// SHA-256 of the order (utils/forms.js sign). A signed order shows the signature
+// in the acceptance block and "Signed" in its folder.
+//
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
 // variation's price, both still editable. Price and discount are two ways into
@@ -277,7 +282,7 @@ function mailtoFor(r, form) {
   const body = [
     `Hi ${String(d.c?.name ?? '').trim() || 'there'},`, '',
     `Here is invoice ${r.number} from ${who}.`, '',
-    `View, print or save it: ${window.location.origin}/invoice/${r.share}`,
+    `View, sign or print it: ${window.location.origin}/invoice/${r.share}`,
     `Balance due: ${money(sums(d).due)} by ${dueDate(d.i?.date)}`,
     ...(m ? [`Pay with ${m.name}: ${m.url} (${m.label}, ${m.handle})`] : []),
     '', 'Thank you,', who,
@@ -461,7 +466,10 @@ function Folder({ folder, setError }) {
                   <strong>{r.file}</strong>
                   <small>{dateOf(r)} · {r.data?.c?.name || r.data?.c?.company || 'No customer yet'} · {money(sums(r.data).total)}</small>
                 </button>
-                <span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span>
+                <span className="pills">
+                  <span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span>
+                  {r.signed_at && <span className="pill is-signed" title={`Signed ${new Date(r.signed_at).toLocaleString()}`}>Signed</span>}
+                </span>
                 <SentPaid r={r} onFlag={flag} />
                 <span className="row-actions">
                   <Link className="act" to={`${at}?view=preview`}>Preview</Link>
@@ -479,6 +487,142 @@ function Folder({ folder, setError }) {
 }
 
 // ---------- One Sales Order ----------
+
+// ---------- Signing (the customer's link) ----------
+
+// A finger or mouse signature on a canvas; reports a PNG data URL, or null when cleared.
+function DrawPad({ onChange }) {
+  const canvas = useRef(null)
+  const drawing = useRef(false)
+  const used = useRef(false)
+  useEffect(() => {
+    const c = canvas.current
+    const ratio = Math.min(window.devicePixelRatio || 1, 2)
+    c.width = c.clientWidth * ratio
+    c.height = c.clientHeight * ratio
+    const g = c.getContext('2d')
+    g.scale(ratio, ratio)
+    g.lineWidth = 2.4
+    g.lineCap = 'round'
+    g.lineJoin = 'round'
+    g.strokeStyle = '#10301A'
+  }, [])
+  const at = (e) => { const r = canvas.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
+  const down = (e) => {
+    canvas.current.setPointerCapture(e.pointerId)
+    drawing.current = true
+    const g = canvas.current.getContext('2d')
+    g.beginPath(); g.moveTo(...at(e)); g.lineTo(...at(e)); g.stroke()
+  }
+  const move = (e) => {
+    if (!drawing.current) return
+    const g = canvas.current.getContext('2d')
+    g.lineTo(...at(e)); g.stroke()
+    used.current = true
+  }
+  const up = () => {
+    if (!drawing.current) return
+    drawing.current = false
+    if (used.current) onChange(canvas.current.toDataURL('image/png'))
+  }
+  const clear = () => {
+    const c = canvas.current
+    c.getContext('2d').clearRect(0, 0, c.width, c.height)
+    used.current = false
+    onChange(null)
+  }
+  return (
+    <div className="pad">
+      <canvas ref={canvas} aria-label="Sign here with your finger or mouse" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
+      <span className="pad-x" aria-hidden="true">×</span>
+      <button type="button" className="link" onClick={clear}>Clear</button>
+    </div>
+  )
+}
+
+// An uploaded picture of a signature, shrunk to fit 600 × 200.
+function readSignatureFile(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const k = Math.min(1, 600 / img.width, 200 / img.height)
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.width * k)
+      c.height = Math.round(img.height * k)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      URL.revokeObjectURL(img.src)
+      resolve(c.toDataURL('image/png'))
+    }
+    img.onerror = () => reject(new Error('That file is not a picture this browser can read.'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+const sameName = (a, b) => String(a ?? '').trim().replace(/\s+/g, ' ').toLowerCase() === String(b ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+
+function SignPanel({ token, defaultName, consent, onSigned }) {
+  const [method, setMethod] = useState('draw')
+  const [name, setName] = useState(defaultName || '')
+  const [typed, setTyped] = useState('')
+  const [drawn, setDrawn] = useState(null)
+  const [uploaded, setUploaded] = useState(null)
+  const [agree, setAgree] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const image = method === 'draw' ? drawn : method === 'upload' ? uploaded : null
+  const mark = method === 'type' ? typed.trim() && sameName(typed, name) : Boolean(image)
+  const ready = name.trim() && mark && agree
+  const submit = async () => {
+    if (!ready || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      onSigned(await rawFetch(`/api/shared/${encodeURIComponent(token)}/sign`, {
+        method: 'POST', body: { method, name: name.trim(), typed: method === 'type' ? typed : undefined, image: image ?? undefined, consent: agree },
+      }))
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  const upload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try { setUploaded(await readSignatureFile(file)) } catch (err) { setError(err.message) }
+  }
+  return (
+    <section className="inv-signpanel" id="sign" aria-labelledby="sign-h">
+      <h2 id="sign-h">Sign this order</h2>
+      <label className="sp-field">
+        <span>Printed name</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Your full name" />
+      </label>
+      <div className="sp-tabs" role="tablist" aria-label="How to sign">
+        {[['draw', 'Draw'], ['type', 'Type'], ['upload', 'Upload']].map(([k, label]) => (
+          <button type="button" role="tab" key={k} aria-selected={method === k} onClick={() => setMethod(k)}>{label}</button>
+        ))}
+      </div>
+      {method === 'draw' && <DrawPad onChange={setDrawn} />}
+      {method === 'type' && (
+        <div className="sp-type">
+          <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type your name exactly as printed" aria-label="Typed signature" />
+          <div className="typed-sig" aria-hidden="true">{typed || name || ' '}</div>
+          {typed.trim() && !sameName(typed, name) && <p className="sp-warn">Must match your printed name.</p>}
+        </div>
+      )}
+      {method === 'upload' && (
+        <div className="sp-upload">
+          <input type="file" accept="image/png,image/jpeg" onChange={upload} aria-label="Picture of your signature" />
+          {uploaded && <img src={uploaded} alt="Your uploaded signature" />}
+        </div>
+      )}
+      <label className="sp-consent">
+        <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+        <span>{consent}</span>
+      </label>
+      {error && <p className="sp-warn" role="alert">{error}</p>}
+      <button type="button" className="tool primary" aria-disabled={!ready || busy} onClick={submit}>{busy ? 'Signing…' : 'Sign order'}</button>
+      <p className="sp-note">Recorded with your signature: the date and time, your IP address and browser, and a fingerprint of this order.</p>
+    </section>
+  )
+}
 
 const NEW_SKU = '+new'
 function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
@@ -856,13 +1000,17 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   }
   // Read-only, an empty optional field is left off the page.
   const blank = (v) => readOnly && !String(v ?? '').trim()
+  const sig = rec.signature
 
   return (
     <>
       {shared ? (
       <div className="inv-bar">
         <div className="tools"><span className="saving">Invoice {rec.number} from StoryShaped Studios</span></div>
-        <div className="tools"><button type="button" className="tool primary" onClick={() => printAs(fileName(doc))}>Download PDF</button></div>
+        <div className="tools">
+          {!rec.signature && <a className="tool primary" href="#sign">Sign</a>}
+          <button type="button" className="tool" onClick={() => printAs(fileName(doc))}>Download PDF</button>
+        </div>
       </div>
       ) : (
       <div className="inv-bar">
@@ -1015,15 +1163,24 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
           </section>
         </fieldset>
 
-        {/* Signed in ink on the printed copy, so these stay blank lines, not fields. */}
-        <section className="inv-sign" aria-label="Customer acceptance">
+        {/* Blank lines to sign in ink, or the customer's electronic signature. */}
+        <section className={`inv-sign${sig ? ' is-signed' : ''}`} aria-label="Customer acceptance">
           <h3>Customer acceptance</h3>
           <p>{acceptance?.text}</p>
           <div className="sign-lines">
-            <div className="sign wide"><span className="line" /><span className="label">Signature</span></div>
-            <div className="sign"><span className="line" /><span className="label">Date</span></div>
-            <div className="sign wide"><span className="line" /><span className="label">Printed name</span></div>
+            <div className="sign wide"><span className="line">
+              {sig && (sig.image ? <img src={sig.image} alt={`Signature of ${sig.name}`} /> : <span className="typed-sig">{sig.typed}</span>)}
+            </span><span className="label">Signature</span></div>
+            <div className="sign"><span className="line">{sig && <span className="sig-val">{new Date(sig.signedAt).toLocaleDateString('en-CA')}</span>}</span><span className="label">Date</span></div>
+            <div className="sign wide"><span className="line">{sig && <span className="sig-val">{sig.name}</span>}</span><span className="label">Printed name</span></div>
           </div>
+          {sig && (
+            <p className="sig-audit">
+              Signed electronically {new Date(sig.signedAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
+              {' · '}{sig.method === 'type' ? 'typed' : sig.method === 'draw' ? 'drawn' : 'uploaded'}
+              {sig.ip ? ` · IP ${sig.ip}` : ''} · ref {sig.hash.slice(0, 12)}
+            </p>
+          )}
         </section>
 
         <footer className="inv-foot">
@@ -1032,6 +1189,12 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
         </footer>
       </article>
       )} />
+
+      {shared && !rec.signature && (
+        <SignPanel token={shared.token} defaultName={doc.c?.name} consent={shared.consent}
+          onSigned={(r) => { setRec((x) => ({ ...x, signature: r.signature })); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
+      )}
+      {shared && rec.signature && <p className="inv-signed-note" role="status">Signed. Thank you! Download PDF keeps a copy.</p>}
 
       {!locked && !preview && (
         <div className="inv-generate">
@@ -1078,7 +1241,7 @@ export function SharedInvoice() {
   return (
     <div className="admin-invoices is-shared">
       {error ? <p className="inv-error" role="alert">{error}</p>
-        : form ? <SalesOrder shared={entry} folder={entry.folder} form={form} setError={setError} />
+        : form ? <SalesOrder shared={{ ...entry, token }} folder={entry.folder} form={form} setError={setError} />
           : <p className="inv-empty">Loading your invoice…</p>}
     </div>
   )

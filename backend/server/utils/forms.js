@@ -8,13 +8,18 @@
 //              only its Sent and Paid flags move. It gets a share token: the
 //              link emailed to the customer (/invoice/<token>) reads it without
 //              a login, through shared(); drafts are never shared.
+//   signed     the customer signed through that link (sign()): drawn, typed
+//              (must match the printed name) or uploaded, after agreeing to
+//              CONSENT. Kept with the time, IP, browser and a SHA-256 of the
+//              order as signed, the usual e-signature audit trail (ESIGN/UETA).
+//              Once signed it cannot be signed again.
 //
 // The entry is kept whole in `data`, so the page shows it exactly as written.
 //
 // Takes a pg Pool (or anything with query()), so the tests run the same SQL
 // against PGlite.
 
-import { randomBytes } from 'node:crypto'
+import { randomBytes, createHash } from 'node:crypto'
 
 export class FormError extends Error {
   constructor(status, message) {
@@ -40,11 +45,19 @@ const SCHEMA = `
   )`
 
 // Added after the table first shipped; one statement per query for PGlite.
-const SHARE_COLUMN = 'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE'
+const ADDED = [
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signature JSONB',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ',
+]
+
+// What the customer agrees to before signing; stored with the signature.
+export const CONSENT = 'I agree to sign this order electronically. My electronic signature is the legal equivalent of my handwritten signature, and I consent to receive this order and its records electronically.'
+const MAX_IMAGE = 400_000 // characters of data URL
 
 let ready = null
 function ensureTable(db) {
-  ready ??= db.query(SCHEMA).then(() => db.query(SHARE_COLUMN)).catch((err) => {
+  ready ??= db.query(SCHEMA).then(async () => { for (const q of ADDED) await db.query(q) }).catch((err) => {
     ready = null // try again on the next request
     throw err
   })
@@ -88,7 +101,15 @@ const out = (r) => ({
   updated_at: r.updated_at,
   generated_at: r.generated_at,
   share: r.share_token ?? null,
+  signed_at: r.signed_at ?? null,
+  signature: r.signature ?? null,
 })
+// The customer's view: no flags, and the signature without IP and browser.
+const publicView = (r) => {
+  const { folder, number, file, data, signature } = out(r)
+  const sig = signature && (({ ip, ua, ...rest }) => rest)(signature)
+  return { folder, number, file, data, signature: sig, consent: CONSENT }
+}
 
 const checkFolder = (folder) => {
   if (!FOLDER.test(folder ?? '')) throw new FormError(400, 'Unknown form folder.')
@@ -199,8 +220,42 @@ export function createForms(db) {
       await ensureTable(db)
       const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
       if (!rows[0]) throw new FormError(404, 'No such invoice.')
-      const { folder, number, file, data } = out(rows[0])
-      return { folder, number, file, data }
+      return publicView(rows[0])
+    },
+
+    // The customer signs through their link. `meta` is { ip, ua } from the request.
+    async sign(token, input = {}, meta = {}) {
+      await ensureTable(db)
+      const { rows: [r] } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
+      if (!r) throw new FormError(404, 'No such invoice.')
+      if (r.signed_at) throw new FormError(409, 'This order is already signed.')
+      const name = String(input.name ?? '').trim()
+      if (!name) throw new FormError(400, 'Type your full name.')
+      if (input.consent !== true) throw new FormError(400, 'Agree to sign electronically first.')
+      let image = null
+      let typed = null
+      if (input.method === 'type') {
+        typed = String(input.typed ?? '').trim().replace(/\s+/g, ' ')
+        if (typed.toLowerCase() !== name.replace(/\s+/g, ' ').toLowerCase()) throw new FormError(400, 'The typed signature must match your printed name.')
+      } else if (input.method === 'draw' || input.method === 'upload') {
+        image = String(input.image ?? '')
+        if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(image)) throw new FormError(400, 'Add your signature first.')
+        if (image.length > MAX_IMAGE) throw new FormError(413, 'That signature image is too large.')
+      } else {
+        throw new FormError(400, 'Choose how to sign.')
+      }
+      const signature = {
+        method: input.method, image, typed, name,
+        signedAt: new Date().toISOString(),
+        ip: meta.ip || null, ua: meta.ua ? String(meta.ua).slice(0, 300) : null,
+        hash: createHash('sha256').update(JSON.stringify({ number: r.number, data: r.data })).digest('hex'),
+        consent: CONSENT,
+      }
+      const { rows: [signed] } = await db.query(
+        `UPDATE form_entries SET signature = $2, signed_at = $3, updated_at = now() WHERE id = $1 AND signed_at IS NULL RETURNING *`,
+        [r.id, JSON.stringify(signature), signature.signedAt])
+      if (!signed) throw new FormError(409, 'This order is already signed.')
+      return publicView(signed)
     },
 
     async setStatus(folder, id, { sent, paid } = {}) {

@@ -1,7 +1,7 @@
 /* src/styles/AdminForms.css
    The Forms tool. Unlike the plain Inventory page this one is branded, because
    the paper is what the customer receives: black bands, uranium green, Poiret One. */
-@import url('https://fonts.googleapis.com/css2?family=Poiret+One&family=Jost:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poiret+One&family=Jost:wght@400;500;600&family=Dancing+Script:wght@500&display=swap');
 
 .admin-invoices {
   --case: #0A0F0B;
@@ -491,3 +491,44 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .inv-leave .tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .inv-leave .tool:not(.primary) { color: var(--ink); border-color: #C9D3C7; background: #fff; }
 @media print { .inv-modal { display: none !important; } }
+
+/* ---------- Electronic signature ---------- */
+.pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.pill.is-signed { color: #F5E6FF; background: rgba(160, 90, 220, .18); border: 1px solid rgba(180, 120, 240, .55); }
+.typed-sig { font-family: 'Dancing Script', 'Segoe Script', cursive; font-weight: 500; color: #10301A; }
+.inv-sign .sign .line { position: relative; }
+.inv-sign .sign .line img { position: absolute; left: 0; bottom: 1px; max-height: 44px; max-width: 100%; }
+.inv-sign .sign .line .typed-sig { position: absolute; left: 2px; bottom: 0; font-size: 26px; line-height: 1; white-space: nowrap; }
+.inv-sign .sign .line .sig-val { position: absolute; left: 2px; bottom: 3px; font-size: 14px; }
+.inv-sign .sig-audit { margin: 6px 0 0 !important; font-size: 10px !important; color: var(--muted); letter-spacing: .02em; }
+
+.inv-signpanel { background: #F7F9F4; color: var(--ink); border-radius: 6px; border-top: 4px solid var(--uranium-dim);
+  padding: 16px 18px; display: grid; gap: 12px; }
+.inv-signpanel h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 26px; color: #10301A; }
+.inv-signpanel input:not([type]), .inv-signpanel .sp-type input { font: inherit; font-size: 16px; width: 100%; padding: 8px 10px;
+  border: 1px solid #C9D3C7; border-radius: 4px; background: #fff; color: var(--ink); }
+.sp-field { display: grid; gap: 4px; }
+.sp-field > span { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--uranium-dim); font-weight: 600; }
+.sp-tabs { display: flex; gap: 0; border: 1px solid #C9D3C7; border-radius: 6px; overflow: hidden; width: fit-content; }
+.sp-tabs button { font: 500 14px var(--font-body); padding: 8px 18px; border: 0; background: #fff; color: var(--ink); cursor: pointer; }
+.sp-tabs button + button { border-left: 1px solid #C9D3C7; }
+.sp-tabs button[aria-selected="true"] { background: var(--uranium-dim); color: #04140A; font-weight: 600; }
+.pad { position: relative; }
+.pad canvas { display: block; width: 100%; height: 170px; background: #fff; border: 1px dashed #9DB59F; border-radius: 4px; touch-action: none; cursor: crosshair; }
+.pad::after { content: ''; position: absolute; left: 28px; right: 16px; bottom: 36px; border-bottom: 1px solid #C9D3C7; pointer-events: none; }
+.pad .pad-x { position: absolute; left: 12px; bottom: 34px; color: #9DB59F; font-size: 18px; pointer-events: none; }
+.inv-signpanel .link { border: 0; background: none; padding: 4px 0; font: 500 13px var(--font-body); color: #1F7A2A; text-decoration: underline; cursor: pointer; }
+.sp-type .typed-sig { font-size: 40px; min-height: 56px; padding: 6px 10px; border-bottom: 1px solid #C9D3C7; overflow-wrap: anywhere; }
+.sp-type { display: grid; gap: 6px; }
+.sp-upload { display: grid; gap: 8px; }
+.sp-upload img { max-width: 100%; max-height: 120px; background: #fff; border: 1px dashed #9DB59F; border-radius: 4px; justify-self: start; }
+.sp-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.4; }
+.sp-consent input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--uranium-dim); flex: none; }
+.sp-warn { margin: 0; color: var(--warn); font-size: 13px; font-weight: 500; }
+.sp-note { margin: 0; font-size: 12px; color: var(--muted); }
+.inv-signpanel .tool.primary { justify-self: start; min-height: 44px; padding: 10px 22px; }
+.inv-signpanel .tool.primary[aria-disabled="true"] { background: #C9D3C7; border-color: #C9D3C7; color: #5E6B60; cursor: not-allowed; }
+.inv-signed-note { margin: 0; padding: 10px 14px; border: 1px solid var(--uranium-dim); border-radius: 4px; color: var(--uranium); }
+@media print { .inv-signpanel, .inv-signed-note { display: none !important; } }
+.inv-sign.is-signed .sign .line { height: 40px !important; }
+.inv-sign .sign .line img { max-height: 38px; }
