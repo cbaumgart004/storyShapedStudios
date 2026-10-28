@@ -212,6 +212,7 @@
 .pill.is-draft { color: #F2C77B; background: rgba(183, 121, 31, .16); border: 1px solid rgba(183, 121, 31, .5); }
 .pill.is-generated { color: var(--bone); background: rgba(217, 242, 217, .08); border: 1px solid #3A4D3C; }
 .pill.is-sent { color: #9FD3FF; background: rgba(80, 160, 230, .12); border: 1px solid rgba(80, 160, 230, .45); }
+.pill.is-viewed { color: #FFE3A8; background: rgba(240, 180, 60, .12); border: 1px solid rgba(240, 180, 60, .45); }
 .pill.is-paid { color: #04140A; background: var(--uranium-dim); border: 1px solid var(--uranium-dim); }
 .admin-invoices .flag { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; white-space: nowrap; cursor: pointer; }
 .admin-invoices .flag input { width: 18px; height: 18px; accent-color: var(--uranium-dim); margin: 0; }

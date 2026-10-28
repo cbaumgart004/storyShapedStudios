@@ -40,10 +40,10 @@
 // Signing: the customer's link offers SignPanel (draw, type the printed name, or
 // upload) after a consent box; the backend keeps the time, IP, browser and a
 // SHA-256 of the order (utils/forms.js sign). A signed order shows the signature
-// in the acceptance block and "Signed" in its folder.
-// The customer reads and signs as a guest by default; a small "Sign in" opens
-// ContinueAs (sign in, or create an account) for returning customers. A
-// signature made signed in keeps the account with it (/api/account).
+// in the acceptance block and "Signed" in its folder. Opening the link marks it
+// "Viewed" (not when the owner opens it signed in to the console).
+// Customer accounts (ContinueAs, /api/account) are built but hidden behind
+// CUSTOMER_ACCOUNTS until inventory and payment are live; customers sign as guests.
 //
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
@@ -152,10 +152,10 @@ function dueDate(date) {
   return d.toISOString().slice(0, 10)
 }
 
-// <yyyymmdd>_<customer>_<number>, the name a saved PDF takes.
+// <yyyymmdd>_<number>_<customer>, the name a saved PDF takes (as utils/forms.js fileName).
 const fileName = (d) => {
   const who = String(d.c?.name || d.c?.company || 'Customer').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return `${String(d.i?.date || '').replace(/-/g, '')}_${who || 'Customer'}_${d.i?.no || 'draft'}`
+  return `${String(d.i?.date || '').replace(/-/g, '')}_${d.i?.no || 'draft'}_${who || 'Customer'}`
 }
 
 // The browser names a saved PDF after the page title.
@@ -259,9 +259,10 @@ function Paged({ on, render }) {
 const needsRetail = (l) => num(l.retail) == null && (num(l.price) != null || Boolean(num(l.qty)))
 
 // Where an entry stands, furthest last: Draft, Generated, Sent, Paid.
-const STATUSES = ['draft', 'generated', 'sent', 'paid']
-const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', paid: 'Paid' }
-const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : r.sent ? 'sent' : 'generated')
+const STATUSES = ['draft', 'generated', 'sent', 'viewed', 'signed', 'paid']
+const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', viewed: 'Viewed', signed: 'Signed', paid: 'Paid' }
+const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : r.signed_at ? 'signed'
+  : r.viewed_at ? 'viewed' : r.sent ? 'sent' : 'generated')
 
 // Listing variations by SKU: { title, price }. Drafts included; same read as /admin/inventory.
 async function loadListingPrices() {
@@ -470,8 +471,8 @@ function Folder({ folder, setError }) {
                   <small>{dateOf(r)} · {r.data?.c?.name || r.data?.c?.company || 'No customer yet'} · {money(sums(r.data).total)}</small>
                 </button>
                 <span className="pills">
-                  <span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span>
-                  {r.signed_at && <span className="pill is-signed" title={`Signed ${new Date(r.signed_at).toLocaleString()}`}>Signed</span>}
+                  <span className={`pill is-${st}`} title={st === 'signed' ? `Signed ${new Date(r.signed_at).toLocaleString()}`
+                    : st === 'viewed' ? `Opened ${new Date(r.viewed_at).toLocaleString()}` : undefined}>{STATUS_LABEL[st]}</span>
                 </span>
                 <SentPaid r={r} onFlag={flag} />
                 <span className="row-actions">
@@ -1232,6 +1233,8 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 }
 
 // /invoice/:token, the link in the customer's email: no login, generated entries only.
+// Customer sign-in on the invoice link. Off until inventory and payment are live.
+const CUSTOMER_ACCOUNTS = false
 // The customer's sign-in on this browser: { token, account }, or null.
 const CUSTOMER_KEY = 'sss:customer'
 function storedCustomer() {
@@ -1303,7 +1306,7 @@ export function SharedInvoice() {
   const forms = useForms()
   const [entry, setEntry] = useState(null)
   const [error, setError] = useState('')
-  const [customer, setCustomer] = useState(storedCustomer)
+  const [customer, setCustomer] = useState(() => (CUSTOMER_ACCOUNTS ? storedCustomer() : null))
   const [signingIn, setSigningIn] = useState(false)
   // A remembered sign-in is checked once; an expired one is forgotten.
   useEffect(() => {
@@ -1322,6 +1325,7 @@ export function SharedInvoice() {
   }
   useEffect(() => {
     rawFetch(`/api/shared/${encodeURIComponent(token)}`).then(setEntry)
+      .then(() => { if (!editorToken()) rawFetch(`/api/shared/${encodeURIComponent(token)}/viewed`, { method: 'POST' }).catch(() => {}) })
       .catch((err) => setError(err.status === 404 ? 'This invoice link is not valid. Please contact info@storyshapedstudios.com.' : err.message))
   }, [token])
   const form = entry && forms.find((f) => f.folder === entry.folder)
@@ -1330,7 +1334,7 @@ export function SharedInvoice() {
       {customer ? (
         <p className="inv-account">Signed in as <strong>{customer.account.name}</strong> ({customer.account.email})
           {' · '}<button type="button" className="link" onClick={signOut}>Sign out</button></p>
-      ) : entry && !entry.signature && (
+      ) : CUSTOMER_ACCOUNTS && entry && !entry.signature && (
         <p className="inv-account">Have an account? <button type="button" className="link" onClick={() => setSigningIn(true)}>Sign in</button></p>
       )}
       {error ? <p className="inv-error" role="alert">{error}</p>

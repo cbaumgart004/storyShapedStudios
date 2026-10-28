@@ -4,6 +4,7 @@
 // (utils/forms.js share token). Drafts are never returned.
 //
 //   GET   /:token        { folder, number, file, data, signature, consent }
+//   POST  /:token/viewed 204; the customer opened the link (the page skips this for a signed-in owner)
 //   POST  /:token/sign   { method: draw|type|upload, name, typed?, image?, consent: true };
 //                        a customer account's bearer token, when sent, is kept with the signature
 
@@ -23,6 +24,17 @@ router.get('/:token', async (req, res) => {
   } catch (err) {
     if (err instanceof FormError) return res.status(err.status).json({ error: err.message })
     console.error('[shared] GET failed:', err.message)
+    res.status(500).json({ error: 'Request failed.' })
+  }
+})
+
+router.post('/:token/viewed', async (req, res) => {
+  if (!hasDb) return res.status(503).json({ error: 'Not configured.' })
+  try {
+    await forms.viewed(req.params.token)
+    res.status(204).end()
+  } catch (err) {
+    console.error('[shared] viewed failed:', err.message)
     res.status(500).json({ error: 'Request failed.' })
   }
 })

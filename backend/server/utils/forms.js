@@ -8,6 +8,8 @@
 //              only its Sent and Paid flags move. It gets a share token: the
 //              link emailed to the customer (/invoice/<token>) reads it without
 //              a login, through shared(); drafts are never shared.
+//   viewed     the customer opened that link (viewed(); not when the owner
+//              opens it signed in to the console). Set once, the first time.
 //   signed     the customer signed through that link (sign()): drawn, typed
 //              (must match the printed name) or uploaded, after agreeing to
 //              CONSENT. Kept with the time, IP, browser and a SHA-256 of the
@@ -50,6 +52,7 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signature JSONB',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
 ]
 
 // What the customer agrees to before signing; stored with the signature.
@@ -83,10 +86,11 @@ async function nextNumber(db, folder) {
   return String(Math.max(first - 1, ...rows.map((r) => Number(r.number))) + 1)
 }
 
-// <yyyymmdd>_<customer>_<number>, safe as a file name.
+// <yyyymmdd>_<number>_<customer>, safe as a file name.
+// Keep in step with fileName in frontend/src/pages/Admin/Forms.jsx.
 export function fileName(data, number) {
   const who = String(data?.c?.name || data?.c?.company || 'Customer').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return `${String(data?.i?.date || '').replace(/-/g, '')}_${who || 'Customer'}_${number ?? 'draft'}`
+  return `${String(data?.i?.date || '').replace(/-/g, '')}_${number ?? 'draft'}_${who || 'Customer'}`
 }
 
 const out = (r) => ({
@@ -103,6 +107,7 @@ const out = (r) => ({
   generated_at: r.generated_at,
   share: r.share_token ?? null,
   signed_at: r.signed_at ?? null,
+  viewed_at: r.viewed_at ?? null,
   signature: r.signature ?? null,
 })
 // The customer's view: no flags, and the signature without IP and browser.
@@ -222,6 +227,13 @@ export function createForms(db) {
       const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
       if (!rows[0]) throw new FormError(404, 'No such invoice.')
       return publicView(rows[0])
+    },
+
+    // The customer opened their link; only the first time is kept.
+    async viewed(token) {
+      await ensureTable(db)
+      await db.query(
+        `UPDATE form_entries SET viewed_at = now() WHERE share_token = $1 AND status = 'generated' AND viewed_at IS NULL`, [String(token ?? '')])
     },
 
     // The customer signs through their link. `meta` is { ip, ua } from the request.

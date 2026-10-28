@@ -26,10 +26,10 @@ const form = (no = '') => ({ c: { name: 'Acme' }, i: { no, date: '2026-10-27' },
 test('a draft saves without a number; generating numbers it from 4122 and locks it', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())
-  assert.deepEqual([d.status, d.number, d.file], ['draft', null, '20261027_Acme_draft'])
+  assert.deepEqual([d.status, d.number, d.file], ['draft', null, '20261027_draft_Acme'])
   await f.saveDraft(SO, d.id, { ...form(), c: { name: 'Acme Co' } })
   const g = await f.generate(SO, d.id, { ...form(), c: { name: 'Acme Co' } })
-  assert.deepEqual([g.status, g.number, g.file, g.data.i.no], ['generated', '4122', '20261027_Acme-Co_4122', '4122'])
+  assert.deepEqual([g.status, g.number, g.file, g.data.i.no], ['generated', '4122', '20261027_4122_Acme-Co', '4122'])
   await assert.rejects(f.saveDraft(SO, d.id, form()), { status: 409 })
   await assert.rejects(f.generate(SO, d.id, form()), { status: 409 })
   await assert.rejects(f.removeDraft(SO, d.id), { status: 409 })
@@ -94,6 +94,18 @@ test('a generated entry gets a share token; the link reads it, never a draft', a
   const s = await f.shared(g.share)
   assert.deepEqual([s.number, s.folder, s.data.c.name, 'sent' in s], ['4122', SO, 'Acme', false])
   await assert.rejects(f.shared('nope'), { status: 404 })
+})
+
+test('opening the link marks it viewed once', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  assert.equal(g.viewed_at, null)
+  await f.viewed(g.share)
+  const first = (await f.get(SO, d.id)).viewed_at
+  assert.ok(first)
+  await f.viewed(g.share)
+  assert.equal(String((await f.get(SO, d.id)).viewed_at), String(first))
 })
 
 test('the customer signs once through the link; typed must match the name', async () => {
