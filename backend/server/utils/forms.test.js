@@ -200,6 +200,36 @@ test('a generated entry records its deposit paid without touching the order', as
   assert.equal(cleared.deposit_paid_at, null)
 })
 
+test('a signed order is revised as v2: the old one is archived and its link opens v2', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  await assert.rejects(f.revise(SO, g.id), { status: 409 }) // not signed yet
+  const v = await open(f, g.share)
+  await f.sign(g.share, { method: 'type', name: 'Acme', typed: 'Acme', consent: true }, { session: v.session })
+  await f.setDeposit(SO, g.id, 50)
+  await assert.rejects(f.setEmail(SO, g.id, 'b@acme.test'), { status: 409 })
+  const r = await f.revise(SO, g.id)
+  assert.deepEqual([r.status, r.version, r.supersedes_id, r.data.i.no, r.data.i.v, r.file], ['draft', 2, g.id, '4122', 2, '20261027_4122v2_Acme'])
+  assert.equal((await f.revise(SO, g.id)).id, r.id) // one open revision
+  const changed = { ...r.data, lines: [{ sku: 'TBD', qty: 400, retail: 35 }] }
+  await f.saveDraft(SO, r.id, changed)
+  const g2 = await f.generate(SO, r.id, { ...changed, i: { ...changed.i, no: '9999' } })
+  assert.deepEqual([g2.number, g2.version, g2.deposit_paid, g2.file], ['4122', 2, 50, '20261027_4122v2_Acme'])
+  const old = await f.get(SO, g.id)
+  assert.ok(old.superseded_at)
+  assert.equal(old.superseded_by, g2.id)
+  assert.equal(old.signature.name, 'Acme') // the signed version is kept as signed
+  await assert.rejects(f.setStatus(SO, g.id, { paid: true }), { status: 409 })
+  await assert.rejects(f.revise(SO, g.id), { status: 409 })
+  // The old link now opens v2, which needs a new code and is unsigned.
+  await assert.rejects(f.shared(g.share, v.session), { status: 401 })
+  const v2 = await open(f, g.share)
+  assert.deepEqual([v2.number, v2.data.lines[0].qty, v2.signature], ['4122', 400, null])
+  const next = await f.createDraft(SO, form())
+  assert.equal((await f.generate(SO, next.id, form())).number, '4123')
+})
+
 test('a new link stops the old one and its sessions', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())

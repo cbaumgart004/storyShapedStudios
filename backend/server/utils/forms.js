@@ -20,6 +20,12 @@
 //              order as signed, the usual e-signature audit trail (ESIGN/UETA).
 //              Signed in with a customer account (utils/accounts.js) or as a
 //              guest. Once signed it cannot be signed again.
+//   versions   a signed order never changes. revise() starts a draft of it as
+//              the next version (same number, `version` + 1, data.i.v); its
+//              Generate archives the one before (superseded_at) and carries over
+//              the deposit paid. The customer's old link follows to the newest
+//              version (linked()), which needs a new code and a new signature.
+//              Revised orders: version > 1; archived ones: superseded_at set.
 //
 // The entry is kept whole in `data`, so the page shows it exactly as written.
 //
@@ -64,6 +70,12 @@ const ADDED = [
   // Kept beside `data`, not in it, so the order as signed (its hash) never changes.
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid NUMERIC(12, 2)',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS supersedes_id INT',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ',
+  // Every version of an order shares its number.
+  'ALTER TABLE form_entries DROP CONSTRAINT IF EXISTS form_entries_folder_number_key',
+  'CREATE UNIQUE INDEX IF NOT EXISTS form_entries_folder_number_version ON form_entries (folder, number, version)',
   // Ticked before the stamps existed: the last change stands in for the date (approximate).
   'UPDATE form_entries SET sent_at = updated_at WHERE sent AND sent_at IS NULL',
   'UPDATE form_entries SET paid_at = updated_at WHERE paid AND paid_at IS NULL',
@@ -114,11 +126,12 @@ async function nextNumber(db, folder) {
   return String(Math.max(first - 1, ...rows.map((r) => Number(r.number))) + 1)
 }
 
-// <yyyymmdd>_<number>_<customer>, safe as a file name.
+// <yyyymmdd>_<number>[v<version>]_<customer>, safe as a file name.
 // Keep in step with fileName in frontend/src/pages/Admin/Forms.jsx.
 export function fileName(data, number) {
   const who = String(data?.c?.name || data?.c?.company || 'Customer').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return `${String(data?.i?.date || '').replace(/-/g, '')}_${number ?? 'draft'}_${who || 'Customer'}`
+  const v = Number(data?.i?.v) > 1 ? `v${Number(data.i.v)}` : ''
+  return `${String(data?.i?.date || '').replace(/-/g, '')}_${number ?? (v ? data.i.no : null) ?? 'draft'}${v}_${who || 'Customer'}`
 }
 
 const out = (r) => ({
@@ -140,6 +153,9 @@ const out = (r) => ({
   paid_at: r.paid_at ?? null,
   deposit_paid: r.deposit_paid == null ? null : Number(r.deposit_paid),
   deposit_paid_at: r.deposit_paid_at ?? null,
+  version: r.version ?? 1,
+  supersedes_id: r.supersedes_id ?? null,
+  superseded_at: r.superseded_at ?? null,
   signature: r.signature ?? null,
 })
 // The customer's view: no flags, and the signature without IP and browser.
@@ -151,6 +167,10 @@ const publicView = (r) => {
 
 const checkFolder = (folder) => {
   if (!FOLDER.test(folder ?? '')) throw new FormError(400, 'Unknown form folder.')
+}
+// An archived version takes no more changes; its newer version does.
+const checkLive = (r) => {
+  if (r.superseded_at) throw new FormError(409, 'This version is archived. Open the newest version.')
 }
 const checkData = (data) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new FormError(400, 'A form entry needs its fields.')
@@ -166,12 +186,19 @@ export function createForms(db, { mailer, templates } = {}) {
     return rows[0]
   }
 
-  // A generated entry by its link.
+  // A generated entry by its link: the newest generated version of that order,
+  // so a link sent for an earlier version opens the revised one.
   async function linked(token) {
     await ensureTable(db)
     const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
-    if (!rows[0]) throw new FormError(404, 'No such invoice.')
-    return rows[0]
+    let r = rows[0]
+    if (!r) throw new FormError(404, 'No such invoice.')
+    while (r.superseded_at) {
+      const { rows: [next] } = await db.query(`SELECT * FROM form_entries WHERE supersedes_id = $1 AND status = 'generated'`, [r.id])
+      if (!next) break
+      r = next
+    }
+    return r
   }
   // The same, only with a live session for that link; carries the verified email.
   async function opened(token, session) {
@@ -183,6 +210,27 @@ export function createForms(db, { mailer, templates } = {}) {
     }
     const to = emailOf(r.data)
     throw new FormError(401, 'Enter the code we email you to open this invoice.', { verify: true, number: r.number, sentTo: to ? masked(to) : null })
+  }
+
+  // Generates a revision: archives the version before (only if nobody else has),
+  // then numbers this one as it, with the deposit already paid.
+  async function generateVersion(current, data) {
+    const { rows: [before] } = await db.query(
+      `UPDATE form_entries SET superseded_at = now() WHERE id = $1 AND superseded_at IS NULL RETURNING *`, [current.supersedes_id])
+    if (!before) throw new FormError(409, 'That order was already revised.')
+    const stored = { ...data, i: { ...data.i, no: before.number, v: current.version } }
+    try {
+      const { rows } = await db.query(
+        `UPDATE form_entries SET number = $2, data = $3, status = 'generated', generated_at = now(), updated_at = now(),
+           share_token = $4, deposit_paid = $5, deposit_paid_at = $6
+         WHERE id = $1 AND status = 'draft' RETURNING *`,
+        [current.id, before.number, JSON.stringify(stored), newToken(), before.deposit_paid, before.deposit_paid_at])
+      if (!rows[0]) throw new FormError(409, 'This entry is already generated.')
+      return out(rows[0])
+    } catch (err) {
+      await db.query('UPDATE form_entries SET superseded_at = NULL WHERE id = $1', [before.id])
+      throw err
+    }
   }
 
   return {
@@ -207,8 +255,28 @@ export function createForms(db, { mailer, templates } = {}) {
       return nextNumber(db, folder)
     },
 
+    // With `superseded_by`, the id of the version that archived it.
     async get(folder, id) {
-      return out(await row(folder, id))
+      const r = await row(folder, id)
+      if (!r.superseded_at) return out(r)
+      const { rows: [next] } = await db.query(`SELECT id FROM form_entries WHERE supersedes_id = $1 AND status = 'generated'`, [r.id])
+      return { ...out(r), superseded_by: next?.id ?? null }
+    },
+
+    // A draft of a signed order as its next version: same number, same fields,
+    // to change and generate. One open revision per order; asking again returns it.
+    async revise(folder, id, by) {
+      const current = await row(folder, id)
+      if (current.status !== 'generated' || !current.signed_at) throw new FormError(409, 'Only a signed order is revised. Change a draft directly.')
+      checkLive(current)
+      const { rows: [open] } = await db.query(`SELECT * FROM form_entries WHERE supersedes_id = $1 AND status = 'draft'`, [current.id])
+      if (open) return out(open)
+      const version = (current.version ?? 1) + 1
+      const data = { ...current.data, i: { ...current.data?.i, no: current.number, v: version } }
+      const { rows } = await db.query(
+        'INSERT INTO form_entries (folder, data, created_by, version, supersedes_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [folder, JSON.stringify(data), by ?? null, version, current.id])
+      return out(rows[0])
     },
 
     async createDraft(folder, data, by) {
@@ -241,6 +309,7 @@ export function createForms(db, { mailer, templates } = {}) {
       checkData(data)
       const current = await row(folder, id)
       if (current.status !== 'draft') throw new FormError(409, 'This entry is already generated.')
+      if (current.supersedes_id) return generateVersion(current, data)
       let number = String(data.i?.no ?? '').trim()
       for (let attempt = 0; attempt < 3; attempt++) {
         if (!number || (await db.query('SELECT 1 FROM form_entries WHERE folder = $1 AND number = $2', [folder, number])).rows.length) {
@@ -267,6 +336,7 @@ export function createForms(db, { mailer, templates } = {}) {
     async share(folder, id) {
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before sharing it.')
+      checkLive(current)
       if (current.share_token) return out(current)
       const { rows } = await db.query(
         `UPDATE form_entries SET share_token = $3 WHERE folder = $1 AND id = $2 RETURNING *`, [folder, id, newToken()])
@@ -322,9 +392,14 @@ export function createForms(db, { mailer, templates } = {}) {
     async relink(folder, id) {
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before sharing it.')
-      if (current.share_token) {
-        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [current.share_token])
-        await db.query('DELETE FROM share_codes WHERE share_token = $1', [current.share_token])
+      checkLive(current)
+      // Links sent for earlier versions follow to this one, so they stop too.
+      const { rows: old } = await db.query(
+        `SELECT id, share_token FROM form_entries WHERE folder = $1 AND number = $2 AND share_token IS NOT NULL`, [folder, current.number])
+      for (const o of old) {
+        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [o.share_token])
+        await db.query('DELETE FROM share_codes WHERE share_token = $1', [o.share_token])
+        if (o.id !== current.id) await db.query('UPDATE form_entries SET share_token = NULL WHERE id = $1', [o.id])
       }
       const { rows } = await db.query(
         `UPDATE form_entries SET share_token = $3 WHERE folder = $1 AND id = $2 RETURNING *`, [folder, id, newToken()])
@@ -340,6 +415,8 @@ export function createForms(db, { mailer, templates } = {}) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new FormError(400, 'Type a valid email address.')
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'A draft takes its email in the form.')
+      checkLive(current)
+      if (current.signed_at) throw new FormError(409, 'A signed order does not change. Revise it to change the email.')
       if (current.share_token) {
         await db.query('DELETE FROM share_sessions WHERE share_token = $1', [current.share_token])
         await db.query('DELETE FROM share_codes WHERE share_token = $1', [current.share_token])
@@ -394,6 +471,7 @@ export function createForms(db, { mailer, templates } = {}) {
       if (!blank && !(Number.isFinite(n) && n >= 0)) throw new FormError(400, 'Type the amount paid, 0 or more.')
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'A draft takes its deposit in the form.')
+      checkLive(current)
       const { rows } = await db.query(
         `UPDATE form_entries SET deposit_paid = $3,
            deposit_paid_at = CASE WHEN $3::numeric IS NULL THEN NULL WHEN deposit_paid IS DISTINCT FROM $3::numeric THEN now() ELSE deposit_paid_at END,
@@ -407,6 +485,7 @@ export function createForms(db, { mailer, templates } = {}) {
       if (sent === undefined && paid === undefined) throw new FormError(400, 'Send sent and/or paid.')
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before marking it sent or paid.')
+      checkLive(current)
       const { rows } = await db.query(
         // Ticking stamps the time it was ticked; unticking clears it.
         `UPDATE form_entries SET

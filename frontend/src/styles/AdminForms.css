@@ -194,6 +194,7 @@
 .inv-filters .chips button[aria-pressed="true"] { background: var(--uranium-dim); border-color: var(--uranium-dim); color: #04140A; font-weight: 600; }
 .inv-filters .chips button[aria-pressed="true"] span { color: #04140A; }
 .inv-filters .hide-full { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: var(--bone); cursor: pointer; flex-basis: 100%; }
+.inv-filters .hide-full span { font-size: 12px; color: #8FA592; font-variant-numeric: tabular-nums; }
 .inv-filters .hide-full input { width: 18px; height: 18px; accent-color: var(--uranium-dim); margin: 0; }
 .inv-filters .sort { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #8FA592; }
 .inv-filters select { font: inherit; font-size: 14px; color: var(--bone); background: #0F1A11; border: 1px solid var(--case-line);
@@ -217,6 +218,8 @@
 .pill.is-sent { color: #9FD3FF; background: rgba(80, 160, 230, .12); border: 1px solid rgba(80, 160, 230, .45); }
 .pill.is-viewed { color: #FFE3A8; background: rgba(240, 180, 60, .12); border: 1px solid rgba(240, 180, 60, .45); }
 .pill.is-partial { color: #D9F2D9; background: rgba(120, 200, 120, .14); border: 1px solid rgba(120, 200, 120, .5); }
+.pill.is-archived { color: #8FA592; background: transparent; border: 1px dashed #3A4D3C; }
+.pill.is-version { color: #FFE3A8; background: transparent; border: 1px solid rgba(240, 180, 60, .45); margin-left: 6px; }
 .pill.is-paid { color: #04140A; background: var(--uranium-dim); border: 1px solid var(--uranium-dim); }
 .admin-invoices .flag { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; white-space: nowrap; cursor: pointer; }
 .admin-invoices .flag input { width: 18px; height: 18px; accent-color: var(--uranium-dim); margin: 0; }

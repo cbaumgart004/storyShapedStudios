@@ -42,6 +42,12 @@
 // generated order. "New link" replaces a leaked link. The wording of
 // both emails is editable at /admin/emails (EmailTemplates, /api/emails).
 //
+// Versions: a signed order never changes. Revise starts a draft of it as the
+// next version (same number, data.i.v; utils/forms.js revise); its Generate
+// archives the signed one, and the customer's link opens the new version to
+// sign again. The folder hides archived versions unless asked; files read
+// <number>v<version>.
+//
 // Signing: the customer's link offers SignPanel (draw, type the printed name, or
 // upload) after a consent box; the backend keeps the time, IP, browser and a
 // SHA-256 of the order (utils/forms.js sign). A signed order shows the signature
@@ -175,10 +181,11 @@ function dueDate(date) {
   return d.toISOString().slice(0, 10)
 }
 
-// <yyyymmdd>_<number>_<customer>, the name a saved PDF takes (as utils/forms.js fileName).
+// <yyyymmdd>_<number>[v<version>]_<customer>, the name a saved PDF takes (as utils/forms.js fileName).
 const fileName = (d) => {
   const who = String(d.c?.name || d.c?.company || 'Customer').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')
-  return `${String(d.i?.date || '').replace(/-/g, '')}_${d.i?.no || 'draft'}_${who || 'Customer'}`
+  const v = Number(d.i?.v) > 1 ? `v${Number(d.i.v)}` : ''
+  return `${String(d.i?.date || '').replace(/-/g, '')}_${d.i?.no || 'draft'}${v}_${who || 'Customer'}`
 }
 
 // The browser names a saved PDF after the page title.
@@ -368,10 +375,10 @@ const shortDate = (at) => mdy(at)
 // paid is entered on the order. Each shows the date it was ticked.
 const AUTO_WHEN = { viewed: 'the customer enters their code', signed: 'the customer signs', partial: 'Deposit paid is entered on the order' }
 function SentPaid({ r, onFlag }) {
-  const locked = r.status === 'draft'
+  const locked = r.status === 'draft' || Boolean(r.superseded_at)
   const box = (field, label, checked, at, auto) => (
     <label className={`flag${auto && !locked ? ' auto' : ''}`}
-      title={locked ? 'Generate it first' : at ? `${label} ${new Date(at).toLocaleString()}` : auto ? `Ticks itself when ${AUTO_WHEN[field]}` : undefined}>
+      title={r.superseded_at ? 'Archived: a newer version replaced it' : locked ? 'Generate it first' : at ? `${label} ${new Date(at).toLocaleString()}` : auto ? `Ticks itself when ${AUTO_WHEN[field]}` : undefined}>
       <span><input type="checkbox" checked={Boolean(checked)} disabled={locked || auto} readOnly={auto}
         onChange={auto ? undefined : (e) => onFlag(r.id, field, e.target.checked)} /> {label}</span>
       <small>{shortDate(at)}</small>
@@ -580,6 +587,7 @@ function Folder({ folder, setError }) {
   const [rows, setRows] = useState(null)
   const [show, setShow] = useState('all')
   const [hideFull, setHideFull] = useState(false) // leave out Paid (In Full)
+  const [showArchived, setShowArchived] = useState(false) // versions a revision replaced
   const [sort, setSort] = useState({ key: 'order', dir: -1 })
   const [asking, setAsking] = useState(null) // id whose email was just opened
 
@@ -612,8 +620,10 @@ function Folder({ folder, setError }) {
 
   const head = <BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} />
   if (!rows) return <>{head}<p className="inv-empty">Loading…</p></>
-  const counts = Object.fromEntries(STATUSES.map((st) => [st, rows.filter((r) => statusOf(r) === st).length]))
-  const shown = rows.filter((r) => (show === 'all' || statusOf(r) === show) && !(hideFull && statusOf(r) === 'paid'))
+  const live = showArchived ? rows : rows.filter((r) => !r.superseded_at)
+  const archived = rows.length - rows.filter((r) => !r.superseded_at).length
+  const counts = Object.fromEntries(STATUSES.map((st) => [st, live.filter((r) => statusOf(r) === st).length]))
+  const shown = live.filter((r) => (show === 'all' || statusOf(r) === show) && !(hideFull && statusOf(r) === 'paid'))
   const col = COLUMNS.find((c) => c.key === sort.key)
   const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y)))
   const ordered = [...shown].sort((a, b) => sort.dir * cmp(col.val(a), col.val(b)) || dateOf(b).localeCompare(dateOf(a)))
@@ -633,10 +643,13 @@ function Folder({ folder, setError }) {
         <label className="hide-full">
           <input type="checkbox" checked={hideFull} onChange={(e) => setHideFull(e.target.checked)} /> Exclude Paid (In Full)
         </label>
+        <label className="hide-full">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived versions <span>{archived}</span>
+        </label>
         <div className="chips" role="group" aria-label="Show">
           {['all', ...STATUSES].map((st) => (
             <button type="button" key={st} aria-pressed={show === st} onClick={() => setShow(st)}>
-              {st === 'all' ? 'All' : STATUS_LABEL[st]} <span>{st === 'all' ? rows.length : counts[st]}</span>
+              {st === 'all' ? 'All' : STATUS_LABEL[st]} <span>{st === 'all' ? live.length : counts[st]}</span>
             </button>
           ))}
         </div>
@@ -667,13 +680,17 @@ function Folder({ folder, setError }) {
             <span className="cell c-total" data-label="Total">{money(sums(r.data).total)}</span>
             <span className="cell c-due" data-label="Due" title={due ? undefined : '30 days after the customer signs'}>{due ? mdy(due + 'T00:00:00') : '-'}</span>
             <span className="cell c-updated" data-label="Last Updated" title={new Date(r.updated_at).toLocaleString()}>{shortDate(r.updated_at)}</span>
-            <span className="cell c-status"><span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span></span>
+            <span className="cell c-status">
+              {r.superseded_at ? <span className="pill is-archived" title={`Replaced ${new Date(r.superseded_at).toLocaleString()}`}>Archived</span>
+                : <span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span>}
+              {r.version > 1 && !r.superseded_at && <span className="pill is-version" title="Revised after signing">v{r.version}</span>}
+            </span>
             <div className="frow-foot">
               <span className="flags"><SentPaid r={r} onFlag={flag} /></span>
               <span className="row-actions">
                 <Link className="act" to={`${at}?view=preview`}>Preview</Link>
                 <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
-                {r.status === 'generated' && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
+                {r.status === 'generated' && !r.superseded_at && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
               </span>
             </div>
             {asking === r.id && <SentAsk onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
@@ -871,9 +888,9 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
         {!onAddSku ? <span className="f sku-text" id={id('sku')}>{l.sku}</span> : (
         <select className="f" id={id('sku')} value={typingNew ? NEW_SKU : l.sku} onChange={(e) => pickSku(e.target.value)}>
           <option value="" aria-label="No SKU" />
-          <option value="TBD">TBD · custom, not created yet</option>
-          {!known && !typingNew && <option value={l.sku}>{l.sku} · not in Stock Items</option>}
-          {skus.map((s) => <option key={s.sku} value={s.sku}>{s.sku} · {s.name}</option>)}
+          <option value="TBD">TBD | Custom, not created yet</option>
+          {!known && !typingNew && <option value={l.sku}>{l.sku} | Not in Stock Items</option>}
+          {skus.map((s) => <option key={s.sku} value={s.sku}>{s.sku} | {s.name} | {s.price != null ? money(s.price) : 'No retail'}</option>)}
           <option value={NEW_SKU}>+ New SKU…</option>
         </select>
         )}
@@ -1154,6 +1171,15 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) { setError(err.message) }
   }
 
+  // A signed order is never changed: its next version starts as a draft here.
+  const revise = async () => {
+    if (!window.confirm(`Revise order ${rec.number}? A draft of version ${(rec.version ?? 1) + 1} opens to change. Generating it archives this signed version, and the customer's link then shows the new one to sign.`)) return
+    try {
+      const d = await apiFetch(`${at}/revise`, { method: 'POST' })
+      navigate(`${HOME}/${folder}/${d.id}`)
+    } catch (err) { setError(err.message) }
+  }
+
   const email = async (r = rec) => {
     try {
       if (!String(r.data?.c?.email ?? '').trim() && !(r = await changeEmail())) return
@@ -1187,7 +1213,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 
   const copy = async () => {
     try {
-      const d = await apiFetch(`${API}/${folder}`, { method: 'POST', body: { ...doc, i: { ...doc.i, no: '', date: today() } } })
+      const d = await apiFetch(`${API}/${folder}`, { method: 'POST', body: { ...doc, i: { ...doc.i, no: '', v: undefined, date: today() } } })
       navigate(`${HOME}/${folder}/${d.id}`)
     } catch (err) { setError(err.message) }
   }
@@ -1249,6 +1275,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   // Read-only, an empty optional field is left off the page.
   const blank = (v) => readOnly && !String(v ?? '').trim()
   const sig = rec.signature
+  const archived = Boolean(rec.superseded_at)
 
   return (
     <>
@@ -1273,18 +1300,31 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
             <button type="button" className="tool" onClick={() => setView('preview')}>Preview</button>
           )}
           {locked && <span className="tool-flags"><SentPaid r={rec} onFlag={flag} /></span>}
+          {locked && !preview && sig && !archived && <button type="button" className="tool" onClick={revise} title="Signed orders do not change: make the next version">Revise</button>}
           {locked && !preview && <button type="button" className="tool" onClick={copy}>Copy to new draft</button>}
           {!locked && <button type="button" className="tool" onClick={save} disabled={!dirty}>Save Work</button>}
           {!readOnly && <button type="button" className="tool" onClick={remove}>Delete draft</button>}
           <button type="button" className="tool" onClick={downloadPdf}>Download PDF</button>
-          {locked && <button type="button" className="tool" onClick={changeEmail}>Customer email</button>}
-          {locked && rec.share && <button type="button" className="tool" onClick={relink} title="Replace the customer's link if it went to the wrong person">New link</button>}
-          {locked && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
+          {locked && !archived && !sig && <button type="button" className="tool" onClick={changeEmail}>Customer email</button>}
+          {locked && !archived && rec.share && <button type="button" className="tool" onClick={relink} title="Replace the customer's link if it went to the wrong person">New link</button>}
+          {locked && !archived && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
           {!locked && !preview && generateButton('top')}
         </div>
       </div>
       )}
       {note && !shared && <p className="inv-note" role="status">{note}</p>}
+      {archived && !shared && (
+        <p className="inv-note" role="status">
+          Archived version {rec.version ?? 1}, kept as signed.{' '}
+          {rec.superseded_by && <Link to={`${HOME}/${folder}/${rec.superseded_by}`}>Open the newest version</Link>}
+        </p>
+      )}
+      {!locked && rec.supersedes_id && !shared && (
+        <p className="inv-note" role="status">
+          Version {rec.version} of order {doc.i?.no}. Generating it archives the signed version and the customer signs again.{' '}
+          <Link to={`${HOME}/${folder}/${rec.supersedes_id}`}>Open the signed version</Link>
+        </p>
+      )}
       {askSent && !rec.sent && !shared && (
         <SentAsk onYes={() => { flag(null, 'sent', true); setAskSent(false) }} onNo={() => setAskSent(false)} />
       )}
@@ -1314,7 +1354,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
         <header className="inv-head">
           <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
           <div className="meta">
-            <h1>INVOICE{!locked && <span className="state">(Draft)</span>}</h1>
+            <h1>INVOICE{Number(doc.i?.v) > 1 && <span className="state">v{doc.i.v}</span>}{!locked && <span className="state">(Draft)</span>}</h1>
             <span className="kind">{company.kind}</span>
             {(company.lines ?? []).map((t) => <span key={t}>{t}</span>)}
           </div>
@@ -1351,7 +1391,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
             <div>
               <h3>Invoice details</h3>
               <div className="fields">
-                {field('i.no', 'Order #', { title: 'The next free number; Generate keeps it unless another order took it first' })}
+                {field('i.no', 'Order #', doc.i?.v ? { readOnly: true, title: `Version ${doc.i.v} keeps the order's number` } : { title: 'The next free number; Generate keeps it unless another order took it first' })}
                 {field('i.date', 'Date', { type: 'date' })}
                 <span className="label">Due</span><span className="calc">{balanceDue(rec) ? mdy(balanceDue(rec) + 'T00:00:00') : '30 days after signing'}</span>
                 {field('i.po', 'Customer PO')}
@@ -1420,7 +1460,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
               </> : (s.paid > 0 || !preview) && <>
                 <span className="k">Deposit paid</span>
                 {/* Not an input: the locked fieldset disables every control inside it. */}
-                <span className="num">{money(s.paid)}{!preview && (
+                <span className="num">{money(s.paid)}{!preview && !archived && (
                   <a href="#deposit" role="button" className="dep-edit" title="Record what the customer has paid"
                     onClick={(e) => { e.preventDefault(); changeDeposit() }}>Edit</a>
                 )}</span>
