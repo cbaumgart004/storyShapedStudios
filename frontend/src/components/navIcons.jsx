@@ -21,6 +21,15 @@ const base = {
   focusable: false,
 }
 
+// The owner's Forms link (sales orders and the like), not one of the four above.
+export const FormsIcon = () => (
+  <svg {...base}>
+    <path d="M7 3.5h7.5L18.5 7.5v13H7z" />
+    <path d="M14.5 3.5v4h4" />
+    <path d="M9.5 12h6.5M9.5 15h6.5M9.5 18h4" />
+  </svg>
+)
+
 const SearchIcon = () => (
   <svg {...base}>
     <circle cx="11" cy="11" r="6.5" />

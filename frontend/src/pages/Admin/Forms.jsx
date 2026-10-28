@@ -14,6 +14,12 @@
 // Only the Sales Order has an editor yet (SalesOrder below); building any form
 // from its schema sections is the open item in .boards.
 //
+// Generate stays greyed until the entry is complete (problemsIn): a customer
+// name and a price on every line in use. Pressed early, it marks what is missing.
+// Customer name offers the folder's earlier customers and fills their details.
+// On a phone the docked console covers the bottom of the page; useConsoleInset
+// keeps that much room below the form so all of it can be scrolled into view.
+//
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
 // variation's price, both still editable. Price and discount are two ways into
@@ -133,6 +139,42 @@ function printAs(name) {
   document.title = name
   window.addEventListener('afterprint', () => { document.title = before }, { once: true })
   window.print()
+}
+
+// What stops an entry from being generated, by field: { 'c.name': text, 'line.2': text }.
+const lineInUse = (l) => Boolean(l.sku || String(l.desc ?? '').trim() || num(l.qty) || num(l.price) != null || num(l.retail) != null)
+function problemsIn(d) {
+  const p = {}
+  if (!String(d.c?.name ?? '').trim()) p['c.name'] = 'Customer name'
+  const used = d.lines.map((l, i) => [l, i]).filter(([l]) => lineInUse(l))
+  if (!used.length) p.lines = 'At least one line'
+  for (const [l, i] of used) if (num(l.price) == null) p[`line.${i}`] = `Price on line ${i + 1}`
+  return p
+}
+
+function Warn({ show, children = 'Required' }) {
+  return show ? <span className="warn-tag" role="alert"><span aria-hidden="true">!</span> {children}</span> : null
+}
+
+// Height of the docked console (fixed to the bottom of the screen), so the page
+// can leave that much room and nothing of the form stays hidden under it.
+function useConsoleInset() {
+  const [h, setH] = useState(0)
+  useEffect(() => {
+    let ro = null
+    let timer = null
+    const attach = () => {
+      const el = document.querySelector('.eotm-root')
+      if (!el) { timer = setTimeout(attach, 600); return }
+      const measure = () => setH(Math.round(el.getBoundingClientRect().height))
+      ro = new ResizeObserver(measure)
+      ro.observe(el)
+      measure()
+    }
+    attach()
+    return () => { clearTimeout(timer); ro?.disconnect() }
+  }, [])
+  return h
 }
 
 // A line that charges something but has no retail to measure the discount from.
@@ -322,7 +364,7 @@ function Folder({ folder, setError }) {
 
 // ---------- One Sales Order ----------
 
-function Line({ l, idx, skus, onChange, onRemove }) {
+function Line({ l, idx, skus, onChange, onRemove, warn }) {
   const set = (field, value) => {
     const next = { ...l, [field]: value }
     if (field === 'price') next.mode = 'price'
@@ -341,7 +383,7 @@ function Line({ l, idx, skus, onChange, onRemove }) {
   const known = !l.sku || l.sku === 'TBD' || skus.some((s) => s.sku === l.sku)
   const id = (f) => `l${idx}-${f}`
   return (
-    <div className="inv-line">
+    <div className={`inv-line${warn ? ' has-warn' : ''}`}>
       <div className="cell c-sku">
         <label className="label" htmlFor={id('sku')}>SKU</label>
         <select className="f" id={id('sku')} value={l.sku} onChange={(e) => set('sku', e.target.value)}>
@@ -364,8 +406,8 @@ function Line({ l, idx, skus, onChange, onRemove }) {
         <input className="f num" type="number" min="0" step="0.01" inputMode="decimal" id={id('retail')} value={l.retail} onChange={(e) => set('retail', e.target.value)} />
       </div>
       <div className="cell">
-        <label className="label" htmlFor={id('price')}>Price</label>
-        <input className={`f num${l.mode === 'price' && num(l.price) != null ? ' driver' : ''}`} type="number" min="0" step="0.01" inputMode="decimal" id={id('price')} value={l.price} onChange={(e) => set('price', e.target.value)} />
+        <label className="label" htmlFor={id('price')}>Price <Warn show={warn} /></label>
+        <input className={`f num${l.mode === 'price' && num(l.price) != null ? ' driver' : ''}${warn ? ' is-missing' : ''}`} type="number" min="0" step="0.01" inputMode="decimal" id={id('price')} value={l.price} onChange={(e) => set('price', e.target.value)} />
       </div>
       <div className="cell">
         <label className="label" htmlFor={id('disc')}>Discount %</label>
@@ -392,6 +434,8 @@ function SalesOrder({ folder, id, form, setError }) {
   const [saving, setSaving] = useState('') // '', 'Saving…', 'Saved'
   const [ask, setAsk] = useState(null) // { [line index]: typed retail } while Generate waits on missing retail
   const [busy, setBusy] = useState(false)
+  const [tried, setTried] = useState(false) // Generate pressed while something was missing
+  const [known, setKnown] = useState([]) // earlier customers in this folder, newest first
   const timer = useRef(null)
   const pending = useRef(null)
   const at = `${API}/${folder}/${id}`
@@ -399,6 +443,18 @@ function SalesOrder({ folder, id, form, setError }) {
   useEffect(() => {
     apiFetch(at).then((r) => { setRec(r); setDoc(r.data) }).catch((err) => setError(err.message))
   }, [at, setError])
+  useEffect(() => {
+    if (preview) return
+    apiFetch(`${API}/${folder}`).then((rows) => {
+      const seen = new Map()
+      for (const r of rows) {
+        const c = r.data?.c
+        const key = String(c?.name ?? '').trim().toLowerCase()
+        if (key && r.id !== Number(id) && !seen.has(key)) seen.set(key, c)
+      }
+      setKnown([...seen.values()])
+    }).catch(() => {})
+  }, [folder, id, preview])
   useEffect(() => {
     if (preview) return
     Promise.all([
@@ -456,11 +512,23 @@ function SalesOrder({ folder, id, form, setError }) {
     edit(b ? { ...doc, [a]: { ...doc[a], [b]: value } } : { ...doc, [a]: value })
   }
   const setLine = (i, l) => edit({ ...doc, lines: doc.lines.map((x, j) => (j === i ? l : x)) })
+  // Picking an earlier customer fills the details still empty here.
+  const setCustomerName = (value) => {
+    const hit = known.find((c) => c.name?.trim().toLowerCase() === value.trim().toLowerCase())
+    const c = { ...doc.c, name: value }
+    if (hit) for (const k of ['company', 'email', 'phone', 'bill', 'ship']) if (!String(c[k] ?? '').trim() && hit[k]) c[k] = hit[k]
+    edit({ ...doc, c })
+  }
   const addLine = () => edit({ ...doc, lines: [...doc.lines, blankLine()] })
 
   // Missing retail: ask first. `typed` holds what was entered; a line left blank
   // (or every line, when skipped) takes its price as retail, so 0% off.
   const generate = async (typed) => {
+    if (Object.keys(problemsIn(doc)).length) {
+      setTried(true)
+      setTimeout(() => document.querySelector('.warn-tag')?.closest('.inv-line, .fields > *, .inv-generate')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+      return
+    }
     const missing = doc.lines.map((l, i) => (needsRetail(l) ? i : -1)).filter((i) => i >= 0)
     if (missing.length && typed === undefined) {
       setAsk(Object.fromEntries(missing.map((i) => [i, ''])))
@@ -512,23 +580,37 @@ function SalesOrder({ folder, id, form, setError }) {
     setParams(params, { replace: true })
   }
 
+  const problems = problemsIn(doc)
+  const ready = !Object.keys(problems).length
+  const shownProblems = tried ? problems : {}
   const s = sums(doc)
   const methods = form.paymentMethods ?? []
   const method = methods.find((m) => m.name === doc.p?.method)
   const company = form.document?.company ?? {}
   const footer = form.document?.footer ?? {}
   const acceptance = form.sections?.find((x) => x.name === 'acceptance')
-  const field = (path, label, props = {}) => {
+  const field = (path, label, props = {}, extra = null) => {
     const [a, b] = path.split('.')
     const fid = `f-${path.replace('.', '-')}`
     const Tag = props.rows ? 'textarea' : 'input'
+    const missing = Boolean(shownProblems[path])
     return (
       <>
-        <label className="label" htmlFor={fid}>{label}</label>
-        <Tag className="f" id={fid} value={(b ? doc[a]?.[b] : doc[a]) ?? ''} onChange={(e) => setField(path, e.target.value)} autoComplete="off" {...props} />
+        <label className="label" htmlFor={fid}>{label} <Warn show={missing} /></label>
+        <span className="fwrap">
+          <Tag className={`f${missing ? ' is-missing' : ''}`} id={fid} value={(b ? doc[a]?.[b] : doc[a]) ?? ''}
+            onChange={(e) => setField(path, e.target.value)} autoComplete="off" {...props} />
+          {extra}
+        </span>
       </>
     )
   }
+  const generateButton = (where) => (
+    <button type="button" className={`tool primary${ready ? '' : ' is-waiting'}`} aria-disabled={!ready || busy}
+      title={ready ? 'Number and lock this order' : 'Fill in the marked fields first'} onClick={() => !busy && generate()} data-where={where}>
+      {busy ? 'Generating…' : 'Generate invoice'}
+    </button>
+  )
 
   return (
     <>
@@ -548,9 +630,7 @@ function SalesOrder({ folder, id, form, setError }) {
           {!readOnly && <button type="button" className="tool" onClick={addLine}>Add line</button>}
           {!readOnly && <button type="button" className="tool" onClick={remove}>Delete draft</button>}
           <button type="button" className="tool" onClick={() => printAs(fileName(doc))}>Download PDF</button>
-          {!locked && !preview && (
-            <button type="button" className="tool primary" onClick={() => generate()} disabled={busy}>{busy ? 'Generating…' : 'Generate invoice'}</button>
-          )}
+          {!locked && !preview && generateButton('top')}
         </div>
       </div>
 
@@ -573,6 +653,7 @@ function SalesOrder({ folder, id, form, setError }) {
         </section>
       )}
 
+      {preview && <p className="inv-print-note">Print area: everything inside the frame is what the PDF shows.</p>}
       <article className={`inv-paper${preview ? ' is-preview' : ''}`}>
         <header className="inv-head">
           <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
@@ -589,12 +670,17 @@ function SalesOrder({ folder, id, form, setError }) {
             <div>
               <h3>Customer</h3>
               <div className="fields">
-                {field('c.name', 'Name')}
+                {field('c.name', 'Name', { list: 'known-customers', onChange: (e) => setCustomerName(e.target.value), placeholder: known.length ? 'Type, or pick an earlier customer' : '' })}
+                <datalist id="known-customers">
+                  {known.map((c) => <option key={c.name} value={c.name}>{[c.company, c.email].filter(Boolean).join(' · ')}</option>)}
+                </datalist>
                 {field('c.company', 'Company')}
                 {field('c.email', 'Email', { type: 'email' })}
                 {field('c.phone', 'Phone', { type: 'tel' })}
                 {field('c.bill', 'Billing address', { rows: 2 })}
-                {field('c.ship', 'Ship to', { rows: 2 })}
+                {field('c.ship', 'Ship to', { rows: 2 }, !readOnly && doc.c?.bill && doc.c.ship !== doc.c.bill && (
+                  <button type="button" className="same-as" onClick={() => setField('c.ship', doc.c.bill)}>Same as billing</button>
+                ))}
               </div>
             </div>
             <div>
@@ -613,9 +699,10 @@ function SalesOrder({ folder, id, form, setError }) {
               <span>SKU</span><span>Description</span><span>Qty</span><span>Retail</span><span>Price</span><span>Discount %</span><span>Line total</span><span />
             </div>
             {doc.lines.map((l, i) => (
-              <Line key={i} l={l} idx={i} skus={skus} onChange={(next) => setLine(i, next)}
+              <Line key={i} l={l} idx={i} skus={skus} warn={Boolean(shownProblems[`line.${i}`])} onChange={(next) => setLine(i, next)}
                 onRemove={() => edit({ ...doc, lines: doc.lines.filter((_, j) => j !== i) })} />
             ))}
+            {shownProblems.lines && <Warn show>Add at least one line</Warn>}
             {!readOnly && <button type="button" className="inv-add-line" onClick={addLine}>+ Add line</button>}
           </section>
 
@@ -669,6 +756,17 @@ function SalesOrder({ folder, id, form, setError }) {
           <div className="links">{(footer.lines ?? []).join(' · ')}</div>
         </footer>
       </article>
+
+      {!locked && !preview && (
+        <div className="inv-generate">
+          {tried && !ready ? (
+            <p className="inv-missing" role="alert"><Warn show>Missing</Warn> {Object.values(problems).join(', ')}.</p>
+          ) : (
+            <p className="hint">{ready ? 'Ready. Generate numbers this order and locks it.' : 'Generate turns on once the customer name and every price are filled in.'}</p>
+          )}
+          {generateButton('bottom')}
+        </div>
+      )}
     </>
   )
 }
@@ -682,6 +780,7 @@ function Entry({ folder, id, setError }) {
 
 export default function AdminForms() {
   const { folder, id } = useParams()
+  const inset = useConsoleInset()
   const [signedIn, setSignedIn] = useState(() => Boolean(editorToken()))
   const [error, setError] = useState('')
   onSignedOut = () => setSignedIn(false)
@@ -702,7 +801,7 @@ export default function AdminForms() {
   }
 
   return (
-    <div className="admin-invoices">
+    <div className="admin-invoices" style={{ '--console-inset': `${inset}px` }}>
       {error && <p className="inv-error" role="alert">{error}</p>}
       {id ? <Entry key={`${folder}/${id}`} folder={folder} id={id} setError={setError} />
         : folder ? <Folder key={folder} folder={folder} setError={setError} />

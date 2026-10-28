@@ -23,7 +23,7 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
-import { utilityIcons } from '@/components/navIcons'
+import { utilityIcons, FormsIcon } from '@/components/navIcons'
 import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
 import { SocialMark, lookFor } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
@@ -168,9 +168,15 @@ export default function SiteHeader({ featured = false }) {
               <span className="sss-nav-sep" aria-hidden="true" />
               {utilityIcons.filter(({ label }) => (label === 'Sign in' ? owner : UTILITY_ICONS_VISIBLE)).map(({ label, Icon }) => label === 'Sign in' ? (
                 // The owner's way into the editor (lib/siteConsole.js, openEditor).
-                <button key={label} type="button" className="sss-nav-util is-live" aria-label="Edit the site" title="Edit the site" onClick={openEditor}>
-                  <Icon />
-                </button>
+                <React.Fragment key={label}>
+                  <button type="button" className="sss-nav-util is-live" aria-label="Edit the site" title="Edit the site" onClick={openEditor}>
+                    <Icon />
+                  </button>
+                  {/* The owner's Forms (sales orders and the like), /admin/forms. */}
+                  <Link to="/admin/forms" className="sss-nav-util is-live" aria-label="Forms" title="Forms">
+                    <FormsIcon />
+                  </Link>
+                </React.Fragment>
               ) : (
                 <button
                   key={label}
