@@ -319,6 +319,26 @@ export function createForms(db, { mailer, templates } = {}) {
       return out(rows[0])
     },
 
+    // Adds or corrects the customer email on a generated entry: the one field
+    // that may change after Generate, since the link's code goes there. The
+    // link stays; its sessions and unused codes end, so the next code goes to
+    // the new address.
+    async setEmail(folder, id, email) {
+      const to = String(email ?? '').trim()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new FormError(400, 'Type a valid email address.')
+      const current = await row(folder, id)
+      if (current.status !== 'generated') throw new FormError(409, 'A draft takes its email in the form.')
+      if (current.share_token) {
+        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [current.share_token])
+        await db.query('DELETE FROM share_codes WHERE share_token = $1', [current.share_token])
+      }
+      const data = { ...current.data, c: { ...current.data?.c, email: to } }
+      const { rows } = await db.query(
+        `UPDATE form_entries SET data = $3, updated_at = now() WHERE folder = $1 AND id = $2 RETURNING *`,
+        [folder, id, JSON.stringify(data)])
+      return out(rows[0])
+    },
+
     // The customer signs through their link. `meta` is { ip, ua, session } from the request.
     async sign(token, input = {}, meta = {}) {
       const r = await opened(token, meta.session)

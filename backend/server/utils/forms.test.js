@@ -160,6 +160,21 @@ test('getting past the code marks it viewed once', async () => {
   assert.equal(String((await f.get(SO, d.id)).viewed_at), String(first))
 })
 
+test('a generated entry takes a new email; the next code goes there', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  const v = await open(f, g.share)
+  await assert.rejects(f.setEmail(SO, d.id, 'nope'), { status: 400 })
+  const e = await f.setEmail(SO, d.id, ' new@example.com ')
+  assert.equal(e.data.c.email, 'new@example.com')
+  assert.equal(e.share, g.share)
+  await assert.rejects(f.shared(g.share, v.session), { status: 401 })
+  assert.equal((await f.requestCode(g.share)).sentTo, 'n•••@example.com')
+  const draft = await f.createDraft(SO, form())
+  await assert.rejects(f.setEmail(SO, draft.id, 'a@b.co'), { status: 409 })
+})
+
 test('a new link stops the old one and its sessions', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())

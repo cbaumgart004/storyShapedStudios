@@ -37,7 +37,8 @@
 // (SharedInvoice), then offer to tick Sent: a mailto cannot report whether the
 // message went. The link opens only after a 6-digit code emailed to the
 // customer email on the order (VerifyGate; utils/forms.js requestCode), so
-// emailing needs that address. "New link" replaces a leaked link. The wording of
+// emailing needs that address; "Customer email" adds or corrects it on a
+// generated order. "New link" replaces a leaked link. The wording of
 // both emails is editable at /admin/emails (EmailTemplates, /api/emails).
 //
 // Signing: the customer's link offers SignPanel (draw, type the printed name, or
@@ -313,7 +314,7 @@ async function mailtoFor(r, form) {
 // Opens the email with the entry's link, making the link first if it predates links.
 async function openEmail(r, folder, form) {
   if (!String(r.data?.c?.email ?? '').trim()) {
-    throw new Error('This order has no customer email, and its link emails the customer a code. Copy it to a new draft, add the email, and generate that one.')
+    throw new Error('This order has no customer email, and its link emails the customer a code. Open the order and use Customer email to add it.')
   }
   const linked = r.share ? r : await apiFetch(`${API}/${folder}/${r.id}/share`, { method: 'POST' })
   window.location.href = await mailtoFor({ ...r, share: linked.share }, form)
@@ -1024,8 +1025,23 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     }
   }
 
+  // Adds or corrects the customer email on a generated order; the link stays,
+  // but anyone who opened it needs a new code, sent to this address.
+  const changeEmail = async () => {
+    const was = String(rec.data?.c?.email ?? '').trim()
+    const typed = window.prompt(was ? 'Customer email. Changing it ends any open views of the link; the next code goes to the new address.' : 'Customer email (the link emails a code there):', was)
+    if (typed === null || typed.trim() === was) return null
+    try {
+      const r = await apiFetch(`${at}/email`, { method: 'POST', body: { email: typed.trim() } })
+      setRec(r); setDoc(r.data)
+      setNote(`Customer email is now ${r.data.c.email}.`)
+      return r
+    } catch (err) { setError(err.message); return null }
+  }
+
   const email = async (r = rec) => {
     try {
+      if (!String(r.data?.c?.email ?? '').trim() && !(r = await changeEmail())) return
       const token = await openEmail(r, folder, form)
       setRec((x) => ({ ...x, share: token }))
       setAskSent(true)
@@ -1146,6 +1162,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
           {!locked && <button type="button" className="tool" onClick={save} disabled={!dirty}>Save Work</button>}
           {!readOnly && <button type="button" className="tool" onClick={remove}>Delete draft</button>}
           <button type="button" className="tool" onClick={downloadPdf}>Download PDF</button>
+          {locked && <button type="button" className="tool" onClick={changeEmail}>Customer email</button>}
           {locked && rec.share && <button type="button" className="tool" onClick={relink} title="Replace the customer's link if it went to the wrong person">New link</button>}
           {locked && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
           {!locked && !preview && generateButton('top')}
