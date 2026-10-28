@@ -13,6 +13,7 @@
 //   POST   /:folder/:id/generate          number it and lock it
 //   PATCH  /:folder/:id                   { sent?, paid? }, generated only
 //   POST   /:folder/:id/share             the entry with its share token (generated only)
+//   POST   /:folder/:id/relink            a new share token; the old link and its sessions stop
 //
 // The customer's link reads through routes/shared.js, the one route without a login.
 //
@@ -81,6 +82,10 @@ router.post('/:folder/:id/generate', handle('POST /:folder/:id/generate', async 
 
 router.post('/:folder/:id/share', handle('POST /:folder/:id/share', async (req, res) => {
   res.json(await forms.share(req.params.folder, id(req.params.id)))
+}))
+
+router.post('/:folder/:id/relink', handle('POST /:folder/:id/relink', async (req, res) => {
+  res.json(await forms.relink(req.params.folder, id(req.params.id)))
 }))
 
 router.patch('/:folder/:id', handle('PATCH /:folder/:id', async (req, res) => {

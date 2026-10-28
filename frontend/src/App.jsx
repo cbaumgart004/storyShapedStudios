@@ -39,6 +39,7 @@ function App() {
           <Route path="/glossary" element={<Glossary />} />
           <Route path="/admin/inventory" element={<AdminInventory />} />
           <Route path="/admin/forms" element={<AdminForms />} />
+          <Route path="/admin/emails" element={<AdminForms page="emails" />} />
           <Route path="/admin/forms/:folder" element={<AdminForms />} />
           <Route path="/admin/forms/:folder/:id" element={<AdminForms />} />
           <Route path="/invoice/:token" element={<SharedInvoice />} />

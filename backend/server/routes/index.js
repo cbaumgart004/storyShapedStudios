@@ -11,6 +11,7 @@ import forms from './forms.js'
 import customers from './customers.js'
 import shared from './shared.js'
 import account from './account.js'
+import emails from './emails.js'
 import marketplace from './marketplace.js'
 
 const router = express.Router()
@@ -26,6 +27,7 @@ router.use('/forms', forms)
 router.use('/customers', customers)
 router.use('/shared', shared)
 router.use('/account', account)
+router.use('/emails', emails)
 router.use('/marketplace', marketplace)
 
 export default router

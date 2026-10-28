@@ -8,8 +8,12 @@
 //              only its Sent and Paid flags move. It gets a share token: the
 //              link emailed to the customer (/invoice/<token>) reads it without
 //              a login, through shared(); drafts are never shared.
-//   viewed     the customer opened that link (viewed(); not when the owner
-//              opens it signed in to the console). Set once, the first time.
+//              The link alone shows nothing: requestCode() emails a 6-digit
+//              code to the customer email on the entry (CODE_MINUTES to use it,
+//              MAX_TRIES guesses, MAX_CODES an hour), and verify() trades it for
+//              a session kept SESSION_DAYS in that browser. relink() replaces a
+//              leaked link and ends its sessions.
+//   viewed     the customer got past the code (verify()). Set once, the first time.
 //   signed     the customer signed through that link (sign()): drawn, typed
 //              (must match the printed name) or uploaded, after agreeing to
 //              CONSENT. Kept with the time, IP, browser and a SHA-256 of the
@@ -22,12 +26,14 @@
 // Takes a pg Pool (or anything with query()), so the tests run the same SQL
 // against PGlite.
 
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes, randomInt, createHash } from 'node:crypto'
+import { fill } from './emailTemplates.js'
 
 export class FormError extends Error {
-  constructor(status, message) {
+  constructor(status, message, extra) {
     super(message)
     this.status = status
+    this.extra = extra
   }
 }
 
@@ -53,7 +59,17 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signature JSONB',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
+  `CREATE TABLE IF NOT EXISTS share_codes (
+     id SERIAL PRIMARY KEY, share_token TEXT NOT NULL, code_hash TEXT NOT NULL,
+     tries INT NOT NULL DEFAULT 0, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS share_sessions (
+     token_hash TEXT PRIMARY KEY, share_token TEXT NOT NULL, email TEXT NOT NULL,
+     expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
 ]
+export const CODE_MINUTES = 10
+const MAX_TRIES = 5
+const MAX_CODES = 5
+const SESSION_DAYS = 30
 
 // What the customer agrees to before signing; stored with the signature.
 export const CONSENT = 'I agree to sign this order electronically. My electronic signature is the legal equivalent of my handwritten signature, and I consent to receive this order and its records electronically.'
@@ -70,6 +86,10 @@ function ensureTable(db) {
 export function resetFormTableForTests() { ready = null }
 
 const newToken = () => randomBytes(18).toString('base64url')
+const sha = (s) => createHash('sha256').update(s).digest('hex')
+const emailOf = (data) => String(data?.c?.email ?? '').trim()
+// a•••@example.com: enough for the customer to know where the code went.
+export const masked = (email) => email.replace(/^(.)[^@]*@/, '$1•••@')
 
 // Where each folder's numbering starts. Sales orders start at 4122 so the first
 // does not read as number one; a folder not named here starts at 1001.
@@ -124,13 +144,33 @@ const checkData = (data) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new FormError(400, 'A form entry needs its fields.')
 }
 
-export function createForms(db) {
+// mailer: utils/mail.js; templates: utils/emailTemplates.js (only requestCode uses them).
+export function createForms(db, { mailer, templates } = {}) {
   async function row(folder, id) {
     checkFolder(folder)
     await ensureTable(db)
     const { rows } = await db.query('SELECT * FROM form_entries WHERE folder = $1 AND id = $2', [folder, id])
     if (!rows[0]) throw new FormError(404, 'No such form entry.')
     return rows[0]
+  }
+
+  // A generated entry by its link.
+  async function linked(token) {
+    await ensureTable(db)
+    const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
+    if (!rows[0]) throw new FormError(404, 'No such invoice.')
+    return rows[0]
+  }
+  // The same, only with a live session for that link; carries the verified email.
+  async function opened(token, session) {
+    const r = await linked(token)
+    if (session) {
+      const { rows: [s] } = await db.query(
+        'SELECT email FROM share_sessions WHERE token_hash = $1 AND share_token = $2 AND expires_at > now()', [sha(String(session)), r.share_token])
+      if (s) return { ...r, verifiedEmail: s.email }
+    }
+    const to = emailOf(r.data)
+    throw new FormError(401, 'Enter the code we email you to open this invoice.', { verify: true, number: r.number, sentTo: to ? masked(to) : null })
   }
 
   return {
@@ -221,26 +261,67 @@ export function createForms(db) {
       return out(rows[0])
     },
 
-    // What the customer's link shows: a generated entry only, without its flags.
-    async shared(token) {
-      await ensureTable(db)
-      const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
-      if (!rows[0]) throw new FormError(404, 'No such invoice.')
-      return publicView(rows[0])
+    // What the customer's link shows, with a session from verify(): a generated
+    // entry only, without its flags. Without one, 401 and where the code would go.
+    async shared(token, session) {
+      return publicView(await opened(token, session))
     },
 
-    // The customer opened their link; only the first time is kept.
-    async viewed(token) {
-      await ensureTable(db)
+    // Emails a code to the customer email on the entry.
+    async requestCode(token) {
+      const r = await linked(token)
+      const to = emailOf(r.data)
+      if (!to) throw new FormError(409, 'This invoice has no email on file. Please contact info@storyshapedstudios.com.')
+      const { rows: [{ n }] } = await db.query(
+        `SELECT count(*)::int AS n FROM share_codes WHERE share_token = $1 AND created_at > now() - interval '1 hour'`, [r.share_token])
+      if (n >= MAX_CODES) throw new FormError(429, 'Too many codes asked for. Try again in an hour.')
+      const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
       await db.query(
-        `UPDATE form_entries SET viewed_at = now() WHERE share_token = $1 AND status = 'generated' AND viewed_at IS NULL`, [String(token ?? '')])
+        `INSERT INTO share_codes (share_token, code_hash, expires_at) VALUES ($1, $2, now() + make_interval(mins => $3))`,
+        [r.share_token, sha(`${r.share_token}:${code}`), CODE_MINUTES])
+      const t = await templates.get('code')
+      const vars = { name: String(r.data?.c?.name ?? '').trim() || 'there', number: r.number, code, minutes: CODE_MINUTES }
+      await mailer.send({ to, subject: fill(t.subject, vars), text: fill(t.body, vars) })
+      return { sentTo: masked(to) }
     },
 
-    // The customer signs through their link. `meta` is { ip, ua } from the request.
+    // Trades the newest live code for a session; the first time marks it viewed.
+    async verify(token, code) {
+      const r = await linked(token)
+      const { rows: [c] } = await db.query(
+        `SELECT * FROM share_codes WHERE share_token = $1 AND expires_at > now() ORDER BY id DESC LIMIT 1`, [r.share_token])
+      if (!c) throw new FormError(400, 'That code has expired. Ask for a new one.')
+      if (c.tries >= MAX_TRIES) throw new FormError(429, 'Too many wrong codes. Ask for a new one.')
+      if (sha(`${r.share_token}:${String(code ?? '').replace(/\D/g, '')}`) !== c.code_hash) {
+        await db.query('UPDATE share_codes SET tries = tries + 1 WHERE id = $1', [c.id])
+        throw new FormError(400, 'That code is not right.')
+      }
+      await db.query('DELETE FROM share_codes WHERE share_token = $1', [r.share_token])
+      const session = randomBytes(32).toString('base64url')
+      await db.query(
+        `INSERT INTO share_sessions (token_hash, share_token, email, expires_at) VALUES ($1, $2, $3, now() + make_interval(days => $4))`,
+        [sha(session), r.share_token, emailOf(r.data).toLowerCase(), SESSION_DAYS])
+      const { rows: [seen] } = await db.query(
+        `UPDATE form_entries SET viewed_at = COALESCE(viewed_at, now()) WHERE id = $1 RETURNING *`, [r.id])
+      return { session, ...publicView(seen) }
+    },
+
+    // A new link for a generated entry; the old one and its sessions stop working.
+    async relink(folder, id) {
+      const current = await row(folder, id)
+      if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before sharing it.')
+      if (current.share_token) {
+        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [current.share_token])
+        await db.query('DELETE FROM share_codes WHERE share_token = $1', [current.share_token])
+      }
+      const { rows } = await db.query(
+        `UPDATE form_entries SET share_token = $3 WHERE folder = $1 AND id = $2 RETURNING *`, [folder, id, newToken()])
+      return out(rows[0])
+    },
+
+    // The customer signs through their link. `meta` is { ip, ua, session } from the request.
     async sign(token, input = {}, meta = {}) {
-      await ensureTable(db)
-      const { rows: [r] } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
-      if (!r) throw new FormError(404, 'No such invoice.')
+      const r = await opened(token, meta.session)
       if (r.signed_at) throw new FormError(409, 'This order is already signed.')
       const name = String(input.name ?? '').trim()
       if (!name) throw new FormError(400, 'Type your full name.')
@@ -262,6 +343,7 @@ export function createForms(db) {
         signedAt: new Date().toISOString(),
         ip: meta.ip || null, ua: meta.ua ? String(meta.ua).slice(0, 300) : null,
         account: meta.account ? { id: meta.account.id, email: meta.account.email } : null, // null: signed as a guest
+        verifiedEmail: r.verifiedEmail, // the address the code went to
         hash: createHash('sha256').update(JSON.stringify({ number: r.number, data: r.data })).digest('hex'),
         consent: CONSENT,
       }

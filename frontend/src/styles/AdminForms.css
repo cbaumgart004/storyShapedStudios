@@ -549,3 +549,27 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .continue-form .tools { justify-content: flex-start; }
 .continue-switch { font-size: 13px; color: var(--muted); }
 @media print { .inv-account { display: none !important; } }
+
+/* The code that opens the customer's link (VerifyGate). */
+.inv-verify img { width: min(240px, 70%); height: auto; margin: 0 auto 10px; display: block; }
+.inv-verify h1 { font-size: 22px; margin: 0 0 8px; }
+.verify-form { display: grid; gap: 10px; justify-items: center; }
+.verify-form input { font-size: 26px; letter-spacing: .35em; text-align: center; width: 9.5ch; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #3A4D3C; background: rgba(0, 0, 0, .35); color: var(--bone); }
+.inv-note { margin: 8px 0; color: var(--uranium-dim); }
+
+/* Email templates (/admin/emails). */
+.email-card { border: 1px solid #2C3A2E; border-radius: 12px; padding: 14px 18px; margin: 0 0 16px; background: rgba(10, 20, 12, .55); display: grid; gap: 10px; }
+.email-card header h2 { margin: 0; font-size: 18px; }
+.email-card header p { margin: 2px 0 0; opacity: .75; font-size: 14px; }
+.em-field { display: grid; gap: 4px; }
+.em-field span { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.em-field input, .em-field textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid #3A4D3C; background: rgba(0, 0, 0, .35); color: var(--bone); }
+.em-field textarea { resize: vertical; line-height: 1.45; }
+.em-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+.em-chips span { opacity: .7; }
+.em-chips button { font: inherit; font-size: 13px; padding: 3px 8px; border-radius: 999px; border: 1px solid #3A4D3C; background: transparent; color: var(--uranium-dim); cursor: pointer; }
+.em-preview summary { cursor: pointer; opacity: .85; }
+.em-preview .em-subject { font-weight: 600; margin: 8px 0 4px; }
+.em-preview pre { white-space: pre-wrap; font: inherit; font-size: 14px; margin: 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .3); }

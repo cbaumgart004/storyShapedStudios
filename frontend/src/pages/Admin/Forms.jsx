@@ -34,14 +34,17 @@
 //
 // Email: "Generate & email", the editor's Email and the folder's Share open a
 // mailto: (mailtoFor) carrying the customer's link, /invoice/<token>
-// (SharedInvoice, no login), then offer to tick Sent: a mailto cannot report
-// whether the message went.
+// (SharedInvoice), then offer to tick Sent: a mailto cannot report whether the
+// message went. The link opens only after a 6-digit code emailed to the
+// customer email on the order (VerifyGate; utils/forms.js requestCode), so
+// emailing needs that address. "New link" replaces a leaked link. The wording of
+// both emails is editable at /admin/emails (EmailTemplates, /api/emails).
 //
 // Signing: the customer's link offers SignPanel (draw, type the printed name, or
 // upload) after a consent box; the backend keeps the time, IP, browser and a
 // SHA-256 of the order (utils/forms.js sign). A signed order shows the signature
-// in the acceptance block and "Signed" in its folder. Opening the link marks it
-// "Viewed" (not when the owner opens it signed in to the console).
+// in the acceptance block and "Signed" in its folder. Getting past the code
+// marks it "Viewed".
 // Customer accounts (ContinueAs, /api/account) are built but hidden behind
 // CUSTOMER_ACCOUNTS until inventory and payment are live; customers sign as guests.
 //
@@ -168,9 +171,11 @@ function printAs(name) {
 
 // What stops an entry from being generated, by field: { 'c.name': text, 'line.2': text }.
 const lineInUse = (l) => Boolean(l.sku || String(l.desc ?? '').trim() || num(l.qty) || num(l.price) != null || num(l.retail) != null)
-function problemsIn(d) {
+// `emailing`: Generate & email, whose link sends its code to the customer email.
+function problemsIn(d, emailing = false) {
   const p = {}
   if (!String(d.c?.name ?? '').trim()) p['c.name'] = 'Customer name'
+  if (emailing && !String(d.c?.email ?? '').trim()) p['c.email'] = 'Customer email (the link emails a code there)'
   const used = d.lines.map((l, i) => [l, i]).filter(([l]) => lineInUse(l))
   if (!used.length) p.lines = 'At least one line'
   for (const [l, i] of used) if (num(l.price) == null) p[`line.${i}`] = `Price on line ${i + 1}`
@@ -278,26 +283,40 @@ async function loadListingPrices() {
   return bySku
 }
 
-// The email for a generated entry: the customer's link, the balance and how to pay.
-function mailtoFor(r, form) {
+// The email templates (/api/emails, utils/emailTemplates.js), read once per visit.
+let templatesLoad = null
+const loadTemplates = () => (templatesLoad ??= apiFetch('/api/emails').catch((err) => { templatesLoad = null; throw err }))
+// {{key}} -> vars[key]; an unknown key stays as typed, as on the server.
+const fillIn = (text, vars) => String(text).replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (k in vars ? String(vars[k] ?? '') : m))
+
+// What the invoice email's {{placeholders}} stand for.
+function invoiceVars(r, form) {
   const d = r.data ?? {}
-  const who = 'StoryShaped Studios'
   const m = (form?.paymentMethods ?? []).find((x) => x.name === d.p?.method)
-  const body = [
-    `Hi ${String(d.c?.name ?? '').trim() || 'there'},`, '',
-    `Here is invoice ${r.number} from ${who}.`, '',
-    `View, sign or print it: ${window.location.origin}/invoice/${r.share}`,
-    `Balance due: ${money(sums(d).due)} by ${dueDate(d.i?.date)}`,
-    ...(m ? [`Pay with ${m.name}: ${m.url} (${m.label}, ${m.handle})`] : []),
-    '', 'Thank you,', who,
-  ].join('\n')
-  const to = String(d.c?.email ?? '').trim()
-  return `mailto:${to}?subject=${encodeURIComponent(`${who} invoice ${r.number}`)}&body=${encodeURIComponent(body)}`
+  return {
+    name: String(d.c?.name ?? '').trim() || 'there',
+    number: r.number,
+    link: `${window.location.origin}/invoice/${r.share}`,
+    balance: money(sums(d).due),
+    due: dueDate(d.i?.date),
+    payment: m ? `Pay with ${m.name}: ${m.url} (${m.label}, ${m.handle})` : '',
+  }
+}
+// The email for a generated entry: the customer's link, the balance and how to pay.
+async function mailtoFor(r, form) {
+  const t = (await loadTemplates()).find((x) => x.key === 'invoice')
+  const v = invoiceVars(r, form)
+  const body = fillIn(t.body, v).replace(/\n{3,}/g, '\n\n')
+  const to = String(r.data?.c?.email ?? '').trim()
+  return `mailto:${to}?subject=${encodeURIComponent(fillIn(t.subject, v))}&body=${encodeURIComponent(body)}`
 }
 // Opens the email with the entry's link, making the link first if it predates links.
 async function openEmail(r, folder, form) {
+  if (!String(r.data?.c?.email ?? '').trim()) {
+    throw new Error('This order has no customer email, and its link emails the customer a code. Copy it to a new draft, add the email, and generate that one.')
+  }
   const linked = r.share ? r : await apiFetch(`${API}/${folder}/${r.id}/share`, { method: 'POST' })
-  window.location.href = mailtoFor({ ...r, share: linked.share }, form)
+  window.location.href = await mailtoFor({ ...r, share: linked.share }, form)
   return linked.share
 }
 
@@ -373,7 +392,91 @@ function Templates({ setError }) {
             </div>
           </div>
         ))}
+        <div className="inv-tcard">
+          <div>
+            <h2>Emails</h2>
+            <p>The wording of the invoice email and of the code that opens the customer&rsquo;s link.</p>
+          </div>
+          <div className="tools"><Link className="tool" to="/admin/emails">Edit emails</Link></div>
+        </div>
       </div>
+    </>
+  )
+}
+
+// ---------- Email templates ----------
+
+// Stand-ins for the placeholders, so a template reads as the customer will see it.
+const SAMPLE = {
+  name: 'Ann Lee', number: '4122', balance: '$12,250.00', due: '2026-11-27', code: '482913', minutes: 10,
+  link: `${typeof window === 'undefined' ? '' : window.location.origin}/invoice/sample-link`,
+  payment: 'Pay with PayPal: https://www.paypal.me/WVaught823 (StoryShapedStudios, LLC, @WVaught823)',
+}
+
+function EmailCard({ t, onSaved, setError }) {
+  const [subject, setSubject] = useState(t.subject)
+  const [body, setBody] = useState(t.body)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const bodyRef = useRef(null)
+  useEffect(() => { setSubject(t.subject); setBody(t.body) }, [t])
+  const dirty = subject !== t.subject || body !== t.body
+  const put = async (method) => {
+    setBusy(true)
+    setError('')
+    try {
+      onSaved(await apiFetch(`/api/emails/${t.key}`, method === 'PUT' ? { method, body: { subject, body } } : { method }))
+      setNote(method === 'PUT' ? 'Saved.' : 'Back to the original wording.')
+    } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  // A placeholder chip types itself in where the cursor is.
+  const insert = (k) => {
+    const el = bodyRef.current
+    const at = el?.selectionStart ?? body.length
+    const end = el?.selectionEnd ?? at
+    setBody(body.slice(0, at) + `{{${k}}}` + body.slice(end))
+    setTimeout(() => { el?.focus(); el?.setSelectionRange(at + k.length + 4, at + k.length + 4) }, 0)
+  }
+  return (
+    <section className="email-card" aria-labelledby={`em-${t.key}`}>
+      <header>
+        <h2 id={`em-${t.key}`}>{t.label}</h2>
+        <p>{t.help}{t.edited ? '' : ' Original wording.'}</p>
+      </header>
+      <label className="em-field"><span>Subject</span>
+        <input value={subject} onChange={(e) => { setSubject(e.target.value); setNote('') }} />
+      </label>
+      <label className="em-field"><span>Message</span>
+        <textarea ref={bodyRef} rows={Math.max(10, Math.ceil(body.split('\n').length * 1.5) + 1)} value={body} onChange={(e) => { setBody(e.target.value); setNote('') }} />
+      </label>
+      <div className="em-chips" aria-label="Fill-ins">
+        <span>Fill-ins:</span>
+        {t.placeholders.map((k) => <button type="button" key={k} onClick={() => insert(k)}>{`{{${k}}}`}</button>)}
+      </div>
+      <details className="em-preview">
+        <summary>Preview with a sample order</summary>
+        <p className="em-subject">{fillIn(subject, SAMPLE)}</p>
+        <pre>{fillIn(body, SAMPLE).replace(/\n{3,}/g, '\n\n')}</pre>
+      </details>
+      <div className="tools">
+        <button type="button" className="tool primary" disabled={!dirty || busy} onClick={() => put('PUT')}>Save</button>
+        {dirty && <button type="button" className="tool" onClick={() => { setSubject(t.subject); setBody(t.body) }}>Undo changes</button>}
+        {t.edited && <button type="button" className="tool" disabled={busy} onClick={() => put('DELETE')}>Reset to original</button>}
+        {note && <span className="saving" role="status">{note}</span>}
+      </div>
+    </section>
+  )
+}
+
+function EmailTemplates({ setError }) {
+  const [list, setList] = useState(null)
+  useEffect(() => { apiFetch('/api/emails').then(setList).catch((err) => { setError(err.message); setList([]) }) }, [setError])
+  const saved = (t) => { templatesLoad = null; setList((xs) => xs.map((x) => (x.key === t.key ? t : x))) }
+  return (
+    <>
+      <BrandHead eyebrow="Forms / emails" title="Emails" back={<Link to={HOME} className="tool">← Forms</Link>} />
+      <p className="inv-lede">What customers receive. Words in {'{{double braces}}'} fill in for each order; tap one below a message to add it.</p>
+      {!list ? <p className="inv-empty">Loading…</p> : list.map((t) => <EmailCard key={t.key} t={t} onSaved={saved} setError={setError} />)}
     </>
   )
 }
@@ -564,7 +667,7 @@ function readSignatureFile(file) {
 
 const sameName = (a, b) => String(a ?? '').trim().replace(/\s+/g, ' ').toLowerCase() === String(b ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 
-function SignPanel({ token, defaultName, consent, onSigned, customer }) {
+function SignPanel({ token, session, defaultName, consent, onSigned, customer }) {
   const [method, setMethod] = useState('draw')
   const [name, setName] = useState(defaultName || '')
   const [typed, setTyped] = useState('')
@@ -582,7 +685,7 @@ function SignPanel({ token, defaultName, consent, onSigned, customer }) {
     setError('')
     try {
       onSigned(await rawFetch(`/api/shared/${encodeURIComponent(token)}/sign`, {
-        method: 'POST', headers: customer ? { Authorization: `Bearer ${customer.token}` } : undefined, body: { method, name: name.trim(), typed: method === 'type' ? typed : undefined, image: image ?? undefined, consent: agree },
+        method: 'POST', headers: { 'X-Invoice-Session': session, ...(customer ? { Authorization: `Bearer ${customer.token}` } : {}) }, body: { method, name: name.trim(), typed: method === 'type' ? typed : undefined, image: image ?? undefined, consent: agree },
       }))
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
@@ -726,6 +829,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const [doc, setDoc] = useState(shared?.data ?? null) // the form as typed
   const [askSent, setAskSent] = useState(false) // email opened; ask whether it went
   const emailAfter = useRef(false) // Generate was pressed as "Generate & email"
+  const [note, setNote] = useState('')
   const [skus, setSkus] = useState([])
   const [saving, setSaving] = useState('') // '', 'Saving…', 'Saved', 'Unsaved changes'
   const [dirty, setDirty] = useState(false) // edits not yet saved with Save Work
@@ -888,8 +992,8 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   // (or every line, when skipped) takes its price as retail, so 0% off.
   const generate = async (typed) => {
     setNameDone(true)
-    if (Object.keys(problemsIn(doc)).length) {
-      setTried(true)
+    if (Object.keys(problemsIn(doc, emailAfter.current)).length) {
+      setTried(emailAfter.current ? 'email' : 'plain')
       setTimeout(() => document.querySelector('.warn-tag')?.closest('.inv-line, .fields > *, .inv-generate')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
       return
     }
@@ -928,6 +1032,15 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) { setError(err.message) }
   }
 
+  // A new customer link; the old one, and anyone it was opened by, stops working.
+  const relink = async () => {
+    if (!window.confirm('Make a new link for this order? The link already sent stops working, and the customer needs the new email.')) return
+    try {
+      setRec(await apiFetch(`${at}/relink`, { method: 'POST' }))
+      setNote('New link made. Use Email to send it.')
+    } catch (err) { setError(err.message) }
+  }
+
   const flag = async (_, field, value) => {
     setRec({ ...rec, [field]: value })
     try { setRec(await apiFetch(at, { method: 'PATCH', body: { [field]: value } })) } catch (err) { setError(err.message) }
@@ -953,8 +1066,8 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     setParams(params, { replace: true })
   }
 
-  const problems = problemsIn(doc)
-  const ready = !Object.keys(problems).length
+  const ready = !Object.keys(problemsIn(doc)).length
+  const problems = problemsIn(doc, tried === 'email')
   const shownProblems = tried ? problems : {}
   const s = sums(doc)
   const methods = form.paymentMethods ?? []
@@ -1033,11 +1146,13 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
           {!locked && <button type="button" className="tool" onClick={save} disabled={!dirty}>Save Work</button>}
           {!readOnly && <button type="button" className="tool" onClick={remove}>Delete draft</button>}
           <button type="button" className="tool" onClick={downloadPdf}>Download PDF</button>
+          {locked && rec.share && <button type="button" className="tool" onClick={relink} title="Replace the customer's link if it went to the wrong person">New link</button>}
           {locked && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
           {!locked && !preview && generateButton('top')}
         </div>
       </div>
       )}
+      {note && !shared && <p className="inv-note" role="status">{note}</p>}
       {askSent && !rec.sent && !shared && (
         <SentAsk onYes={() => { flag(null, 'sent', true); setAskSent(false) }} onNo={() => setAskSent(false)} />
       )}
@@ -1182,7 +1297,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
             <p className="sig-audit">
               Signed electronically {new Date(sig.signedAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
               {' · '}{sig.method === 'type' ? 'typed' : sig.method === 'draw' ? 'drawn' : 'uploaded'}
-              {sig.account ? ` · account ${sig.account.email}` : ' · as guest'}
+              {sig.account ? ` · account ${sig.account.email}` : sig.verifiedEmail ? ` · code sent to ${sig.verifiedEmail}` : ' · as guest'}
               {sig.ip ? ` · IP ${sig.ip}` : ''} · ref {sig.hash.slice(0, 12)}
             </p>
           )}
@@ -1196,14 +1311,14 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
       )} />
 
       {shared && !rec.signature && (
-        <SignPanel token={shared.token} defaultName={doc.c?.name || shared.customer?.account.name} consent={shared.consent} customer={shared.customer}
+        <SignPanel token={shared.token} session={shared.session} defaultName={doc.c?.name || shared.customer?.account.name} consent={shared.consent} customer={shared.customer}
           onSigned={(r) => { setRec((x) => ({ ...x, signature: r.signature })); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       )}
       {shared && rec.signature && <p className="inv-signed-note" role="status">Signed. Thank you! Download PDF keeps a copy.</p>}
 
       {!locked && !preview && (
         <div className="inv-generate">
-          {tried && !ready ? (
+          {tried && Object.keys(problems).length ? (
             <p className="inv-missing" role="alert"><Warn show>Missing</Warn> {Object.values(problems).join(', ')}.</p>
           ) : (
             <p className="hint">{ready ? 'Ready. Generate numbers this order and locks it.' : 'Generate turns on once the customer name and every price are filled in.'}</p>
@@ -1301,12 +1416,67 @@ function ContinueAs({ invoice, onDone }) {
   )
 }
 
+// The link shows nothing until the customer enters the code emailed to the
+// address on the order (utils/forms.js requestCode / verify).
+function VerifyGate({ token, gate, onOpened }) {
+  const [sentTo, setSentTo] = useState(null)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const at = `/api/shared/${encodeURIComponent(token)}`
+  const send = async () => {
+    setBusy(true)
+    setError('')
+    try { setSentTo((await rawFetch(`${at}/code`, { method: 'POST' })).sentTo); setCode('') } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  const check = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try { onOpened(await rawFetch(`${at}/verify`, { method: 'POST', body: { code } })) } catch (err) { setError(err.message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="inv-gate inv-verify">
+      <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
+      <h1>Invoice {gate.number}</h1>
+      {!gate.sentTo ? (
+        <p>This invoice has no email on file, so it cannot be opened here. Please contact info@storyshapedstudios.com.</p>
+      ) : !sentTo ? (
+        <>
+          <p>To keep your order private, we&rsquo;ll email a 6-digit code to <strong>{gate.sentTo}</strong>.</p>
+          <button type="button" className="tool primary" disabled={busy} onClick={send}>{busy ? 'Sending…' : 'Email me a code'}</button>
+        </>
+      ) : (
+        <form onSubmit={check} className="verify-form">
+          <p>We sent a code to <strong>{sentTo}</strong>. It works for 10 minutes.</p>
+          <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric"
+            autoComplete="one-time-code" placeholder="123456" aria-label="6-digit code" autoFocus />
+          <button type="submit" className="tool primary" disabled={busy || code.length !== 6}>{busy ? 'Checking…' : 'Open invoice'}</button>
+          <button type="button" className="link" disabled={busy} onClick={send}>Send a new code</button>
+        </form>
+      )}
+      {error && <p className="sp-warn" role="alert">{error}</p>}
+      <p className="sp-note">Once opened, this browser keeps your invoice for 30 days.</p>
+    </div>
+  )
+}
+
 export function SharedInvoice() {
   const { token } = useParams()
   const forms = useForms()
   const [entry, setEntry] = useState(null)
   const [error, setError] = useState('')
   const [customer, setCustomer] = useState(() => (CUSTOMER_ACCOUNTS ? storedCustomer() : null))
+  // The session from the emailed code, kept in this browser per link.
+  const sessionKey = `sss:invoice:${token}`
+  const [session, setSession] = useState(() => { try { return localStorage.getItem(sessionKey) } catch { return null } })
+  const [gate, setGate] = useState(null) // { number, sentTo } while a code is needed
+  const opened = ({ session: s, ...e }) => {
+    try { localStorage.setItem(sessionKey, s) } catch { /* private mode: asks again next visit */ }
+    setSession(s)
+    setGate(null)
+    setEntry(e)
+  }
   const [signingIn, setSigningIn] = useState(false)
   // A remembered sign-in is checked once; an expired one is forgotten.
   useEffect(() => {
@@ -1324,10 +1494,14 @@ export function SharedInvoice() {
     setCustomer(null)
   }
   useEffect(() => {
-    rawFetch(`/api/shared/${encodeURIComponent(token)}`).then(setEntry)
-      .then(() => { if (!editorToken()) rawFetch(`/api/shared/${encodeURIComponent(token)}/viewed`, { method: 'POST' }).catch(() => {}) })
-      .catch((err) => setError(err.status === 404 ? 'This invoice link is not valid. Please contact info@storyshapedstudios.com.' : err.message))
-  }, [token])
+    rawFetch(`/api/shared/${encodeURIComponent(token)}`, { headers: session ? { 'X-Invoice-Session': session } : undefined }).then(setEntry)
+      .catch((err) => {
+        if (err.status === 401 && err.data?.verify) {
+          try { localStorage.removeItem(sessionKey) } catch { /* private mode */ }
+          setGate(err.data)
+        } else setError(err.status === 404 ? 'This invoice link is not valid. Please contact info@storyshapedstudios.com.' : err.message)
+      })
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   const form = entry && forms.find((f) => f.folder === entry.folder)
   return (
     <div className="admin-invoices is-shared">
@@ -1338,7 +1512,8 @@ export function SharedInvoice() {
         <p className="inv-account">Have an account? <button type="button" className="link" onClick={() => setSigningIn(true)}>Sign in</button></p>
       )}
       {error ? <p className="inv-error" role="alert">{error}</p>
-        : form ? <SalesOrder shared={{ ...entry, token, customer }} folder={entry.folder} form={form} setError={setError} />
+        : gate ? <VerifyGate token={token} gate={gate} onOpened={opened} />
+        : form ? <SalesOrder shared={{ ...entry, token, customer, session }} folder={entry.folder} form={form} setError={setError} />
           : <p className="inv-empty">Loading your invoice…</p>}
       {signingIn && <ContinueAs invoice={entry?.data} onDone={chosen} />}
     </div>
@@ -1352,7 +1527,7 @@ function Entry({ folder, id, setError }) {
   return <SalesOrder folder={folder} id={id} form={form} setError={setError} />
 }
 
-export default function AdminForms() {
+export default function AdminForms({ page }) {
   const { folder, id } = useParams()
   const inset = useConsoleInset()
   const [signedIn, setSignedIn] = useState(() => Boolean(editorToken()))
@@ -1377,7 +1552,8 @@ export default function AdminForms() {
   return (
     <div className="admin-invoices" style={{ '--console-inset': `${inset}px` }}>
       {error && <p className="inv-error" role="alert">{error}</p>}
-      {id ? <Entry key={`${folder}/${id}`} folder={folder} id={id} setError={setError} />
+      {page === 'emails' ? <EmailTemplates setError={setError} />
+        : id ? <Entry key={`${folder}/${id}`} folder={folder} id={id} setError={setError} />
         : folder ? <Folder key={folder} folder={folder} setError={setError} />
           : <Templates setError={setError} />}
     </div>

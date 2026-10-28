@@ -74,6 +74,7 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | `server.js` | eBay app credentials |
 | `EBAY_REDIRECT_URI` | `server.js` | eBay's RuName for `https://<site>/oauth/ebay-callback` |
 | `EBAY_ENVIRONMENT` | `server.js` | `sandbox` or `production` |
+| `MAIL_FROM`, `MAIL_REGION` | `utils/mail.js` | Optional; default `StoryShaped Studios <info@storyshapedstudios.com>`, `us-east-1` |
 
 On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=none` with its function URL:
 `preview` → `storyshaped-api-preview` (set 2026-09-30). `production` is added at the Go-Live gate
@@ -120,6 +121,29 @@ Amplify `production` branch at the Go-Live gate.
    (PowerShell: set `$env:API_URL` and `$env:EOTM_TOKEN` first).
 8. **Reconnect Etsy and eBay.** Update each app's redirect URL to the site's `/oauth/...-callback`, then open
    `https://<site>/auth/etsy` and `/auth/ebay` once each; the tokens land in `marketplace_tokens`.
+
+## Email (Amazon SES)
+
+The backend sends one email itself: the 6-digit code that opens a customer's invoice link (`utils/forms.js`
+`requestCode`, through `utils/mail.js`). The invoice email is a mailto: from the owner's own mail app. Until
+the steps below are done, asking for a code answers 503 "We could not send the email just now".
+
+Read from the account 2026-10-28: SES is in the sandbox (`ProductionAccessEnabled` false, 200 a day, sends only
+to verified addresses); the only identity is `theedgeofthemap.com`; `eotm-cli` cannot create identities or
+edit IAM, so these are console steps. The `storyshapedstudios.com` zone is in Route 53 in this account.
+
+1. **Identity.** SES (us-east-1) → Identities → Create identity → Domain `storyshapedstudios.com`, Easy DKIM
+   RSA 2048, "Publish DNS records to Route 53" on. Wait for Verified.
+2. **Send permission.** IAM → Roles → `storyshaped-api-role` → Add inline policy: `ses:SendEmail` on
+   `arn:aws:ses:us-east-1:370970481761:identity/storyshapedstudios.com`.
+3. **Leave the sandbox.** SES → Account dashboard → Request production access: transactional, "one-time
+   sign-in codes to customers opening their own invoice". Until AWS approves (about a day), codes reach only
+   verified addresses, so verify a test inbox under Identities to try it.
+4. **Try it.** Generate an order with that inbox as the customer email, open its link, Email me a code.
+
+Cost (read 2026-10-28, aws.amazon.com/ses/pricing): $0.10 per 1,000 emails on pay-as-you-go, $0.16 on the
+Essentials plan new accounts start on; no free tier for customers new after 2026-07-21. Which one this
+account is on: **unverified**.
 
 ## Monitoring
 

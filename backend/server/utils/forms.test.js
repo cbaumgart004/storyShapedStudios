@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PGlite } from '@electric-sql/pglite'
 import { createForms, resetFormTableForTests } from './forms.js'
+import { createTemplates, resetTemplateTableForTests } from './emailTemplates.js'
 
 function poolFor(pg) {
   return {
@@ -15,13 +16,23 @@ function poolFor(pg) {
   }
 }
 
-function fresh() {
+// Mail goes to `sent` instead of SES.
+let sent = []
+function fresh(db = poolFor(new PGlite())) {
   resetFormTableForTests()
-  return createForms(poolFor(new PGlite()))
+  resetTemplateTableForTests()
+  sent = []
+  return createForms(db, { mailer: { async send(m) { sent.push(m) } }, templates: createTemplates(db) })
+}
+const lastCode = () => sent.at(-1).text.match(/\b(\d{6})\b/)[1]
+// Asks for a code and enters it, as the customer's page does.
+async function open(f, token) {
+  await f.requestCode(token)
+  return f.verify(token, lastCode())
 }
 
 const SO = 'sales_orders'
-const form = (no = '') => ({ c: { name: 'Acme' }, i: { no, date: '2026-10-27' }, lines: [{ sku: 'TBD', qty: 350, retail: 35 }] })
+const form = (no = '') => ({ c: { name: 'Acme', email: 'ann@acme.test' }, i: { no, date: '2026-10-27' }, lines: [{ sku: 'TBD', qty: 350, retail: 35 }] })
 
 test('a draft saves without a number; generating numbers it from 4122 and locks it', async () => {
   const f = fresh()
@@ -83,7 +94,7 @@ test('next is the number Generate would give', async () => {
   assert.equal(await f.next(SO), '4123')
 })
 
-test('a generated entry gets a share token; the link reads it, never a draft', async () => {
+test('a generated entry gets a share token; the link needs a code, never shows a draft', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())
   assert.equal(d.share, null)
@@ -91,38 +102,94 @@ test('a generated entry gets a share token; the link reads it, never a draft', a
   const g = await f.generate(SO, d.id, form())
   assert.match(g.share, /^[A-Za-z0-9_-]{24}$/)
   assert.equal((await f.share(SO, d.id)).share, g.share)
-  const s = await f.shared(g.share)
+  await assert.rejects(f.shared(g.share), (e) => e.status === 401 && e.extra.verify && e.extra.sentTo === 'a•••@acme.test')
+  await assert.rejects(f.shared(g.share, 'made-up'), { status: 401 })
+  const v = await open(f, g.share)
+  assert.equal(sent[0].to, 'ann@acme.test')
+  assert.match(sent[0].subject, /\d{6}/)
+  const s = await f.shared(g.share, v.session)
   assert.deepEqual([s.number, s.folder, s.data.c.name, 'sent' in s], ['4122', SO, 'Acme', false])
   await assert.rejects(f.shared('nope'), { status: 404 })
 })
 
-test('opening the link marks it viewed once', async () => {
+test('five wrong codes spend it; a used code works once', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  await f.requestCode(g.share)
+  const code = lastCode()
+  const wrong = code === '000000' ? '111111' : '000000'
+  for (let i = 0; i < 5; i++) await assert.rejects(f.verify(g.share, wrong), { status: 400 })
+  await assert.rejects(f.verify(g.share, code), { status: 429 })
+  const v = await open(f, g.share)
+  assert.ok(v.session)
+  await assert.rejects(f.verify(g.share, lastCode()), { status: 400 }) // spent
+})
+
+test('no email on the invoice, no code; codes are capped an hour', async () => {
+  const f = fresh()
+  const bare = { ...form(), c: { name: 'Acme' } }
+  const d = await f.createDraft(SO, bare)
+  const g = await f.generate(SO, d.id, bare)
+  await assert.rejects(f.requestCode(g.share), { status: 409 })
+  const d2 = await f.createDraft(SO, form())
+  const g2 = await f.generate(SO, d2.id, form())
+  for (let i = 0; i < 5; i++) await f.requestCode(g2.share)
+  await assert.rejects(f.requestCode(g2.share), { status: 429 })
+})
+
+test('the code email uses the edited template', async () => {
+  const db = poolFor(new PGlite())
+  const f = fresh(db)
+  await createTemplates(db).save('code', { subject: 'Code {{code}}', body: 'Hello {{name}}, {{code}} for #{{number}}' })
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  await f.requestCode(g.share)
+  assert.match(sent.at(-1).text, /^Hello Acme, \d{6} for #4122$/)
+})
+
+test('getting past the code marks it viewed once', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())
   const g = await f.generate(SO, d.id, form())
   assert.equal(g.viewed_at, null)
-  await f.viewed(g.share)
+  await open(f, g.share)
   const first = (await f.get(SO, d.id)).viewed_at
   assert.ok(first)
-  await f.viewed(g.share)
+  await open(f, g.share)
   assert.equal(String((await f.get(SO, d.id)).viewed_at), String(first))
+})
+
+test('a new link stops the old one and its sessions', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  const g = await f.generate(SO, d.id, form())
+  const v = await open(f, g.share)
+  const n = await f.relink(SO, d.id)
+  assert.notEqual(n.share, g.share)
+  await assert.rejects(f.shared(g.share, v.session), { status: 404 })
+  await assert.rejects(f.shared(n.share, v.session), { status: 401 })
 })
 
 test('the customer signs once through the link; typed must match the name', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())
   const g = await f.generate(SO, d.id, form())
-  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee' }), { status: 400 }) // no consent
-  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann', consent: true }), { status: 400 })
-  await assert.rejects(f.sign(g.share, { method: 'draw', name: 'Ann Lee', image: 'nope', consent: true }), { status: 400 })
-  const s = await f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'ann  lee', consent: true }, { ip: '203.0.113.9', ua: 'test' })
-  assert.deepEqual([s.signature.name, s.signature.typed, 'ip' in s.signature, s.signature.hash.length], ['Ann Lee', 'ann lee', false, 64])
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee', consent: true }), { status: 401 }) // no session
+  const { session } = await open(f, g.share)
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee' }, { session }), { status: 400 }) // no consent
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann', consent: true }, { session }), { status: 400 })
+  await assert.rejects(f.sign(g.share, { method: 'draw', name: 'Ann Lee', image: 'nope', consent: true }, { session }), { status: 400 })
+  const s = await f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'ann  lee', consent: true }, { ip: '203.0.113.9', ua: 'test', session })
+  assert.deepEqual([s.signature.name, s.signature.typed, 'ip' in s.signature, s.signature.hash.length, s.signature.verifiedEmail],
+    ['Ann Lee', 'ann lee', false, 64, 'ann@acme.test'])
   const admin = await f.get(SO, d.id)
   assert.equal(admin.signature.ip, '203.0.113.9')
   assert.ok(admin.signed_at)
-  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee', consent: true }), { status: 409 })
+  await assert.rejects(f.sign(g.share, { method: 'type', name: 'Ann Lee', typed: 'Ann Lee', consent: true }, { session }), { status: 409 })
   const png = 'data:image/png;base64,iVBORw0KGgo='
   const d2 = await f.createDraft(SO, form())
   const g2 = await f.generate(SO, d2.id, form())
-  assert.equal((await f.sign(g2.share, { method: 'draw', name: 'Bo', image: png, consent: true })).signature.image, png)
+  const o2 = await open(f, g2.share)
+  assert.equal((await f.sign(g2.share, { method: 'draw', name: 'Bo', image: png, consent: true }, { session: o2.session })).signature.image, png)
 })
