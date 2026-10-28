@@ -5,10 +5,12 @@
     <!-- A preview address is the owner's alone. Without an editor token in this
          browser it goes to the console sign-in; a signed-in owner lands with the
          editor open (once per tab, so closing it sticks). #eotm-token is the
-         console handing back, which the loader takes. -->
+         console handing back, which the loader takes. A customer's invoice link
+         (/invoice/<token>, Forms.jsx SharedInvoice) is open to anyone holding it. -->
     <script>
       (function (site) {
         if (!/^preview\./.test(location.hostname)) return
+        if (/^\/invoice\//.test(location.pathname)) return
         if (/eotm-token=/.test(location.hash)) {
           try { sessionStorage.setItem('eotm:preview', '1') } catch (e) { /* private mode */ }
           return
