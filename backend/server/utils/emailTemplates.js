@@ -42,7 +42,7 @@ export const DEFAULTS = {
     label: 'Verification code',
     help: 'Sent by the site when a customer opens their invoice link.',
     placeholders: ['name', 'number', 'code', 'minutes'],
-    subject: 'Your StoryShaped Studios code: {{code}}',
+    subject: 'Your One Time Code',
     body: [
       'Hi {{name}},', '',
       'Your code to open invoice {{number}} is {{code}}.',

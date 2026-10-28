@@ -328,7 +328,12 @@ async function mailtoFor(r, form) {
   return `mailto:${to}?subject=${encodeURIComponent(fillIn(t.subject, v))}&body=${encodeURIComponent(body)}`
 }
 // Opens the email with the entry's link, making the link first if it predates links.
+// One email per tap: a second tap, or a Generate & email that fires twice,
+// within a few seconds of the first opens nothing more.
+let lastMail = 0
 async function openEmail(r, folder, form) {
+  if (Date.now() - lastMail < 5000) return r.share
+  lastMail = Date.now()
   if (!String(r.data?.c?.email ?? '').trim()) {
     throw new Error('This order has no customer email, and its link emails the customer a code. Open the order and use Customer email to add it.')
   }
@@ -1071,7 +1076,9 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 
   // Missing retail: ask first. `typed` holds what was entered; a line left blank
   // (or every line, when skipped) takes its price as retail, so 0% off.
+  const generating = useRef(false)
   const generate = async (typed) => {
+    if (generating.current) return
     setNameDone(true)
     if (Object.keys(problemsIn(doc, emailAfter.current)).length) {
       setTried(emailAfter.current ? 'email' : 'plain')
@@ -1090,6 +1097,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     })
     setAsk(null)
     setBusy(true)
+    generating.current = true
     try {
       setError('')
       const g = await apiFetch(`${at}/generate`, { method: 'POST', body: { ...doc, lines } })
@@ -1101,6 +1109,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) {
       setError(err.message)
     } finally {
+      generating.current = false
       setBusy(false)
     }
   }
@@ -1531,10 +1540,13 @@ function VerifyGate({ token, gate, onOpened }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const at = `/api/shared/${encodeURIComponent(token)}`
+  const sending = useRef(false) // one code email per tap
   const send = async () => {
+    if (sending.current) return
+    sending.current = true
     setBusy(true)
     setError('')
-    try { setSentTo((await rawFetch(`${at}/code`, { method: 'POST' })).sentTo); setCode('') } catch (err) { setError(err.message) } finally { setBusy(false) }
+    try { setSentTo((await rawFetch(`${at}/code`, { method: 'POST' })).sentTo); setCode('') } catch (err) { setError(err.message) } finally { sending.current = false; setBusy(false) }
   }
   const check = async (e) => {
     e.preventDefault()
