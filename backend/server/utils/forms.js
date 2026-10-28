@@ -59,6 +59,8 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signature JSONB',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ',
   `CREATE TABLE IF NOT EXISTS share_codes (
      id SERIAL PRIMARY KEY, share_token TEXT NOT NULL, code_hash TEXT NOT NULL,
      tries INT NOT NULL DEFAULT 0, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
@@ -128,6 +130,8 @@ const out = (r) => ({
   share: r.share_token ?? null,
   signed_at: r.signed_at ?? null,
   viewed_at: r.viewed_at ?? null,
+  sent_at: r.sent_at ?? null,
+  paid_at: r.paid_at ?? null,
   signature: r.signature ?? null,
 })
 // The customer's view: no flags, and the signature without IP and browser.
@@ -379,7 +383,11 @@ export function createForms(db, { mailer, templates } = {}) {
       const current = await row(folder, id)
       if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before marking it sent or paid.')
       const { rows } = await db.query(
-        `UPDATE form_entries SET sent = COALESCE($3, sent), paid = COALESCE($4, paid), updated_at = now()
+        // Ticking stamps the time it was ticked; unticking clears it.
+        `UPDATE form_entries SET
+           sent_at = CASE WHEN $3::boolean IS NULL THEN sent_at WHEN $3::boolean THEN COALESCE(sent_at, now()) END,
+           paid_at = CASE WHEN $4::boolean IS NULL THEN paid_at WHEN $4::boolean THEN COALESCE(paid_at, now()) END,
+           sent = COALESCE($3::boolean, sent), paid = COALESCE($4::boolean, paid), updated_at = now()
          WHERE folder = $1 AND id = $2 RETURNING *`,
         [folder, id, sent === undefined ? null : Boolean(sent), paid === undefined ? null : Boolean(paid)])
       return out(rows[0])

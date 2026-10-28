@@ -304,8 +304,10 @@ function invoiceVars(r, form) {
   }
 }
 // The email for a generated entry: the customer's link, the balance and how to pay.
+// The link email assigned to the entry's form on /admin/emails, else the invoice email.
+const emailFor = (list, folder) => list.find((x) => x.forms?.includes(folder)) ?? list.find((x) => x.key === 'invoice')
 async function mailtoFor(r, form) {
-  const t = (await loadTemplates()).find((x) => x.key === 'invoice')
+  const t = emailFor(await loadTemplates(), r.folder)
   const v = invoiceVars(r, form)
   const body = fillIn(t.body, v).replace(/\n{3,}/g, '\n\n')
   const to = String(r.data?.c?.email ?? '').trim()
@@ -333,13 +335,25 @@ function SentAsk({ onYes, onNo }) {
   )
 }
 
+const shortDate = (at) => (at ? new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '')
+// Sent and Paid are ticked by hand; Viewed and Signed tick themselves when the
+// customer enters their code or signs. Each shows the date it was ticked.
 function SentPaid({ r, onFlag }) {
   const locked = r.status === 'draft'
-  const title = locked ? 'Generate it first' : undefined
+  const box = (field, label, checked, at, auto) => (
+    <label className={`flag${auto && !locked ? ' auto' : ''}`}
+      title={locked ? 'Generate it first' : at ? `${label} ${new Date(at).toLocaleString()}` : auto ? `Ticks itself when the customer ${field === 'viewed' ? 'enters their code' : 'signs'}` : undefined}>
+      <span><input type="checkbox" checked={Boolean(checked)} disabled={locked || auto} readOnly={auto}
+        onChange={auto ? undefined : (e) => onFlag(r.id, field, e.target.checked)} /> {label}</span>
+      <small>{shortDate(at)}</small>
+    </label>
+  )
   return (
     <>
-      <label className="flag" title={title}><input type="checkbox" checked={r.sent} disabled={locked} onChange={(e) => onFlag(r.id, 'sent', e.target.checked)} /> Sent</label>
-      <label className="flag" title={title}><input type="checkbox" checked={r.paid} disabled={locked} onChange={(e) => onFlag(r.id, 'paid', e.target.checked)} /> Paid</label>
+      {box('sent', 'Sent', r.sent, r.sent_at, false)}
+      {box('viewed', 'Viewed', r.viewed_at, r.viewed_at, true)}
+      {box('signed', 'Signed', r.signed_at, r.signed_at, true)}
+      {box('paid', 'Paid', r.paid, r.paid_at, false)}
     </>
   )
 }
@@ -363,7 +377,9 @@ function Templates({ setError }) {
   const navigate = useNavigate()
   const forms = useForms()
   const [counts, setCounts] = useState({})
+  const [emails, setEmails] = useState(null)
   useEffect(() => { apiFetch(API).then(setCounts).catch((err) => setError(err.message)) }, [setError])
+  useEffect(() => { loadTemplates().then(setEmails).catch(() => setEmails(null)) }, [])
 
   const startNew = async (f) => {
     try {
@@ -382,6 +398,7 @@ function Templates({ setError }) {
             <div>
               <h2>{f.label}</h2>
               {f.help && <p>{f.help}</p>}
+              {emails && <p className="inv-uses">Emails with <Link to="/admin/emails">{emailFor(emails, f.folder)?.label}</Link></p>}
             </div>
             <div className="tools">
               {EDITORS[f.name]
@@ -396,7 +413,7 @@ function Templates({ setError }) {
         <div className="inv-tcard">
           <div>
             <h2>Emails</h2>
-            <p>The wording of the invoice email and of the code that opens the customer&rsquo;s link.</p>
+            <p>What customers receive, and which email each form sends. Add your own emails and assign them to forms.</p>
           </div>
           <div className="tools"><Link className="tool" to="/admin/emails">Edit emails</Link></div>
         </div>
@@ -414,22 +431,27 @@ const SAMPLE = {
   payment: 'Pay with PayPal: https://www.paypal.me/WVaught823 (StoryShapedStudios, LLC, @WVaught823)',
 }
 
-function EmailCard({ t, onSaved, setError }) {
+function EmailCard({ t, forms, onSaved, setError }) {
   const [subject, setSubject] = useState(t.subject)
   const [body, setBody] = useState(t.body)
+  const [label, setLabel] = useState(t.label)
+  const [uses, setUses] = useState(t.forms ?? [])
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const bodyRef = useRef(null)
-  useEffect(() => { setSubject(t.subject); setBody(t.body) }, [t])
-  const dirty = subject !== t.subject || body !== t.body
+  useEffect(() => { setSubject(t.subject); setBody(t.body); setLabel(t.label); setUses(t.forms ?? []) }, [t])
+  const dirty = subject !== t.subject || body !== t.body || label !== t.label || String(uses) !== String(t.forms ?? [])
   const put = async (method) => {
+    if (method === 'DELETE' && t.added && !window.confirm(`Delete the email "${t.label}"? Forms that used it go back to the Invoice link email.`)) return
     setBusy(true)
     setError('')
     try {
-      onSaved(await apiFetch(`/api/emails/${t.key}`, method === 'PUT' ? { method, body: { subject, body } } : { method }))
+      await apiFetch(`/api/emails/${t.key}`, method === 'PUT' ? { method, body: { subject, body, label, forms: t.forms ? uses : undefined } } : { method })
+      await onSaved()
       setNote(method === 'PUT' ? 'Saved.' : 'Back to the original wording.')
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
+  const toggle = (folder) => { setUses((u) => (u.includes(folder) ? u.filter((x) => x !== folder) : [...u, folder])); setNote('') }
   // A placeholder chip types itself in where the cursor is.
   const insert = (k) => {
     const el = bodyRef.current
@@ -444,6 +466,20 @@ function EmailCard({ t, onSaved, setError }) {
         <h2 id={`em-${t.key}`}>{t.label}</h2>
         <p>{t.help}{t.edited ? '' : ' Original wording.'}</p>
       </header>
+      {t.added && (
+        <label className="em-field"><span>Name</span>
+          <input value={label} onChange={(e) => { setLabel(e.target.value); setNote('') }} />
+        </label>
+      )}
+      {t.forms && (
+        <div className="em-forms" role="group" aria-label="Sends for">
+          <span>Sends for:</span>
+          {forms.map((f) => (
+            <label key={f.folder} className="flag"><span><input type="checkbox" checked={uses.includes(f.folder)} onChange={() => toggle(f.folder)} /> {f.label}</span></label>
+          ))}
+          {t.key === 'invoice' && <small>Also any form no other email is set to.</small>}
+        </div>
+      )}
       <label className="em-field"><span>Subject</span>
         <input value={subject} onChange={(e) => { setSubject(e.target.value); setNote('') }} />
       </label>
@@ -461,8 +497,10 @@ function EmailCard({ t, onSaved, setError }) {
       </details>
       <div className="tools">
         <button type="button" className="tool primary" disabled={!dirty || busy} onClick={() => put('PUT')}>Save</button>
-        {dirty && <button type="button" className="tool" onClick={() => { setSubject(t.subject); setBody(t.body) }}>Undo changes</button>}
-        {t.edited && <button type="button" className="tool" disabled={busy} onClick={() => put('DELETE')}>Reset to original</button>}
+        {dirty && <button type="button" className="tool" onClick={() => { setSubject(t.subject); setBody(t.body); setLabel(t.label); setUses(t.forms ?? []) }}>Undo changes</button>}
+        {t.added
+          ? <button type="button" className="tool" disabled={busy} onClick={() => put('DELETE')}>Delete email</button>
+          : t.edited && <button type="button" className="tool" disabled={busy} onClick={() => put('DELETE')}>Reset to original</button>}
         {note && <span className="saving" role="status">{note}</span>}
       </div>
     </section>
@@ -470,14 +508,25 @@ function EmailCard({ t, onSaved, setError }) {
 }
 
 function EmailTemplates({ setError }) {
+  const forms = useForms()
   const [list, setList] = useState(null)
-  useEffect(() => { apiFetch('/api/emails').then(setList).catch((err) => { setError(err.message); setList([]) }) }, [setError])
-  const saved = (t) => { templatesLoad = null; setList((xs) => xs.map((x) => (x.key === t.key ? t : x))) }
+  // Saving one email can move a form off another, so the whole list is read again.
+  const reload = useCallback(async () => {
+    templatesLoad = null
+    try { setList(await loadTemplates()) } catch (err) { setError(err.message); setList((l) => l ?? []) }
+  }, [setError])
+  useEffect(() => { reload() }, [reload])
+  const add = async () => {
+    const label = window.prompt('Name the new email (for example, Wholesale invoice). It starts from the Invoice link wording.')
+    if (!label?.trim()) return
+    try { await apiFetch('/api/emails', { method: 'POST', body: { label } }); await reload() } catch (err) { setError(err.message) }
+  }
   return (
     <>
       <BrandHead eyebrow="Forms / emails" title="Emails" back={<Link to={HOME} className="tool">← Forms</Link>} />
-      <p className="inv-lede">What customers receive. Words in {'{{double braces}}'} fill in for each order; tap one below a message to add it.</p>
-      {!list ? <p className="inv-empty">Loading…</p> : list.map((t) => <EmailCard key={t.key} t={t} onSaved={saved} setError={setError} />)}
+      <p className="inv-lede">What customers receive. Words in {'{{double braces}}'} fill in for each order; tap one below a message to add it. Under &ldquo;Sends for&rdquo;, pick which forms each email goes out with.</p>
+      <div className="tools em-add"><button type="button" className="tool primary" onClick={add}>New email</button></div>
+      {!list ? <p className="inv-empty">Loading…</p> : list.map((t) => <EmailCard key={t.key} t={t} forms={forms} onSaved={reload} setError={setError} />)}
     </>
   )
 }
@@ -485,14 +534,22 @@ function EmailTemplates({ setError }) {
 // ---------- One folder ----------
 
 const dateOf = (r) => r.data?.i?.date || String(r.created_at).slice(0, 10)
-const monthOf = (r) => new Date(dateOf(r).slice(0, 7) + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+// The folder's columns: tap one to sort by it, again to reverse. `dir` is the first direction.
+const COLUMNS = [
+  { key: 'order', label: 'Order', dir: -1, val: (r) => `${dateOf(r)} ${String(r.number ?? '').padStart(8, '0')}` },
+  { key: 'customer', label: 'Customer', dir: 1, val: (r) => String(r.data?.c?.name || r.data?.c?.company || '~').toLowerCase() },
+  { key: 'total', label: 'Total', dir: -1, val: (r) => sums(r.data).total },
+  { key: 'due', label: 'Due', dir: 1, val: (r) => (r.status === 'draft' ? '9999' : dueDate(r.data?.i?.date) || '9999') },
+  { key: 'updated', label: 'Updated', dir: -1, val: (r) => String(r.updated_at ?? '') },
+  { key: 'status', label: 'Status', dir: 1, val: (r) => STATUSES.indexOf(statusOf(r)) },
+]
 
 function Folder({ folder, setError }) {
   const navigate = useNavigate()
   const form = useFormIn(folder)
   const [rows, setRows] = useState(null)
   const [show, setShow] = useState('all')
-  const [sort, setSort] = useState('newest')
+  const [sort, setSort] = useState({ key: 'order', dir: -1 })
   const [asking, setAsking] = useState(null) // id whose email was just opened
 
   const load = useCallback(async () => {
@@ -508,7 +565,10 @@ function Folder({ folder, setError }) {
   }
   const flag = async (id, field, value) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
-    try { await apiFetch(`${API}/${folder}/${id}`, { method: 'PATCH', body: { [field]: value } }) } catch (err) { setError(err.message); load() }
+    try {
+      const saved = await apiFetch(`${API}/${folder}/${id}`, { method: 'PATCH', body: { [field]: value } })
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...saved } : r)))
+    } catch (err) { setError(err.message); load() }
   }
 
   const share = async (r) => {
@@ -523,16 +583,10 @@ function Folder({ folder, setError }) {
   if (!rows) return <>{head}<p className="inv-empty">Loading…</p></>
   const counts = Object.fromEntries(STATUSES.map((st) => [st, rows.filter((r) => statusOf(r) === st).length]))
   const shown = rows.filter((r) => show === 'all' || statusOf(r) === show)
-  const ordered = [...shown].sort((a, b) =>
-    sort === 'status' ? STATUSES.indexOf(statusOf(a)) - STATUSES.indexOf(statusOf(b)) || dateOf(b).localeCompare(dateOf(a))
-      : sort === 'oldest' ? dateOf(a).localeCompare(dateOf(b)) : dateOf(b).localeCompare(dateOf(a)))
-  const groupOf = (r) => (sort === 'status' ? STATUS_LABEL[statusOf(r)] : monthOf(r))
-  const groups = []
-  for (const r of ordered) {
-    const g = groupOf(r)
-    if (groups.at(-1)?.name !== g) groups.push({ name: g, rows: [] })
-    groups.at(-1).rows.push(r)
-  }
+  const col = COLUMNS.find((c) => c.key === sort.key)
+  const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y)))
+  const ordered = [...shown].sort((a, b) => sort.dir * cmp(col.val(a), col.val(b)) || dateOf(b).localeCompare(dateOf(a)))
+  const sortBy = (c) => setSort((s) => (s.key === c.key ? { key: c.key, dir: -s.dir } : { key: c.key, dir: c.dir }))
 
   return (
     <>
@@ -552,44 +606,46 @@ function Folder({ folder, setError }) {
             </button>
           ))}
         </div>
-        <label className="sort">Sort
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="newest">Date, newest first</option>
-            <option value="oldest">Date, oldest first</option>
-            <option value="status">Status</option>
-          </select>
-        </label>
       </div>
 
       {!shown.length && <p className="inv-empty">{rows.length ? 'Nothing with this status.' : 'Nothing filed here yet.'}</p>}
-      {groups.map((g) => (
-        <section key={g.name} className="inv-group" aria-label={g.name}>
-          <h2>{g.name}</h2>
-          {g.rows.map((r) => {
-            const st = statusOf(r)
-            const at = `${HOME}/${folder}/${r.id}`
-            return (
-              <div className="frow" key={r.id}>
-                <button type="button" className="open" onClick={() => navigate(at)}>
-                  <strong>{r.file}</strong>
-                  <small>{dateOf(r)} · {r.data?.c?.name || r.data?.c?.company || 'No customer yet'} · {money(sums(r.data).total)}</small>
-                </button>
-                <span className="pills">
-                  <span className={`pill is-${st}`} title={st === 'signed' ? `Signed ${new Date(r.signed_at).toLocaleString()}`
-                    : st === 'viewed' ? `Opened ${new Date(r.viewed_at).toLocaleString()}` : undefined}>{STATUS_LABEL[st]}</span>
-                </span>
-                <SentPaid r={r} onFlag={flag} />
-                <span className="row-actions">
-                  <Link className="act" to={`${at}?view=preview`}>Preview</Link>
-                  <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
-                  {r.status === 'generated' && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
-                </span>
-                {asking === r.id && <SentAsk onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
-              </div>
-            )
-          })}
-        </section>
-      ))}
+      {shown.length > 0 && (
+        <div className="frow-head" role="group" aria-label="Sort by">
+          {COLUMNS.map((c) => (
+            <button type="button" key={c.key} className={`c-${c.key}`} aria-pressed={sort.key === c.key} onClick={() => sortBy(c)}
+              title={`Sort by ${c.label.toLowerCase()}`}>
+              {c.label}<span aria-hidden="true">{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {ordered.map((r) => {
+        const st = statusOf(r)
+        const at = `${HOME}/${folder}/${r.id}`
+        const due = r.status === 'draft' ? '' : dueDate(r.data?.i?.date)
+        return (
+          <div className="frow" key={r.id}>
+            <button type="button" className="open c-order" onClick={() => navigate(at)}>
+              <strong>{r.file}</strong>
+              <small>{dateOf(r)}</small>
+            </button>
+            <span className="cell c-customer" data-label="Customer">{r.data?.c?.name || r.data?.c?.company || 'No customer yet'}</span>
+            <span className="cell c-total" data-label="Total">{money(sums(r.data).total)}</span>
+            <span className="cell c-due" data-label="Due">{due ? shortDate(due + 'T00:00:00') : '-'}</span>
+            <span className="cell c-updated" data-label="Updated" title={new Date(r.updated_at).toLocaleString()}>{shortDate(r.updated_at)}</span>
+            <span className="cell c-status"><span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span></span>
+            <div className="frow-foot">
+              <span className="flags"><SentPaid r={r} onFlag={flag} /></span>
+              <span className="row-actions">
+                <Link className="act" to={`${at}?view=preview`}>Preview</Link>
+                <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
+                {r.status === 'generated' && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
+              </span>
+            </div>
+            {asking === r.id && <SentAsk onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
+          </div>
+        )
+      })}
     </>
   )
 }
@@ -657,7 +713,17 @@ function readSignatureFile(file) {
       const c = document.createElement('canvas')
       c.width = Math.round(img.width * k)
       c.height = Math.round(img.height * k)
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      const g = c.getContext('2d')
+      g.drawImage(img, 0, 0, c.width, c.height)
+      // The paper goes clear so only the ink shows on the order: light pixels
+      // fade out, darker ones keep their colour.
+      const px = g.getImageData(0, 0, c.width, c.height)
+      const d = px.data
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]
+        d[i + 3] = Math.round(d[i + 3] * Math.min(1, Math.max(0, (215 - lum) / 75)))
+      }
+      g.putImageData(px, 0, 0)
       URL.revokeObjectURL(img.src)
       resolve(c.toDataURL('image/png'))
     }

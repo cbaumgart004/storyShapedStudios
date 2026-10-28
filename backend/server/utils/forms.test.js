@@ -74,6 +74,10 @@ test('sent and paid move separately, only once generated; drafts can be deleted'
   await f.setStatus(SO, d.id, { sent: true })
   const after = await f.setStatus(SO, d.id, { paid: true })
   assert.deepEqual([after.sent, after.paid], [true, true])
+  assert.ok(after.sent_at && after.paid_at)
+  assert.equal(String((await f.setStatus(SO, d.id, { sent: true })).sent_at), String(after.sent_at)) // kept, not re-stamped
+  const unpaid = await f.setStatus(SO, d.id, { paid: false })
+  assert.deepEqual([unpaid.paid, unpaid.paid_at, Boolean(unpaid.sent_at)], [false, null, true])
 
   const gone = await f.createDraft(SO, form())
   await f.removeDraft(SO, gone.id)

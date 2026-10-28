@@ -2,9 +2,10 @@
 // The studio's email templates, mounted at /api/emails (see routes/index.js).
 // Rules live in utils/emailTemplates.js.
 //
-//   GET     /       every template, edited or default
-//   PUT     /:key   { subject, body }
-//   DELETE  /:key   back to the default wording
+//   GET     /       every template, edited or default, with the forms each goes out for
+//   POST    /       { label }: a new link email, from the invoice wording
+//   PUT     /:key   { subject, body, label?, forms? }
+//   DELETE  /:key   a built-in back to the default wording; an added one deleted
 //
 // Every route needs a login the Edge of the Map console says can edit this site
 // (utils/requireEditor.js), the same as /api/forms.
@@ -31,6 +32,10 @@ const handle = (label, fn) => async (req, res) => {
 
 router.get('/', handle('GET /', async (req, res) => {
   res.json(await templates.list())
+}))
+
+router.post('/', handle('POST /', async (req, res) => {
+  res.status(201).json(await templates.add(req.body ?? {}, req.editor?.email ?? req.editor?.name))
 }))
 
 router.put('/:key', handle('PUT /:key', async (req, res) => {
