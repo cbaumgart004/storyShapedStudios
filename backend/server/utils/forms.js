@@ -5,7 +5,7 @@
 //
 //   draft      saved as it is typed, no number, can change or be deleted
 //   generated  numbered (per folder, from FIRST_NUMBERS), never changes again;
-//              only its Sent and Paid flags move. It gets a share token: the
+//              only its Sent and Paid flags and its deposit paid move. It gets a share token: the
 //              link emailed to the customer (/invoice/<token>) reads it without
 //              a login, through shared(); drafts are never shared.
 //              The link alone shows nothing: requestCode() emails a 6-digit
@@ -61,6 +61,9 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ',
+  // Kept beside `data`, not in it, so the order as signed (its hash) never changes.
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid NUMERIC(12, 2)',
+  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ',
   // Ticked before the stamps existed: the last change stands in for the date (approximate).
   'UPDATE form_entries SET sent_at = updated_at WHERE sent AND sent_at IS NULL',
   'UPDATE form_entries SET paid_at = updated_at WHERE paid AND paid_at IS NULL',
@@ -135,13 +138,15 @@ const out = (r) => ({
   viewed_at: r.viewed_at ?? null,
   sent_at: r.sent_at ?? null,
   paid_at: r.paid_at ?? null,
+  deposit_paid: r.deposit_paid == null ? null : Number(r.deposit_paid),
+  deposit_paid_at: r.deposit_paid_at ?? null,
   signature: r.signature ?? null,
 })
 // The customer's view: no flags, and the signature without IP and browser.
 const publicView = (r) => {
-  const { folder, number, file, data, signature } = out(r)
+  const { folder, number, file, data, signature, deposit_paid } = out(r)
   const sig = signature && (({ ip, ua, ...rest }) => rest)(signature)
-  return { folder, number, file, data, signature: sig, consent: CONSENT }
+  return { folder, number, file, data, deposit_paid, signature: sig, consent: CONSENT }
 }
 
 const checkFolder = (folder) => {
@@ -379,6 +384,23 @@ export function createForms(db, { mailer, templates } = {}) {
         [r.id, JSON.stringify(signature), signature.signedAt])
       if (!signed) throw new FormError(409, 'This order is already signed.')
       return publicView(signed)
+    },
+
+    // What the customer has paid toward a generated entry; it comes off the
+    // deposit required and the balance. Blank clears it.
+    async setDeposit(folder, id, amount) {
+      const blank = amount === null || amount === undefined || String(amount).trim() === ''
+      const n = blank ? null : Number(amount)
+      if (!blank && !(Number.isFinite(n) && n >= 0)) throw new FormError(400, 'Type the amount paid, 0 or more.')
+      const current = await row(folder, id)
+      if (current.status !== 'generated') throw new FormError(409, 'A draft takes its deposit in the form.')
+      const { rows } = await db.query(
+        `UPDATE form_entries SET deposit_paid = $3,
+           deposit_paid_at = CASE WHEN $3::numeric IS NULL THEN NULL WHEN deposit_paid IS DISTINCT FROM $3::numeric THEN now() ELSE deposit_paid_at END,
+           updated_at = now()
+         WHERE folder = $1 AND id = $2 RETURNING *`,
+        [folder, id, n == null ? null : Math.round(n * 100) / 100])
+      return out(rows[0])
     },
 
     async setStatus(folder, id, { sent, paid } = {}) {

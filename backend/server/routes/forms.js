@@ -15,6 +15,7 @@
 //   POST   /:folder/:id/share             the entry with its share token (generated only)
 //   POST   /:folder/:id/relink            a new share token; the old link and its sessions stop
 //   POST   /:folder/:id/email             { email } on a generated entry; ends the link's sessions
+//   POST   /:folder/:id/deposit           { amount } paid toward a generated entry ('' clears)
 //
 // The customer's link reads through routes/shared.js, the one route without a login.
 //
@@ -91,6 +92,10 @@ router.post('/:folder/:id/relink', handle('POST /:folder/:id/relink', async (req
 
 router.post('/:folder/:id/email', handle('POST /:folder/:id/email', async (req, res) => {
   res.json(await forms.setEmail(req.params.folder, id(req.params.id), req.body?.email))
+}))
+
+router.post('/:folder/:id/deposit', handle('POST /:folder/:id/deposit', async (req, res) => {
+  res.json(await forms.setDeposit(req.params.folder, id(req.params.id), req.body?.amount))
 }))
 
 router.patch('/:folder/:id', handle('PATCH /:folder/:id', async (req, res) => {

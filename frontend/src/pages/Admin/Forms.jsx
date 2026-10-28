@@ -5,7 +5,8 @@
 //
 //   /admin/forms                          the templates: start a new entry, or open a folder
 //   /admin/forms/:folder                  one folder: every entry, drafts included, by date
-//                                         or status, with Sent / Paid, Preview and Download
+//                                         or status, with Sent / Paid, Preview and Download;
+//                                         a box at the top hides Paid (In Full)
 //   /admin/forms/:folder/:id              one entry. A Draft saves as it is typed; Generate
 //                                         numbers it (backend utils/forms.js) and locks it
 //   /admin/forms/:folder/:id?view=preview the finished page alone; &download=1 opens the
@@ -147,7 +148,12 @@ function settle(l) {
   return l
 }
 
-function sums(d) {
+// Paid toward the order: on a generated entry the backend's deposit_paid, which
+// can change after Generate; on a draft the form's own Deposit paid.
+const paidOf = (r) => (r?.status !== 'draft' && r?.deposit_paid != null ? r.deposit_paid : num(r?.data?.deposit))
+
+// `paid` comes off the deposit required and the balance.
+function sums(d, paid = num(d?.deposit)) {
   let retail = 0, sub = 0
   for (const l of d?.lines ?? []) {
     const q = num(l.qty) || 0, up = unitPrice(l)
@@ -156,7 +162,8 @@ function sums(d) {
   }
   const tax = r2(sub * (num(d?.taxPct) || 0) / 100)
   const total = sub + (num(d?.ship) || 0) + tax
-  return { retail, sub, tax, total, due: total - (num(d?.deposit) || 0) }
+  const depositLeft = num(d?.depositReq) ? Math.max(0, r2(num(d.depositReq) - (paid || 0))) : null
+  return { retail, sub, tax, total, paid: paid || 0, depositLeft, due: total - (paid || 0) }
 }
 
 // The invoice is due 30 days after the customer signs (PAY_TERMS).
@@ -276,10 +283,11 @@ function Paged({ on, render }) {
 // A line that charges something but has no retail to measure the discount from.
 const needsRetail = (l) => num(l.retail) == null && (num(l.price) != null || Boolean(num(l.qty)))
 
-// Where an entry stands, furthest last: Draft, Generated, Sent, Paid.
-const STATUSES = ['draft', 'generated', 'sent', 'viewed', 'signed', 'paid']
-const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', viewed: 'Viewed', signed: 'Signed', paid: 'Paid' }
-const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : r.signed_at ? 'signed'
+// Where an entry stands, furthest last: Draft, Generated, Sent, Paid (Partial),
+// Paid (In Full). Partial is any amount paid short of the box ticked In Full.
+const STATUSES = ['draft', 'generated', 'sent', 'viewed', 'signed', 'partial', 'paid']
+const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', viewed: 'Viewed', signed: 'Signed', partial: 'Paid (Partial)', paid: 'Paid (In Full)' }
+const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : paidOf(r) > 0 ? 'partial' : r.signed_at ? 'signed'
   : r.viewed_at ? 'viewed' : r.sent ? 'sent' : 'generated')
 
 // Listing variations by SKU: { title, price }. Drafts included; same read as /admin/inventory.
@@ -310,7 +318,7 @@ function invoiceVars(r, form) {
     name: String(d.c?.name ?? '').trim() || 'there',
     number: r.number,
     link: `${window.location.origin}/invoice/${r.share}`,
-    balance: money(sums(d).due),
+    balance: money(sums(d, paidOf(r)).due),
     due: balanceDue(r) ? mdy(balanceDue(r) + 'T00:00:00') : '30 days after signing',
     deposit: num(d.depositReq) ? money(num(d.depositReq)) : '',
     deposit_due: d.depositDue ? mdy(d.depositDue + 'T00:00:00') : '',
@@ -355,13 +363,15 @@ function SentAsk({ onYes, onNo }) {
 }
 
 const shortDate = (at) => mdy(at)
-// Sent and Paid are ticked by hand; Viewed and Signed tick themselves when the
-// customer enters their code or signs. Each shows the date it was ticked.
+// Sent and Paid (In Full) are ticked by hand; Viewed and Signed tick themselves
+// when the customer enters their code or signs, Paid (Partial) when a Deposit
+// paid is entered on the order. Each shows the date it was ticked.
+const AUTO_WHEN = { viewed: 'the customer enters their code', signed: 'the customer signs', partial: 'Deposit paid is entered on the order' }
 function SentPaid({ r, onFlag }) {
   const locked = r.status === 'draft'
   const box = (field, label, checked, at, auto) => (
     <label className={`flag${auto && !locked ? ' auto' : ''}`}
-      title={locked ? 'Generate it first' : at ? `${label} ${new Date(at).toLocaleString()}` : auto ? `Ticks itself when the customer ${field === 'viewed' ? 'enters their code' : 'signs'}` : undefined}>
+      title={locked ? 'Generate it first' : at ? `${label} ${new Date(at).toLocaleString()}` : auto ? `Ticks itself when ${AUTO_WHEN[field]}` : undefined}>
       <span><input type="checkbox" checked={Boolean(checked)} disabled={locked || auto} readOnly={auto}
         onChange={auto ? undefined : (e) => onFlag(r.id, field, e.target.checked)} /> {label}</span>
       <small>{shortDate(at)}</small>
@@ -372,7 +382,8 @@ function SentPaid({ r, onFlag }) {
       {box('sent', 'Sent', r.sent, r.sent_at, false)}
       {box('viewed', 'Viewed', r.viewed_at, r.viewed_at, true)}
       {box('signed', 'Signed', r.signed_at, r.signed_at, true)}
-      {box('paid', 'Paid', r.paid, r.paid_at, false)}
+      {box('partial', 'Paid (Partial)', paidOf(r) > 0, r.deposit_paid_at, true)}
+      {box('paid', 'Paid (In Full)', r.paid, r.paid_at, false)}
     </>
   )
 }
@@ -568,6 +579,7 @@ function Folder({ folder, setError }) {
   const form = useFormIn(folder)
   const [rows, setRows] = useState(null)
   const [show, setShow] = useState('all')
+  const [hideFull, setHideFull] = useState(false) // leave out Paid (In Full)
   const [sort, setSort] = useState({ key: 'order', dir: -1 })
   const [asking, setAsking] = useState(null) // id whose email was just opened
 
@@ -601,7 +613,7 @@ function Folder({ folder, setError }) {
   const head = <BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} />
   if (!rows) return <>{head}<p className="inv-empty">Loading…</p></>
   const counts = Object.fromEntries(STATUSES.map((st) => [st, rows.filter((r) => statusOf(r) === st).length]))
-  const shown = rows.filter((r) => show === 'all' || statusOf(r) === show)
+  const shown = rows.filter((r) => (show === 'all' || statusOf(r) === show) && !(hideFull && statusOf(r) === 'paid'))
   const col = COLUMNS.find((c) => c.key === sort.key)
   const cmp = (x, y) => (typeof x === 'number' ? x - y : String(x).localeCompare(String(y)))
   const ordered = [...shown].sort((a, b) => sort.dir * cmp(col.val(a), col.val(b)) || dateOf(b).localeCompare(dateOf(a)))
@@ -618,6 +630,9 @@ function Folder({ folder, setError }) {
       )}
 
       <div className="inv-filters">
+        <label className="hide-full">
+          <input type="checkbox" checked={hideFull} onChange={(e) => setHideFull(e.target.checked)} /> Exclude Paid (In Full)
+        </label>
         <div className="chips" role="group" aria-label="Show">
           {['all', ...STATUSES].map((st) => (
             <button type="button" key={st} aria-pressed={show === st} onClick={() => setShow(st)}>
@@ -627,7 +642,7 @@ function Folder({ folder, setError }) {
         </div>
       </div>
 
-      {!shown.length && <p className="inv-empty">{rows.length ? 'Nothing with this status.' : 'Nothing filed here yet.'}</p>}
+      {!shown.length && <p className="inv-empty">{rows.length ? (hideFull && show === 'paid' ? 'Paid (In Full) is excluded.' : 'Nothing with this status.') : 'Nothing filed here yet.'}</p>}
       {shown.length > 0 && (
         <div className="frow-head" role="group" aria-label="Sort by">
           {COLUMNS.map((c) => (
@@ -1128,6 +1143,17 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) { setError(err.message); return null }
   }
 
+  // What the customer has paid on a generated order; it comes off the deposit
+  // required and the balance, and ticks Paid (Partial).
+  const changeDeposit = async () => {
+    const was = rec.deposit_paid ?? num(doc.deposit)
+    const typed = window.prompt('Deposit paid so far (leave blank to clear):', was == null ? '' : String(was))
+    if (typed === null) return
+    try {
+      setRec(await apiFetch(`${at}/deposit`, { method: 'POST', body: { amount: typed.trim().replace(/[$,]/g, '') } }))
+    } catch (err) { setError(err.message) }
+  }
+
   const email = async (r = rec) => {
     try {
       if (!String(r.data?.c?.email ?? '').trim() && !(r = await changeEmail())) return
@@ -1174,7 +1200,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const ready = !Object.keys(problemsIn(doc)).length
   const problems = problemsIn(doc, tried === 'email')
   const shownProblems = tried ? problems : {}
-  const s = sums(doc)
+  const s = sums(doc, locked ? paidOf(rec) : num(doc.deposit))
   const methods = form.paymentMethods ?? []
   const method = methods.find((m) => m.name === doc.p?.method)
   const company = form.document?.company ?? {}
@@ -1378,9 +1404,9 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
                 <span className="k">Tax</span><span className="num">{money(s.tax)}</span>
               </>}
               <span className="k total-line">Total</span><span className="num total-line">{money(s.total)}</span>
-              {!blank(doc.depositReq) && <>
+              {!(preview && blank(doc.depositReq)) && <>
                 <label className="k" htmlFor="f-depreq">Deposit required</label>
-                {readOnly ? <span className="num">{money(num(doc.depositReq))}</span>
+                {readOnly ? <span className="num">{num(doc.depositReq) ? money(num(doc.depositReq)) : 'None'}</span>
                   : <input className="f num" id="f-depreq" type="number" step="0.01" min="0" inputMode="decimal" value={doc.depositReq ?? ''}
                     placeholder={s.total ? money(r2(s.total / 2)) + ' is 50%' : ''} onChange={(e) => setField('depositReq', e.target.value)} />}
               </>}
@@ -1388,9 +1414,19 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
                 <label className="k" htmlFor="f-depdue">Deposit due by</label>
                 <input className="f num" id="f-depdue" type="date" value={doc.depositDue ?? ''} onChange={(e) => setField('depositDue', e.target.value)} />
               </>}
-              {!blank(doc.deposit) && <>
+              {!locked ? <>
                 <label className="k" htmlFor="f-dep">Deposit paid</label>
                 <input className="f num" id="f-dep" type="number" step="0.01" min="0" inputMode="decimal" value={doc.deposit} onChange={(e) => setField('deposit', e.target.value)} />
+              </> : (s.paid > 0 || !preview) && <>
+                <span className="k">Deposit paid</span>
+                {/* Not an input: the locked fieldset disables every control inside it. */}
+                <span className="num">{money(s.paid)}{!preview && (
+                  <a href="#deposit" role="button" className="dep-edit" title="Record what the customer has paid"
+                    onClick={(e) => { e.preventDefault(); changeDeposit() }}>Edit</a>
+                )}</span>
+              </>}
+              {s.depositLeft != null && s.paid > 0 && <>
+                <span className="k">Deposit still due</span><span className="num">{money(s.depositLeft)}</span>
               </>}
               <div className="due"><span>Balance due</span><strong>{money(s.due)}</strong></div>
             </div>

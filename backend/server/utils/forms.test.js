@@ -180,6 +180,26 @@ test('a generated entry takes a new email; the next code goes there', async () =
   await assert.rejects(f.setEmail(SO, draft.id, 'a@b.co'), { status: 409 })
 })
 
+test('a generated entry records its deposit paid without touching the order', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  await assert.rejects(f.setDeposit(SO, d.id, 10), { status: 409 })
+  const g = await f.generate(SO, d.id, form())
+  await assert.rejects(f.setDeposit(SO, d.id, -1), { status: 400 })
+  await assert.rejects(f.setDeposit(SO, d.id, 'ten'), { status: 400 })
+  const p = await f.setDeposit(SO, d.id, '125.505')
+  assert.equal(p.deposit_paid, 125.51)
+  assert.ok(p.deposit_paid_at)
+  assert.deepEqual(p.data, g.data)
+  const v = await open(f, g.share)
+  assert.equal(v.deposit_paid, 125.51)
+  const same = await f.setDeposit(SO, d.id, 125.51)
+  assert.equal(String(same.deposit_paid_at), String(p.deposit_paid_at)) // unchanged amount keeps its date
+  const cleared = await f.setDeposit(SO, d.id, '')
+  assert.equal(cleared.deposit_paid, null)
+  assert.equal(cleared.deposit_paid_at, null)
+})
+
 test('a new link stops the old one and its sessions', async () => {
   const f = fresh()
   const d = await f.createDraft(SO, form())
