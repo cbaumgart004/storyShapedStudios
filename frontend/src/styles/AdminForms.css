@@ -575,7 +575,7 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .em-preview pre { white-space: pre-wrap; font: inherit; font-size: 14px; margin: 0; padding: 10px 12px; border-radius: 8px; background: rgba(0, 0, 0, .3); }
 
 /* ---------- Folder: sortable columns ---------- */
-.frow-head, .frow { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) 7.5em 5.5em 5.5em 6.5em; }
+.frow-head, .frow { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) 7.5em 6.5em 9em 7em; }
 .frow-head { display: grid; gap: 8px 18px; padding: 10px 14px 6px; }
 .frow-head button { font: 600 11px var(--font-body); letter-spacing: .12em; text-transform: uppercase; text-align: left;
   color: #8FA592; background: none; border: 0; padding: 4px 0; cursor: pointer; white-space: nowrap; }
@@ -613,3 +613,13 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
   .frow .c-total { text-align: left; }
   .frow .c-status { align-self: end; }
 }
+.inv-foot .legal { margin-top: 6px; font-size: 10px; letter-spacing: .04em; color: #7F9682; }
+
+/* Column headers read as buttons: a border each, so sorting is discoverable. */
+.frow-head { gap: 6px; }
+.frow-head button { border: 1px solid var(--case-line); border-radius: 4px; padding: 6px 8px; min-height: 32px;
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 4px; }
+.frow-head button:hover { border-color: var(--uranium-dim); color: var(--bone); }
+.frow-head button[aria-pressed="true"] { border-color: var(--uranium-dim); }
+.frow-head button:not([aria-pressed="true"])::after { content: '⇅'; opacity: .5; font-size: 12px; }
+.frow-head .c-total { justify-content: flex-end; }

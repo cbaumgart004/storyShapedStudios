@@ -26,7 +26,7 @@ export const DEFAULTS = {
   invoice: {
     label: 'Invoice link',
     help: 'Opens in your mail app from Generate & email, Email and Share.',
-    placeholders: ['name', 'number', 'link', 'balance', 'due', 'payment'],
+    placeholders: ['name', 'number', 'link', 'balance', 'due', 'deposit', 'deposit_due', 'payment'],
     subject: 'StoryShaped Studios invoice {{number}}',
     body: [
       'Hi {{name}},', '',

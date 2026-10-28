@@ -94,7 +94,7 @@ const FALLBACK = {
       footer: { tagline: "The World's Largest Resource for Uranium Glass Jewelry", lines: ['storyshapedstudios.com', 'info@storyshapedstudios.com', 'Thank you for supporting handmade glass'] },
     },
     paymentMethods: [{ name: 'PayPal', label: 'StoryShapedStudios, LLC', handle: '@WVaught823', url: 'https://www.paypal.me/WVaught823' }],
-    terms: 'Custom order. Pricing reflects quantity discount from retail. 50% deposit due to begin production; balance due before shipment. Uranium glass is handmade; minor variation in color and fluorescence is expected.',
+    terms: 'Custom order. Pricing reflects quantity discount from retail. 50% deposit due to begin production; balance due before shipment. Full invoice is due within 30 days of signing unless otherwise arranged with the seller. Uranium glass is handmade; minor variation in color and fluorescence is expected.',
     sections: [{ name: 'acceptance', fields: [], text: 'By signing, the customer accepts this order, its pricing and the terms above.' }],
   },
 }
@@ -106,6 +106,14 @@ function useForms() {
 const useFormIn = (folder) => useForms().find((f) => f.folder === folder)
 
 const today = () => new Date().toISOString().slice(0, 10)
+// Every new order's Notes & terms carry the payment term, whatever the schema's terms say.
+const PAY_TERMS = 'Full invoice is due within 30 days of signing unless otherwise arranged with the seller.'
+const withPayTerms = (terms) => {
+  const t = String(terms ?? '').trim()
+  return t.toLowerCase().includes('within 30 days of signing') ? t : [t, PAY_TERMS].filter(Boolean).join(' ')
+}
+// The seller's legal name, in the footer's copyright line.
+const LEGAL_NAME = 'StoryShapedStudios, LLC'
 const blankLine = () => ({ sku: '', desc: '', qty: '', retail: '', price: '', disc: '', mode: 'price' })
 // What a new Sales Order starts from.
 const salesOrderTemplate = (form) => ({
@@ -113,13 +121,15 @@ const salesOrderTemplate = (form) => ({
   i: { no: '', date: today(), po: '' },
   lines: [blankLine()],
   p: { method: form.paymentMethods?.[0]?.name ?? '' },
-  ship: '', taxPct: '', deposit: '', notes: form.terms ?? '',
+  ship: '', taxPct: '', deposit: '', depositReq: '', depositDue: '', notes: withPayTerms(form.terms),
 })
 // Forms with an editor here, by schema name.
 const EDITORS = { salesOrder: { template: salesOrderTemplate } }
 
 const num = (v) => (v === '' || v == null || isNaN(+v) ? null : +v)
 const r2 = (v) => Math.round(v * 100) / 100
+// mm/dd/yy, the date format of the folder page and the status boxes.
+const mdy = (at) => (at ? new Date(at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }) : '')
 const money = (v) => (v == null ? '' : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
 
 function unitPrice(l) {
@@ -149,6 +159,8 @@ function sums(d) {
   return { retail, sub, tax, total, due: total - (num(d?.deposit) || 0) }
 }
 
+// The invoice is due 30 days after the customer signs (PAY_TERMS).
+const balanceDue = (r) => { const at = r?.signed_at ?? r?.signature?.signedAt; return at ? dueDate(String(at).slice(0, 10)) : '' }
 function dueDate(date) {
   if (!date) return ''
   const d = new Date(date + 'T00:00:00')
@@ -299,8 +311,10 @@ function invoiceVars(r, form) {
     number: r.number,
     link: `${window.location.origin}/invoice/${r.share}`,
     balance: money(sums(d).due),
-    due: dueDate(d.i?.date),
-    payment: m ? `Pay with ${m.name}: ${m.url} (${m.label}, ${m.handle})` : '',
+    due: balanceDue(r) ? mdy(balanceDue(r) + 'T00:00:00') : '30 days after signing',
+    deposit: num(d.depositReq) ? money(num(d.depositReq)) : '',
+    deposit_due: d.depositDue ? mdy(d.depositDue + 'T00:00:00') : '',
+    payment: m ? `Pay with ${m.name}: ${m.url}` : '',
   }
 }
 // The email for a generated entry: the customer's link, the balance and how to pay.
@@ -335,7 +349,7 @@ function SentAsk({ onYes, onNo }) {
   )
 }
 
-const shortDate = (at) => (at ? new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '')
+const shortDate = (at) => mdy(at)
 // Sent and Paid are ticked by hand; Viewed and Signed tick themselves when the
 // customer enters their code or signs. Each shows the date it was ticked.
 function SentPaid({ r, onFlag }) {
@@ -426,7 +440,7 @@ function Templates({ setError }) {
 
 // Stand-ins for the placeholders, so a template reads as the customer will see it.
 const SAMPLE = {
-  name: 'Ann Lee', number: '4122', balance: '$12,250.00', due: '2026-11-27', code: '482913', minutes: 10,
+  name: 'Ann Lee', number: '4122', balance: '$12,250.00', due: '11/27/26', deposit: '$6,125.00', deposit_due: '11/04/26', code: '482913', minutes: 10,
   link: `${typeof window === 'undefined' ? '' : window.location.origin}/invoice/sample-link`,
   payment: 'Pay with PayPal: https://www.paypal.me/WVaught823 (StoryShapedStudios, LLC, @WVaught823)',
 }
@@ -539,8 +553,8 @@ const COLUMNS = [
   { key: 'order', label: 'Order', dir: -1, val: (r) => `${dateOf(r)} ${String(r.number ?? '').padStart(8, '0')}` },
   { key: 'customer', label: 'Customer', dir: 1, val: (r) => String(r.data?.c?.name || r.data?.c?.company || '~').toLowerCase() },
   { key: 'total', label: 'Total', dir: -1, val: (r) => sums(r.data).total },
-  { key: 'due', label: 'Due', dir: 1, val: (r) => (r.status === 'draft' ? '9999' : dueDate(r.data?.i?.date) || '9999') },
-  { key: 'updated', label: 'Updated', dir: -1, val: (r) => String(r.updated_at ?? '') },
+  { key: 'due', label: 'Due', dir: 1, val: (r) => balanceDue(r) || '9999' },
+  { key: 'updated', label: 'Last Updated', dir: -1, val: (r) => String(r.updated_at ?? '') },
   { key: 'status', label: 'Status', dir: 1, val: (r) => STATUSES.indexOf(statusOf(r)) },
 ]
 
@@ -622,17 +636,17 @@ function Folder({ folder, setError }) {
       {ordered.map((r) => {
         const st = statusOf(r)
         const at = `${HOME}/${folder}/${r.id}`
-        const due = r.status === 'draft' ? '' : dueDate(r.data?.i?.date)
+        const due = balanceDue(r)
         return (
           <div className="frow" key={r.id}>
             <button type="button" className="open c-order" onClick={() => navigate(at)}>
               <strong>{r.file}</strong>
-              <small>{dateOf(r)}</small>
+              <small>{mdy(dateOf(r) + 'T00:00:00')}</small>
             </button>
             <span className="cell c-customer" data-label="Customer">{r.data?.c?.name || r.data?.c?.company || 'No customer yet'}</span>
             <span className="cell c-total" data-label="Total">{money(sums(r.data).total)}</span>
-            <span className="cell c-due" data-label="Due">{due ? shortDate(due + 'T00:00:00') : '-'}</span>
-            <span className="cell c-updated" data-label="Updated" title={new Date(r.updated_at).toLocaleString()}>{shortDate(r.updated_at)}</span>
+            <span className="cell c-due" data-label="Due" title={due ? undefined : '30 days after the customer signs'}>{due ? mdy(due + 'T00:00:00') : '-'}</span>
+            <span className="cell c-updated" data-label="Last Updated" title={new Date(r.updated_at).toLocaleString()}>{shortDate(r.updated_at)}</span>
             <span className="cell c-status"><span className={`pill is-${st}`}>{STATUS_LABEL[st]}</span></span>
             <div className="frow-foot">
               <span className="flags"><SentPaid r={r} onFlag={flag} /></span>
@@ -1304,7 +1318,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
               <div className="fields">
                 {field('i.no', 'Order #', { title: 'The next free number; Generate keeps it unless another order took it first' })}
                 {field('i.date', 'Date', { type: 'date' })}
-                <span className="label">Due</span><span className="calc">{dueDate(doc.i.date)}</span>
+                <span className="label">Due</span><span className="calc">{balanceDue(rec) ? mdy(balanceDue(rec) + 'T00:00:00') : '30 days after signing'}</span>
                 {field('i.po', 'Customer PO')}
               </div>
             </div>
@@ -1332,8 +1346,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
                 </select>
                 <span className="label">Pay to</span>
                 <span className="calc payto">
-                  {method && <><a href={method.url} target="_blank" rel="noopener noreferrer">{method.label}</a>
-                    <span className="handle"> {method.name} {method.handle}</span></>}
+                  {method && <a href={method.url} target="_blank" rel="noopener noreferrer">{method.label}</a>}
                 </span>
               </div>
               {!blank(doc.notes) && <>
@@ -1356,6 +1369,16 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
                 <span className="k">Tax</span><span className="num">{money(s.tax)}</span>
               </>}
               <span className="k total-line">Total</span><span className="num total-line">{money(s.total)}</span>
+              {!blank(doc.depositReq) && <>
+                <label className="k" htmlFor="f-depreq">Deposit required</label>
+                {readOnly ? <span className="num">{money(num(doc.depositReq))}</span>
+                  : <input className="f num" id="f-depreq" type="number" step="0.01" min="0" inputMode="decimal" value={doc.depositReq ?? ''}
+                    placeholder={s.total ? money(r2(s.total / 2)) + ' is 50%' : ''} onChange={(e) => setField('depositReq', e.target.value)} />}
+              </>}
+              {!blank(doc.depositDue) && <>
+                <label className="k" htmlFor="f-depdue">Deposit due by</label>
+                <input className="f num" id="f-depdue" type="date" value={doc.depositDue ?? ''} onChange={(e) => setField('depositDue', e.target.value)} />
+              </>}
               {!blank(doc.deposit) && <>
                 <label className="k" htmlFor="f-dep">Deposit paid</label>
                 <input className="f num" id="f-dep" type="number" step="0.01" min="0" inputMode="decimal" value={doc.deposit} onChange={(e) => setField('deposit', e.target.value)} />
@@ -1389,6 +1412,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
         <footer className="inv-foot">
           <div className="tag">{footer.tagline}</div>
           <div className="links">{(footer.lines ?? []).join(' · ')}</div>
+          <div className="legal">© {new Date(doc.i?.date ? doc.i.date + 'T00:00:00' : Date.now()).getFullYear()} {LEGAL_NAME}. All rights reserved.</div>
         </footer>
       </article>
       )} />

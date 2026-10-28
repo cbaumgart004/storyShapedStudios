@@ -61,6 +61,9 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ',
+  // Ticked before the stamps existed: the last change stands in for the date (approximate).
+  'UPDATE form_entries SET sent_at = updated_at WHERE sent AND sent_at IS NULL',
+  'UPDATE form_entries SET paid_at = updated_at WHERE paid AND paid_at IS NULL',
   `CREATE TABLE IF NOT EXISTS share_codes (
      id SERIAL PRIMARY KEY, share_token TEXT NOT NULL, code_hash TEXT NOT NULL,
      tries INT NOT NULL DEFAULT 0, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
