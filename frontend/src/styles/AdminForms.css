@@ -532,3 +532,19 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 @media print { .inv-signpanel, .inv-signed-note { display: none !important; } }
 .inv-sign.is-signed .sign .line { height: 40px !important; }
 .inv-sign .sign .line img { max-height: 38px; }
+
+/* ---------- Customer sign-in on the invoice link (optional) ---------- */
+.inv-account { margin: 0; font-size: 14px; color: #A9C2AC; text-align: right; }
+.inv-account strong { color: var(--bone); font-weight: 500; }
+.admin-invoices .link { border: 0; background: none; padding: 0; font: inherit; color: var(--uranium); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.inv-leave .link { color: #1F7A2A; }
+.inv-continue img { width: 180px; background: #000; padding: 8px 12px; border-radius: 4px; justify-self: start; }
+.continue-acts { display: grid; gap: 8px; }
+.continue-acts .tool { justify-content: center; }
+.continue-form { display: grid; gap: 10px; }
+.continue-form label { display: grid; gap: 4px; font-size: 13px; }
+.continue-form label span { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--uranium-dim); font-weight: 600; }
+.continue-form input { font: inherit; font-size: 16px; padding: 8px 10px; border: 1px solid #C9D3C7; border-radius: 4px; background: #fff; color: var(--ink); }
+.continue-form .tools { justify-content: flex-start; }
+.continue-switch { font-size: 13px; color: var(--muted); }
+@media print { .inv-account { display: none !important; } }

@@ -12,7 +12,8 @@
 //              (must match the printed name) or uploaded, after agreeing to
 //              CONSENT. Kept with the time, IP, browser and a SHA-256 of the
 //              order as signed, the usual e-signature audit trail (ESIGN/UETA).
-//              Once signed it cannot be signed again.
+//              Signed in with a customer account (utils/accounts.js) or as a
+//              guest. Once signed it cannot be signed again.
 //
 // The entry is kept whole in `data`, so the page shows it exactly as written.
 //
@@ -248,6 +249,7 @@ export function createForms(db) {
         method: input.method, image, typed, name,
         signedAt: new Date().toISOString(),
         ip: meta.ip || null, ua: meta.ua ? String(meta.ua).slice(0, 300) : null,
+        account: meta.account ? { id: meta.account.id, email: meta.account.email } : null, // null: signed as a guest
         hash: createHash('sha256').update(JSON.stringify({ number: r.number, data: r.data })).digest('hex'),
         consent: CONSENT,
       }

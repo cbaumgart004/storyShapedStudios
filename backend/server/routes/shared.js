@@ -4,11 +4,13 @@
 // (utils/forms.js share token). Drafts are never returned.
 //
 //   GET   /:token        { folder, number, file, data, signature, consent }
-//   POST  /:token/sign   { method: draw|type|upload, name, typed?, image?, consent: true }
+//   POST  /:token/sign   { method: draw|type|upload, name, typed?, image?, consent: true };
+//                        a customer account's bearer token, when sent, is kept with the signature
 
 import express from 'express'
 import { pool, hasDb } from '../utils/db.js'
 import { createForms, FormError } from '../utils/forms.js'
+import { accounts, bearer } from './account.js'
 
 const router = express.Router()
 const forms = hasDb ? createForms(pool) : null
@@ -29,7 +31,8 @@ router.post('/:token/sign', async (req, res) => {
   if (!hasDb) return res.status(503).json({ error: 'Not configured.' })
   try {
     const ip = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '').split(',')[0].trim()
-    res.json(await forms.sign(req.params.token, req.body ?? {}, { ip, ua: req.headers['user-agent'] }))
+    const account = await accounts.session(bearer(req)).catch(() => null)
+    res.json(await forms.sign(req.params.token, req.body ?? {}, { ip, ua: req.headers['user-agent'], account }))
   } catch (err) {
     if (err instanceof FormError) return res.status(err.status).json({ error: err.message })
     console.error('[shared] sign failed:', err.message)

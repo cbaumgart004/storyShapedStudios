@@ -41,6 +41,9 @@
 // upload) after a consent box; the backend keeps the time, IP, browser and a
 // SHA-256 of the order (utils/forms.js sign). A signed order shows the signature
 // in the acceptance block and "Signed" in its folder.
+// The customer reads and signs as a guest by default; a small "Sign in" opens
+// ContinueAs (sign in, or create an account) for returning customers. A
+// signature made signed in keeps the account with it (/api/account).
 //
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
@@ -560,7 +563,7 @@ function readSignatureFile(file) {
 
 const sameName = (a, b) => String(a ?? '').trim().replace(/\s+/g, ' ').toLowerCase() === String(b ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 
-function SignPanel({ token, defaultName, consent, onSigned }) {
+function SignPanel({ token, defaultName, consent, onSigned, customer }) {
   const [method, setMethod] = useState('draw')
   const [name, setName] = useState(defaultName || '')
   const [typed, setTyped] = useState('')
@@ -578,7 +581,7 @@ function SignPanel({ token, defaultName, consent, onSigned }) {
     setError('')
     try {
       onSigned(await rawFetch(`/api/shared/${encodeURIComponent(token)}/sign`, {
-        method: 'POST', body: { method, name: name.trim(), typed: method === 'type' ? typed : undefined, image: image ?? undefined, consent: agree },
+        method: 'POST', headers: customer ? { Authorization: `Bearer ${customer.token}` } : undefined, body: { method, name: name.trim(), typed: method === 'type' ? typed : undefined, image: image ?? undefined, consent: agree },
       }))
     } catch (err) { setError(err.message) } finally { setBusy(false) }
   }
@@ -1178,6 +1181,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
             <p className="sig-audit">
               Signed electronically {new Date(sig.signedAt).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}
               {' · '}{sig.method === 'type' ? 'typed' : sig.method === 'draw' ? 'drawn' : 'uploaded'}
+              {sig.account ? ` · account ${sig.account.email}` : ' · as guest'}
               {sig.ip ? ` · IP ${sig.ip}` : ''} · ref {sig.hash.slice(0, 12)}
             </p>
           )}
@@ -1191,7 +1195,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
       )} />
 
       {shared && !rec.signature && (
-        <SignPanel token={shared.token} defaultName={doc.c?.name} consent={shared.consent}
+        <SignPanel token={shared.token} defaultName={doc.c?.name || shared.customer?.account.name} consent={shared.consent} customer={shared.customer}
           onSigned={(r) => { setRec((x) => ({ ...x, signature: r.signature })); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
       )}
       {shared && rec.signature && <p className="inv-signed-note" role="status">Signed. Thank you! Download PDF keeps a copy.</p>}
@@ -1228,11 +1232,94 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 }
 
 // /invoice/:token, the link in the customer's email: no login, generated entries only.
+// The customer's sign-in on this browser: { token, account }, or null.
+const CUSTOMER_KEY = 'sss:customer'
+function storedCustomer() {
+  try { return JSON.parse(localStorage.getItem(CUSTOMER_KEY)) } catch { return null }
+}
+function storeCustomer(c) {
+  try { if (c) localStorage.setItem(CUSTOMER_KEY, JSON.stringify(c)); else localStorage.removeItem(CUSTOMER_KEY) } catch { /* private mode */ }
+}
+
+// Sign in, create an account, or continue as a guest.
+function ContinueAs({ invoice, onDone }) {
+  const [mode, setMode] = useState('signin') // choose | signin | create
+  const [name, setName] = useState(invoice?.c?.name ?? '')
+  const [email, setEmail] = useState(invoice?.c?.email ?? '')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submit = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    try {
+      const body = mode === 'create' ? { name, email, password } : { email, password }
+      onDone(await rawFetch(`/api/account/${mode === 'create' ? 'register' : 'login'}`, { method: 'POST', body }))
+    } catch (err) {
+      setError(err.message)
+      if (err.status === 409) setMode('signin')
+    } finally { setBusy(false) }
+  }
+  return (
+    <div className="inv-modal" role="presentation">
+      <section className="inv-leave inv-continue" role="dialog" aria-modal="true" aria-labelledby="continue-h">
+        <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
+        <h2 id="continue-h">{mode === 'create' ? 'Create your account' : mode === 'signin' ? 'Sign in' : 'Your invoice is ready'}</h2>
+        {mode === 'choose' ? (
+          <>
+            <p>Sign in to keep this order with your account, or continue as a guest.</p>
+            <div className="continue-acts">
+              <button type="button" className="tool primary" onClick={() => setMode('signin')}>Sign in</button>
+              <button type="button" className="tool" onClick={() => setMode('create')}>Create account</button>
+              <button type="button" className="tool" onClick={() => onDone(null)}>Continue as guest</button>
+            </div>
+          </>
+        ) : (
+          <form onSubmit={submit} className="continue-form">
+            {mode === 'create' && <label><span>Full name</span><input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required /></label>}
+            <label><span>Email</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label>
+            <label><span>Password</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === 'create' ? 'new-password' : 'current-password'} minLength={mode === 'create' ? 8 : undefined} required /></label>
+            {error && <p className="sp-warn" role="alert">{error}</p>}
+            <div className="tools">
+              <button type="submit" className="tool primary" disabled={busy}>{busy ? 'One moment…' : mode === 'create' ? 'Create account' : 'Sign in'}</button>
+              <button type="button" className="tool" onClick={() => onDone(null)}>Cancel</button>
+            </div>
+            <p className="continue-switch">
+              {mode === 'create'
+                ? <>Have an account? <button type="button" className="link" onClick={() => { setError(''); setMode('signin') }}>Sign in</button></>
+                : <>No account yet? <button type="button" className="link" onClick={() => { setError(''); setMode('create') }}>Create one</button></>}
+            </p>
+          </form>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export function SharedInvoice() {
   const { token } = useParams()
   const forms = useForms()
   const [entry, setEntry] = useState(null)
   const [error, setError] = useState('')
+  const [customer, setCustomer] = useState(storedCustomer)
+  const [signingIn, setSigningIn] = useState(false)
+  // A remembered sign-in is checked once; an expired one is forgotten.
+  useEffect(() => {
+    if (!customer) return
+    rawFetch('/api/account/me', { headers: { Authorization: `Bearer ${customer.token}` } })
+      .catch((err) => { if (err.status === 401) { storeCustomer(null); setCustomer(null) } })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const chosen = (c) => {
+    if (c) { storeCustomer(c); setCustomer(c) }
+    setSigningIn(false)
+  }
+  const signOut = () => {
+    rawFetch('/api/account/logout', { method: 'POST', headers: { Authorization: `Bearer ${customer.token}` } }).catch(() => {})
+    storeCustomer(null)
+    setCustomer(null)
+  }
   useEffect(() => {
     rawFetch(`/api/shared/${encodeURIComponent(token)}`).then(setEntry)
       .catch((err) => setError(err.status === 404 ? 'This invoice link is not valid. Please contact info@storyshapedstudios.com.' : err.message))
@@ -1240,9 +1327,16 @@ export function SharedInvoice() {
   const form = entry && forms.find((f) => f.folder === entry.folder)
   return (
     <div className="admin-invoices is-shared">
+      {customer ? (
+        <p className="inv-account">Signed in as <strong>{customer.account.name}</strong> ({customer.account.email})
+          {' · '}<button type="button" className="link" onClick={signOut}>Sign out</button></p>
+      ) : entry && !entry.signature && (
+        <p className="inv-account">Have an account? <button type="button" className="link" onClick={() => setSigningIn(true)}>Sign in</button></p>
+      )}
       {error ? <p className="inv-error" role="alert">{error}</p>
-        : form ? <SalesOrder shared={{ ...entry, token }} folder={entry.folder} form={form} setError={setError} />
+        : form ? <SalesOrder shared={{ ...entry, token, customer }} folder={entry.folder} form={form} setError={setError} />
           : <p className="inv-empty">Loading your invoice…</p>}
+      {signingIn && <ContinueAs invoice={entry?.data} onDone={chosen} />}
     </div>
   )
 }
