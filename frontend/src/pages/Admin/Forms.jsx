@@ -22,6 +22,8 @@
 // option starts a new SKU, which can then be added to Stock Items from here.
 // On a phone the docked console covers the bottom of the page; useConsoleInset
 // keeps that much room below the form so all of it can be scrolled into view.
+// Preview lays the paper out at Letter width and cuts it into pages (Paged), each
+// scaled to fit the screen, so a phone shows every page whole.
 //
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
@@ -178,6 +180,59 @@ function useConsoleInset() {
     return () => { clearTimeout(timer); ro?.disconnect() }
   }, [])
   return h
+}
+
+// US Letter at 96 px to the inch, inside the 0.4in margins @page sets in AdminForms.css.
+const PAGE = { w: 816, h: 1056, pad: 38 }
+// Preview: the paper drawn once per page, each copy shifted up by a page and
+// clipped, then scaled to the screen's width. Copies after the first are inert.
+// A page ends before the last block (section, line, signature, footer) that
+// would not fit whole. Close to the PDF, not exact: the print dialog chooses its own.
+const BLOCKS = '.inv-head, .inv-body > section, .inv-line, .inv-sign, .inv-foot'
+function Paged({ on, render }) {
+  const box = useRef(null)
+  const first = useRef(null)
+  const [fit, setFit] = useState(1)
+  const [starts, setStarts] = useState([0])
+  useEffect(() => {
+    if (!on) return undefined
+    const inner = PAGE.h - 2 * PAGE.pad
+    const measure = () => {
+      if (box.current) setFit(Math.min(1, box.current.clientWidth / PAGE.w))
+      const el = first.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      const zoom = el.getBoundingClientRect().height / el.offsetHeight || 1
+      const cuts = [...el.querySelectorAll(BLOCKS)].map((b) => Math.round((b.getBoundingClientRect().top - top) / zoom))
+      const next = [0]
+      while (el.offsetHeight - next.at(-1) > inner + 2) {
+        const at = next.at(-1)
+        const fits = cuts.filter((c) => c > at && c <= at + inner)
+        next.push(fits.length ? Math.max(...fits) : at + inner)
+      }
+      setStarts((was) => (was.join() === next.join() ? was : next))
+    }
+    const ro = new ResizeObserver(measure)
+    if (box.current) ro.observe(box.current)
+    if (first.current) ro.observe(first.current)
+    measure()
+    return () => ro.disconnect()
+  }, [on])
+  if (!on) return <div className="inv-sheetbox">{render(0)}</div>
+  return (
+    <div className="inv-pages" ref={box}>
+      {starts.map((at, i) => (
+        <figure className="inv-sheet" key={i}>
+          <div className="inv-sheet-page" style={{ zoom: fit }}>
+            <div className="inv-sheet-clip" style={i < starts.length - 1 ? { height: starts[i + 1] - at } : null}>
+              <div className="inv-sheetbox" ref={i === 0 ? first : null} style={i ? { marginTop: -at } : null}>{render(i)}</div>
+            </div>
+          </div>
+          <figcaption>Page {i + 1} of {starts.length}</figcaption>
+        </figure>
+      ))}
+    </div>
+  )
 }
 
 // A line that charges something but has no retail to measure the discount from.
@@ -403,6 +458,7 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
     <div className={`inv-line${warn ? ' has-warn' : ''}`}>
       <div className="cell c-sku">
         <label className="label" htmlFor={id('sku')}>SKU</label>
+        {!onAddSku ? <span className="f sku-text" id={id('sku')}>{l.sku}</span> : (
         <select className="f" id={id('sku')} value={typingNew ? NEW_SKU : l.sku} onChange={(e) => pickSku(e.target.value)}>
           <option value="">Choose SKU…</option>
           <option value="TBD">TBD · custom, not created yet</option>
@@ -410,6 +466,7 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
           {skus.map((s) => <option key={s.sku} value={s.sku}>{s.sku} · {s.name}</option>)}
           <option value={NEW_SKU}>+ New SKU…</option>
         </select>
+        )}
         {showNew && onAddSku && (
           <span className="new-sku">
             <input className="f" aria-label="New SKU" placeholder="New SKU code" value={l.sku} autoComplete="off"
@@ -720,8 +777,9 @@ function SalesOrder({ folder, id, form, setError }) {
         </section>
       )}
 
-      {preview && <p className="inv-print-note">Print area: everything inside the frame is what the PDF shows.</p>}
-      <article className={`inv-paper${preview ? ' is-preview' : ''}`}>
+      {preview && <p className="inv-print-note">Each sheet is one Letter page of the PDF, scaled to fit. Pinch to zoom.</p>}
+      <Paged on={preview} render={(copy) => (
+      <article className={`inv-paper${preview ? ' is-preview' : ''}`} {...(copy ? { 'aria-hidden': true, inert: '' } : {})}>
         <header className="inv-head">
           <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
           <div className="meta">
@@ -832,6 +890,7 @@ function SalesOrder({ folder, id, form, setError }) {
           <div className="links">{(footer.lines ?? []).join(' · ')}</div>
         </footer>
       </article>
+      )} />
 
       {!locked && !preview && (
         <div className="inv-generate">
