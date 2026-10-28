@@ -16,7 +16,10 @@
 //
 // Generate stays greyed until the entry is complete (problemsIn): a customer
 // name and a price on every line in use. Pressed early, it marks what is missing.
-// Customer name offers the folder's earlier customers and fills their details.
+// Customer name offers the customer list (/api/customers) and the folder's
+// earlier customers, and fills their details; a name on neither list asks to be
+// saved to the customer list. SKU is a dropdown of Stock Items whose last
+// option starts a new SKU, which can then be added to Stock Items from here.
 // On a phone the docked console covers the bottom of the page; useConsoleInset
 // keeps that much room below the form so all of it can be scrolled into view.
 //
@@ -364,38 +367,63 @@ function Folder({ folder, setError }) {
 
 // ---------- One Sales Order ----------
 
-function Line({ l, idx, skus, onChange, onRemove, warn }) {
+const NEW_SKU = '+new'
+function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
+  const [typingNew, setTypingNew] = useState(false)
+  const [adding, setAdding] = useState(false)
   const set = (field, value) => {
     const next = { ...l, [field]: value }
     if (field === 'price') next.mode = 'price'
     if (field === 'disc') next.mode = 'disc'
     if (field === 'sku') {
       const hit = skus.find((s) => s.sku === value)
+      const was = skus.find((s) => s.sku === l.sku)
       if (hit) {
-        next.desc = hit.name
+        // The title fills the description only while it is empty or still the last SKU's title.
+        if (!String(l.desc ?? '').trim() || l.desc === was?.name) next.desc = hit.name
         if (hit.price != null) next.retail = String(hit.price)
       }
     }
     onChange(settle(next))
   }
+  const pickSku = (value) => {
+    setTypingNew(value === NEW_SKU)
+    set('sku', value === NEW_SKU ? '' : value)
+  }
+  const addSku = async () => {
+    setAdding(true)
+    try { if (await onAddSku(l.sku.trim(), l.desc)) setTypingNew(false) } finally { setAdding(false) }
+  }
   const up = unitPrice(l), qty = num(l.qty), retail = num(l.retail)
   const saves = retail && up != null && qty ? (retail - up) * qty : 0
   const known = !l.sku || l.sku === 'TBD' || skus.some((s) => s.sku === l.sku)
+  const showNew = typingNew || !known
   const id = (f) => `l${idx}-${f}`
   return (
     <div className={`inv-line${warn ? ' has-warn' : ''}`}>
       <div className="cell c-sku">
         <label className="label" htmlFor={id('sku')}>SKU</label>
-        <select className="f" id={id('sku')} value={l.sku} onChange={(e) => set('sku', e.target.value)}>
+        <select className="f" id={id('sku')} value={typingNew ? NEW_SKU : l.sku} onChange={(e) => pickSku(e.target.value)}>
           <option value="">Choose SKU…</option>
           <option value="TBD">TBD · custom, not created yet</option>
-          {!known && <option value={l.sku}>{l.sku}</option>}
+          {!known && !typingNew && <option value={l.sku}>{l.sku} · not in Stock Items</option>}
           {skus.map((s) => <option key={s.sku} value={s.sku}>{s.sku} · {s.name}</option>)}
+          <option value={NEW_SKU}>+ New SKU…</option>
         </select>
+        {showNew && onAddSku && (
+          <span className="new-sku">
+            <input className="f" aria-label="New SKU" placeholder="New SKU code" value={l.sku} autoComplete="off"
+              onChange={(e) => set('sku', e.target.value)} autoFocus={typingNew && !l.sku} />
+            <button type="button" className="add-sku" disabled={adding || !l.sku.trim()} onClick={addSku}
+              title="Creates a sellable Stock Item with this SKU, named from the description">
+              {adding ? 'Adding…' : '+ Add to Stock Items'}
+            </button>
+          </span>
+        )}
       </div>
       <div className="cell c-desc">
         <label className="label" htmlFor={id('desc')}>Description</label>
-        <textarea className="f" rows={2} id={id('desc')} value={l.desc} onChange={(e) => set('desc', e.target.value)} />
+        <textarea className="f" rows={2} id={id('desc')} value={l.desc} placeholder="Describe the item" onChange={(e) => set('desc', e.target.value)} />
       </div>
       <div className="cell">
         <label className="label" htmlFor={id('qty')}>Qty</label>
@@ -436,6 +464,10 @@ function SalesOrder({ folder, id, form, setError }) {
   const [busy, setBusy] = useState(false)
   const [tried, setTried] = useState(false) // Generate pressed while something was missing
   const [known, setKnown] = useState([]) // earlier customers in this folder, newest first
+  const [customers, setCustomers] = useState(null) // the customer list; null until loaded
+  const [nameDone, setNameDone] = useState(false) // customer name left, so a new one may be offered for saving
+  const [skipSave, setSkipSave] = useState([]) // names answered "Not now"
+  const [savingCustomer, setSavingCustomer] = useState(false)
   const timer = useRef(null)
   const pending = useRef(null)
   const at = `${API}/${folder}/${id}`
@@ -454,6 +486,7 @@ function SalesOrder({ folder, id, form, setError }) {
       }
       setKnown([...seen.values()])
     }).catch(() => {})
+    apiFetch('/api/customers').then(setCustomers).catch(() => setCustomers(null))
   }, [folder, id, preview])
   useEffect(() => {
     if (preview) return
@@ -498,6 +531,13 @@ function SalesOrder({ folder, id, form, setError }) {
   if (!rec || !doc) return <p className="inv-empty">Loading…</p>
   const locked = rec.status !== 'draft'
   const readOnly = locked || preview
+  const keyOf = (name) => String(name ?? '').trim().toLowerCase()
+  const listed = customers ?? []
+  // The customer list first, then earlier customers in this folder not on it.
+  const lookup = [...listed, ...known.filter((c) => !listed.some((x) => keyOf(x.name) === keyOf(c.name)))]
+  const customerName = String(doc.c?.name ?? '').trim()
+  const offerSave = !readOnly && customers !== null && nameDone && customerName
+    && !listed.some((x) => keyOf(x.name) === keyOf(customerName)) && !skipSave.includes(keyOf(customerName))
 
   // Drafts save shortly after typing stops.
   const edit = (next) => {
@@ -512,18 +552,45 @@ function SalesOrder({ folder, id, form, setError }) {
     edit(b ? { ...doc, [a]: { ...doc[a], [b]: value } } : { ...doc, [a]: value })
   }
   const setLine = (i, l) => edit({ ...doc, lines: doc.lines.map((x, j) => (j === i ? l : x)) })
-  // Picking an earlier customer fills the details still empty here.
+  // Picking a known customer fills the details still empty here.
   const setCustomerName = (value) => {
-    const hit = known.find((c) => c.name?.trim().toLowerCase() === value.trim().toLowerCase())
+    const hit = lookup.find((c) => c.name?.trim().toLowerCase() === value.trim().toLowerCase())
     const c = { ...doc.c, name: value }
     if (hit) for (const k of ['company', 'email', 'phone', 'bill', 'ship']) if (!String(c[k] ?? '').trim() && hit[k]) c[k] = hit[k]
     edit({ ...doc, c })
   }
   const addLine = () => edit({ ...doc, lines: [...doc.lines, blankLine()] })
+  // A new SKU typed on a line becomes a sellable Stock Item named from the description.
+  const addSku = async (sku, desc) => {
+    try {
+      setError('')
+      const name = String(desc ?? '').split('\n')[0].trim() || sku
+      const item = await apiFetch('/api/inventory/stock', { method: 'POST', body: { sku, name, sellable: true } })
+      setSkus((all) => [...all, { sku: item.sku, name: item.name, price: null }].sort((a, b) => a.name.localeCompare(b.name)))
+      return true
+    } catch (err) {
+      setError(`${sku} was not added to Stock Items: ${err.message}`)
+      return false
+    }
+  }
+  const saveCustomer = async () => {
+    setSavingCustomer(true)
+    try {
+      setError('')
+      const saved = await apiFetch('/api/customers', { method: 'POST', body: doc.c })
+      setCustomers((all) => [...(all ?? []), saved])
+    } catch (err) {
+      if (err.status === 409) setCustomers((all) => [...(all ?? []), { ...doc.c }])
+      else setError(`Customer not saved: ${err.message}`)
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
 
   // Missing retail: ask first. `typed` holds what was entered; a line left blank
   // (or every line, when skipped) takes its price as retail, so 0% off.
   const generate = async (typed) => {
+    setNameDone(true)
     if (Object.keys(problemsIn(doc)).length) {
       setTried(true)
       setTimeout(() => document.querySelector('.warn-tag')?.closest('.inv-line, .fields > *, .inv-generate')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
@@ -670,9 +737,9 @@ function SalesOrder({ folder, id, form, setError }) {
             <div>
               <h3>Customer</h3>
               <div className="fields">
-                {field('c.name', 'Name', { list: 'known-customers', onChange: (e) => setCustomerName(e.target.value), placeholder: known.length ? 'Type, or pick an earlier customer' : '' })}
+                {field('c.name', 'Name', { list: 'known-customers', onChange: (e) => setCustomerName(e.target.value), onBlur: () => setNameDone(true), placeholder: lookup.length ? 'Type, or pick a customer' : '' })}
                 <datalist id="known-customers">
-                  {known.map((c) => <option key={c.name} value={c.name}>{[c.company, c.email].filter(Boolean).join(' · ')}</option>)}
+                  {lookup.map((c) => <option key={c.name} value={c.name}>{[c.company, c.email].filter(Boolean).join(' · ')}</option>)}
                 </datalist>
                 {field('c.company', 'Company')}
                 {field('c.email', 'Email', { type: 'email' })}
@@ -682,6 +749,15 @@ function SalesOrder({ folder, id, form, setError }) {
                   <button type="button" className="same-as" onClick={() => setField('c.ship', doc.c.bill)}>Same as billing</button>
                 ))}
               </div>
+              {offerSave && (
+                <div className="cust-save" role="status">
+                  <span><strong>{customerName}</strong> is not in your customers. Save them for next time?</span>
+                  <span className="cust-save-acts">
+                    <button type="button" className="yes" disabled={savingCustomer} onClick={saveCustomer}>{savingCustomer ? 'Saving…' : 'Save customer'}</button>
+                    <button type="button" onClick={() => setSkipSave([...skipSave, keyOf(customerName)])}>Not now</button>
+                  </span>
+                </div>
+              )}
             </div>
             <div>
               <h3>Invoice details</h3>
@@ -699,7 +775,7 @@ function SalesOrder({ folder, id, form, setError }) {
               <span>SKU</span><span>Description</span><span>Qty</span><span>Retail</span><span>Price</span><span>Discount %</span><span>Line total</span><span />
             </div>
             {doc.lines.map((l, i) => (
-              <Line key={i} l={l} idx={i} skus={skus} warn={Boolean(shownProblems[`line.${i}`])} onChange={(next) => setLine(i, next)}
+              <Line key={i} l={l} idx={i} skus={skus} warn={Boolean(shownProblems[`line.${i}`])} onAddSku={readOnly ? null : addSku} onChange={(next) => setLine(i, next)}
                 onRemove={() => edit({ ...doc, lines: doc.lines.filter((_, j) => j !== i) })} />
             ))}
             {shownProblems.lines && <Warn show>Add at least one line</Warn>}

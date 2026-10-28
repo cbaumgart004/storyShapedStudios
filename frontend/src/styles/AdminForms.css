@@ -340,3 +340,69 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
   .inv-paper .same-as { display: none; }
   .inv-head, .inv-paper, .inv-paper .totals { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ---------- New SKU on a line, and saving a new customer ---------- */
+.inv-line .new-sku { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
+.inv-line .new-sku .f { flex: 1 1 110px; }
+.inv-paper .add-sku, .cust-save button { font: 500 12px var(--font-body); border-radius: 3px; padding: 4px 9px; cursor: pointer;
+  border: 1px solid var(--uranium-dim); background: transparent; color: #1F7A2A; white-space: nowrap; }
+.inv-paper .add-sku:disabled { opacity: .45; cursor: default; }
+.cust-save { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between;
+  padding: 7px 10px; font-size: 13px; color: var(--ink); background: #EAF6E2; border: 1px solid #BFDDB3; border-radius: 4px; }
+.cust-save-acts { display: inline-flex; gap: 6px; }
+.cust-save button.yes { background: var(--uranium-dim); color: #04140A; font-weight: 600; }
+@media print { .cust-save, .inv-line .new-sku { display: none !important; } }
+
+/* ---------- Spacing: tighter top to bottom, more room side to side ---------- */
+.admin-invoices { padding-top: 12px; gap: 10px; }
+.inv-head { min-height: 118px; padding: 12px 28px 12px 18px; }
+.inv-head h1 { font-size: 34px; margin-bottom: 4px; }
+.inv-body { padding: 14px 30px 4px; gap: 16px; }
+.inv-paper h3 { margin-bottom: 6px; font-size: 20px; }
+.inv-paper .fields { gap: 3px 12px; }
+.inv-paper .f, .inv-paper .calc { padding: 4px 8px; }
+.inv-paper textarea.f { min-height: 36px; line-height: 1.35; }
+.inv-paper .two { gap: 18px 32px; }
+.inv-lhead { padding: 7px 8px; }
+.inv-line { padding: 5px 4px; }
+.inv-add-line { margin-top: 6px; padding: 6px 12px; }
+.inv-paper .totals { padding-top: 10px; }
+.inv-paper .due { padding: 9px 14px; }
+.inv-sign { padding: 4px 30px 4px; }
+.inv-sign p { margin-bottom: 8px; }
+.inv-sign .sign-lines { gap: 14px 28px; }
+.inv-sign .sign .line { height: 28px; }
+.inv-foot { margin-top: 12px; padding: 10px 28px 12px; gap: 3px; }
+.inv-foot .tag { font-size: 18px; }
+.inv-generate { padding: 10px 16px; }
+
+/* Compact phone layout: labels beside fields, three numbers to a row */
+@media (max-width: 760px) {
+  .admin-invoices { padding-top: 8px; gap: 8px; }
+  .inv-head { min-height: 0; padding: 10px 20px; gap: 6px 16px; }
+  .inv-head img { width: 190px; }
+  .inv-head h1 { font-size: 28px; }
+  .inv-head .meta { font-size: 12px; gap: 0; }
+  .inv-body { padding: 10px 20px 4px; gap: 12px; }
+  .inv-paper .two { gap: 12px; }
+  .inv-paper h3 { font-size: 18px; margin-bottom: 4px; }
+  .inv-paper .fields { grid-template-columns: 74px minmax(0, 1fr); gap: 3px 8px; }
+  .inv-paper .fields .label { margin-top: 0; font-size: 10px; letter-spacing: .1em; }
+  .inv-paper .f, .inv-paper .calc { font-size: 16px; padding: 4px 6px; } /* 16px stops iOS zooming on focus */
+  .inv-line { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px 8px; padding: 8px 0; }
+  .inv-line .cell > .label { font-size: 10px; letter-spacing: .1em; }
+  .inv-line .c-sku, .inv-line .c-desc { grid-column: 1 / -1; }
+  .inv-line .tot { grid-column: span 2; padding-top: 0; }
+  .inv-line .x { top: 4px; }
+  .inv-sign { padding: 4px 20px; }
+  .inv-sign .sign-lines { gap: 10px 20px; }
+  .inv-foot { padding: 8px 20px 10px; }
+  .inv-foot .tag { font-size: 16px; }
+  .inv-generate { padding: 8px 12px; gap: 8px 12px; }
+}
+@media (max-width: 420px) {
+  .inv-paper .fields { grid-template-columns: 70px minmax(0, 1fr); gap: 3px 8px; }
+  .inv-paper .fields .label { margin-top: 0; }
+  .inv-body, .inv-head { padding-left: 18px; padding-right: 18px; }
+  .inv-sign, .inv-foot { padding-left: 18px; padding-right: 18px; }
+}
