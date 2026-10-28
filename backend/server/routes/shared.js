@@ -28,7 +28,10 @@ const handle = (label, fn) => async (req, res) => {
   try {
     await fn(req, res)
   } catch (err) {
-    if (err instanceof FormError) return res.status(err.status).json({ error: err.message, ...err.extra })
+    if (err instanceof FormError) {
+      if (label !== 'GET') console.warn(`[shared] ${label} refused ${err.status}:`, err.message)
+      return res.status(err.status).json({ error: err.message, ...err.extra })
+    }
     if (err instanceof MailError) return res.status(503).json({ error: 'We could not send the email just now. Please try again shortly.' })
     console.error(`[shared] ${label} failed:`, err.message)
     res.status(500).json({ error: 'Request failed.' })
@@ -40,7 +43,9 @@ router.get('/:token', handle('GET', async (req, res) => {
 }))
 
 router.post('/:token/code', handle('code', async (req, res) => {
-  res.json(await forms.requestCode(req.params.token))
+  const sent = await forms.requestCode(req.params.token)
+  console.info('[shared] code sent to', sent.sentTo)
+  res.json(sent)
 }))
 
 router.post('/:token/verify', handle('verify', async (req, res) => {
