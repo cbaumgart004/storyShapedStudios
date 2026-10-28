@@ -14,6 +14,12 @@
 // Only the Sales Order has an editor yet (SalesOrder below); building any form
 // from its schema sections is the open item in .boards.
 //
+// A draft saves only on Save Work (top bar and below the page), into its folder
+// under its file name; the template itself is never written. Leaving with
+// unsaved changes asks Save / Don't Save / Cancel (LeavePrompt); Don't Save on
+// a draft never saved removes it. Closing or reloading the tab gets the
+// browser's own warning instead.
+//
 // Generate stays greyed until the entry is complete (problemsIn): a customer
 // name and a price on every line in use. Pressed early, it marks what is missing.
 // Customer name offers the customer list (/api/customers) and the folder's
@@ -23,7 +29,13 @@
 // On a phone the docked console covers the bottom of the page; useConsoleInset
 // keeps that much room below the form so all of it can be scrolled into view.
 // Preview lays the paper out at Letter width and cuts it into pages (Paged), each
-// scaled to fit the screen, so a phone shows every page whole.
+// scaled to fit the screen, so a phone shows every page whole. Preview drops
+// empty optional fields so a short order fits one page.
+//
+// Email: "Generate & email", the editor's Email and the folder's Share open a
+// mailto: (mailtoFor) carrying the customer's link, /invoice/<token>
+// (SharedInvoice, no login), then offer to tick Sent: a mailto cannot report
+// whether the message went.
 //
 // Sales Order: SKUs come from Stock Items; picking one fills the description
 // with its Listing title (else the Stock Item name) and retail with the Listing
@@ -257,6 +269,41 @@ async function loadListingPrices() {
   return bySku
 }
 
+// The email for a generated entry: the customer's link, the balance and how to pay.
+function mailtoFor(r, form) {
+  const d = r.data ?? {}
+  const who = 'StoryShaped Studios'
+  const m = (form?.paymentMethods ?? []).find((x) => x.name === d.p?.method)
+  const body = [
+    `Hi ${String(d.c?.name ?? '').trim() || 'there'},`, '',
+    `Here is invoice ${r.number} from ${who}.`, '',
+    `View, print or save it: ${window.location.origin}/invoice/${r.share}`,
+    `Balance due: ${money(sums(d).due)} by ${dueDate(d.i?.date)}`,
+    ...(m ? [`Pay with ${m.name}: ${m.url} (${m.label}, ${m.handle})`] : []),
+    '', 'Thank you,', who,
+  ].join('\n')
+  const to = String(d.c?.email ?? '').trim()
+  return `mailto:${to}?subject=${encodeURIComponent(`${who} invoice ${r.number}`)}&body=${encodeURIComponent(body)}`
+}
+// Opens the email with the entry's link, making the link first if it predates links.
+async function openEmail(r, folder, form) {
+  const linked = r.share ? r : await apiFetch(`${API}/${folder}/${r.id}/share`, { method: 'POST' })
+  window.location.href = mailtoFor({ ...r, share: linked.share }, form)
+  return linked.share
+}
+
+function SentAsk({ onYes, onNo }) {
+  return (
+    <div className="sent-ask" role="status">
+      <span>Email opened. Did it go out?</span>
+      <span className="acts">
+        <button type="button" className="yes" onClick={onYes}>Yes, mark Sent</button>
+        <button type="button" onClick={onNo}>Not yet</button>
+      </span>
+    </div>
+  )
+}
+
 function SentPaid({ r, onFlag }) {
   const locked = r.status === 'draft'
   const title = locked ? 'Generate it first' : undefined
@@ -333,6 +380,7 @@ function Folder({ folder, setError }) {
   const [rows, setRows] = useState(null)
   const [show, setShow] = useState('all')
   const [sort, setSort] = useState('newest')
+  const [asking, setAsking] = useState(null) // id whose email was just opened
 
   const load = useCallback(async () => {
     try { setRows(await apiFetch(`${API}/${folder}`)) } catch (err) { setError(err.message); setRows([]) }
@@ -348,6 +396,14 @@ function Folder({ folder, setError }) {
   const flag = async (id, field, value) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [field]: value } : r)))
     try { await apiFetch(`${API}/${folder}/${id}`, { method: 'PATCH', body: { [field]: value } }) } catch (err) { setError(err.message); load() }
+  }
+
+  const share = async (r) => {
+    try {
+      const token = await openEmail(r, folder, form)
+      setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, share: token } : x)))
+      setAsking(r.id)
+    } catch (err) { setError(err.message) }
   }
 
   const head = <BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} />
@@ -410,7 +466,9 @@ function Folder({ folder, setError }) {
                 <span className="row-actions">
                   <Link className="act" to={`${at}?view=preview`}>Preview</Link>
                   <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
+                  {r.status === 'generated' && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
                 </span>
+                {asking === r.id && <SentAsk onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
               </div>
             )
           })}
@@ -480,7 +538,9 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
       </div>
       <div className="cell c-desc">
         <label className="label" htmlFor={id('desc')}>Description</label>
-        <textarea className="f" rows={2} id={id('desc')} value={l.desc} placeholder="Describe the item" onChange={(e) => set('desc', e.target.value)} />
+        {onAddSku
+          ? <textarea className="f" rows={2} id={id('desc')} value={l.desc} placeholder="Describe the item" onChange={(e) => set('desc', e.target.value)} />
+          : <div className="f ro" id={id('desc')}>{l.desc}</div>}
       </div>
       <div className="cell">
         <label className="label" htmlFor={id('qty')}>Qty</label>
@@ -508,15 +568,20 @@ function Line({ l, idx, skus, onChange, onRemove, warn, onAddSku }) {
   )
 }
 
-function SalesOrder({ folder, id, form, setError }) {
+// `shared`: the customer's link (SharedInvoice), shown as the finished pages only.
+function SalesOrder({ folder, id, form, setError, shared = null }) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const preview = params.get('view') === 'preview'
+  const preview = Boolean(shared) || params.get('view') === 'preview'
   const download = params.get('download') === '1'
-  const [rec, setRec] = useState(null) // the stored entry
-  const [doc, setDoc] = useState(null) // the form as typed
+  const [rec, setRec] = useState(shared ? { ...shared, status: 'generated' } : null) // the stored entry
+  const [doc, setDoc] = useState(shared?.data ?? null) // the form as typed
+  const [askSent, setAskSent] = useState(false) // email opened; ask whether it went
+  const emailAfter = useRef(false) // Generate was pressed as "Generate & email"
   const [skus, setSkus] = useState([])
-  const [saving, setSaving] = useState('') // '', 'Saving…', 'Saved'
+  const [saving, setSaving] = useState('') // '', 'Saving…', 'Saved', 'Unsaved changes'
+  const [dirty, setDirty] = useState(false) // edits not yet saved with Save Work
+  const [leaving, setLeaving] = useState(null) // where a link would go while the draft is unsaved
   const [ask, setAsk] = useState(null) // { [line index]: typed retail } while Generate waits on missing retail
   const [busy, setBusy] = useState(false)
   const [tried, setTried] = useState(false) // Generate pressed while something was missing
@@ -525,13 +590,12 @@ function SalesOrder({ folder, id, form, setError }) {
   const [nameDone, setNameDone] = useState(false) // customer name left, so a new one may be offered for saving
   const [skipSave, setSkipSave] = useState([]) // names answered "Not now"
   const [savingCustomer, setSavingCustomer] = useState(false)
-  const timer = useRef(null)
-  const pending = useRef(null)
   const at = `${API}/${folder}/${id}`
 
   useEffect(() => {
+    if (shared) return
     apiFetch(at).then((r) => { setRec(r); setDoc(r.data) }).catch((err) => setError(err.message))
-  }, [at, setError])
+  }, [at, setError, shared])
   useEffect(() => {
     if (preview) return
     apiFetch(`${API}/${folder}`).then((rows) => {
@@ -569,21 +633,23 @@ function SalesOrder({ folder, id, form, setError }) {
     return () => clearTimeout(t)
   }, [download, doc, params, setParams])
 
-  const flush = useCallback(async () => {
-    clearTimeout(timer.current)
-    const d = pending.current
-    if (!d) return
-    pending.current = null
-    setSaving('Saving…')
-    try {
-      await apiFetch(at, { method: 'PUT', body: d })
-      setSaving(pending.current ? 'Saving…' : 'Saved')
-    } catch (err) {
-      setSaving('')
-      setError(`Not saved: ${err.message}`)
+  // Unsaved: the browser warns on close or reload, and links on the page ask first.
+  useEffect(() => {
+    if (!dirty) return undefined
+    const warn = (e) => { e.preventDefault(); e.returnValue = '' }
+    const intercept = (e) => {
+      const a = e.target.closest?.('a[href]')
+      if (!a || a.target === '_blank' || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return
+      const url = new URL(a.href, window.location.href)
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return
+      e.preventDefault()
+      e.stopPropagation()
+      setLeaving(url.pathname + url.search)
     }
-  }, [at, setError])
-  useEffect(() => () => { flush() }, [flush]) // leaving the form saves what is pending
+    window.addEventListener('beforeunload', warn)
+    document.addEventListener('click', intercept, true)
+    return () => { window.removeEventListener('beforeunload', warn); document.removeEventListener('click', intercept, true) }
+  }, [dirty])
 
   if (!rec || !doc) return <p className="inv-empty">Loading…</p>
   const locked = rec.status !== 'draft'
@@ -596,13 +662,35 @@ function SalesOrder({ folder, id, form, setError }) {
   const offerSave = !readOnly && customers !== null && nameDone && customerName
     && !listed.some((x) => keyOf(x.name) === keyOf(customerName)) && !skipSave.includes(keyOf(customerName))
 
-  // Drafts save shortly after typing stops.
+  // Edits stay on the page until Save Work.
   const edit = (next) => {
     setDoc(next)
-    pending.current = next
+    setDirty(true)
+    setSaving('Unsaved changes')
+  }
+  const save = async () => {
     setSaving('Saving…')
-    clearTimeout(timer.current)
-    timer.current = setTimeout(flush, 700)
+    try {
+      setRec(await apiFetch(at, { method: 'PUT', body: doc }))
+      setDirty(false)
+      setSaving('Saved')
+      return true
+    } catch (err) {
+      setSaving('Unsaved changes')
+      setError(`Not saved: ${err.message}`)
+      return false
+    }
+  }
+  // Never saved: still exactly as the template made it.
+  const neverSaved = rec.created_at === rec.updated_at
+  const leave = async (choice) => {
+    const to = leaving
+    if (choice === 'cancel') return setLeaving(null)
+    if (choice === 'save' && !(await save())) return setLeaving(null)
+    if (choice === 'discard' && neverSaved) await apiFetch(at, { method: 'DELETE' }).catch(() => {})
+    setDirty(false)
+    setLeaving(null)
+    setTimeout(() => navigate(to), 0)
   }
   const setField = (path, value) => {
     const [a, b] = path.split('.')
@@ -667,15 +755,25 @@ function SalesOrder({ folder, id, form, setError }) {
     setBusy(true)
     try {
       setError('')
-      clearTimeout(timer.current)
-      pending.current = null
       const g = await apiFetch(`${at}/generate`, { method: 'POST', body: { ...doc, lines } })
-      setRec(g); setDoc(g.data); setSaving('')
+      setRec(g); setDoc(g.data); setSaving(''); setDirty(false)
+      if (emailAfter.current) {
+        emailAfter.current = false
+        await email(g)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
       setBusy(false)
     }
+  }
+
+  const email = async (r = rec) => {
+    try {
+      const token = await openEmail(r, folder, form)
+      setRec((x) => ({ ...x, share: token }))
+      setAskSent(true)
+    } catch (err) { setError(err.message) }
   }
 
   const flag = async (_, field, value) => {
@@ -685,10 +783,9 @@ function SalesOrder({ folder, id, form, setError }) {
 
   const remove = async () => {
     try {
-      clearTimeout(timer.current)
-      pending.current = null
       await apiFetch(at, { method: 'DELETE' })
-      navigate(`${HOME}/${folder}`)
+      setDirty(false)
+      setTimeout(() => navigate(`${HOME}/${folder}`), 0)
     } catch (err) { setError(err.message) }
   }
 
@@ -718,6 +815,11 @@ function SalesOrder({ folder, id, form, setError }) {
     const fid = `f-${path.replace('.', '-')}`
     const Tag = props.rows ? 'textarea' : 'input'
     const missing = Boolean(shownProblems[path])
+    const value = (b ? doc[a]?.[b] : doc[a]) ?? ''
+    if (blank(value)) return null
+    if (props.rows && readOnly) {
+      return <><span className="label">{label}</span><div className="f ro" id={fid}>{value}</div></>
+    }
     return (
       <>
         <label className="label" htmlFor={fid}>{label} <Warn show={missing} /></label>
@@ -730,18 +832,39 @@ function SalesOrder({ folder, id, form, setError }) {
     )
   }
   const generateButton = (where) => (
-    <button type="button" className={`tool primary${ready ? '' : ' is-waiting'}`} aria-disabled={!ready || busy}
-      title={ready ? 'Number and lock this order' : 'Fill in the marked fields first'} onClick={() => !busy && generate()} data-where={where}>
-      {busy ? 'Generating…' : 'Generate invoice'}
-    </button>
+    <>
+      <button type="button" className={`tool primary${ready ? '' : ' is-waiting'}`} aria-disabled={!ready || busy}
+        title={ready ? 'Number and lock this order' : 'Fill in the marked fields first'} onClick={() => { if (!busy) { emailAfter.current = false; generate() } }} data-where={where}>
+        {busy ? 'Generating…' : 'Generate'}
+      </button>
+      <button type="button" className={`tool primary${ready ? '' : ' is-waiting'}`} aria-disabled={!ready || busy}
+        title={ready ? 'Number and lock it, then email the customer a link' : 'Fill in the marked fields first'}
+        onClick={() => { if (!busy) { emailAfter.current = true; generate() } }}>
+        Generate &amp; email
+      </button>
+    </>
   )
+  // The PDF always prints from the finished pages.
+  const downloadPdf = () => {
+    if (!preview) { params.set('view', 'preview') }
+    params.set('download', '1')
+    setParams(params, { replace: true })
+  }
+  // Read-only, an empty optional field is left off the page.
+  const blank = (v) => readOnly && !String(v ?? '').trim()
 
   return (
     <>
+      {shared ? (
+      <div className="inv-bar">
+        <div className="tools"><span className="saving">Invoice {rec.number} from StoryShaped Studios</span></div>
+        <div className="tools"><button type="button" className="tool primary" onClick={() => printAs(fileName(doc))}>Download PDF</button></div>
+      </div>
+      ) : (
       <div className="inv-bar">
         <div className="tools">
-          <Link to={`${HOME}/${folder}`} className="tool" onClick={flush}>← {folder}</Link>
-          {!readOnly && <span className="saving" aria-live="polite">{saving}</span>}
+          <Link to={`${HOME}/${folder}`} className="tool">← {folder}</Link>
+          {!readOnly && <span className={`saving${dirty ? ' is-dirty' : ''}`} aria-live="polite">{saving}</span>}
         </div>
         <div className="tools">
           {preview ? (
@@ -751,12 +874,17 @@ function SalesOrder({ folder, id, form, setError }) {
           )}
           {locked && <span className="tool-flags"><SentPaid r={rec} onFlag={flag} /></span>}
           {locked && !preview && <button type="button" className="tool" onClick={copy}>Copy to new draft</button>}
-          {!readOnly && <button type="button" className="tool" onClick={addLine}>Add line</button>}
+          {!locked && <button type="button" className="tool" onClick={save} disabled={!dirty}>Save Work</button>}
           {!readOnly && <button type="button" className="tool" onClick={remove}>Delete draft</button>}
-          <button type="button" className="tool" onClick={() => printAs(fileName(doc))}>Download PDF</button>
+          <button type="button" className="tool" onClick={downloadPdf}>Download PDF</button>
+          {locked && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
           {!locked && !preview && generateButton('top')}
         </div>
       </div>
+      )}
+      {askSent && !rec.sent && !shared && (
+        <SentAsk onYes={() => { flag(null, 'sent', true); setAskSent(false) }} onNo={() => setAskSent(false)} />
+      )}
 
       {ask && (
         <section className="inv-ask" role="dialog" aria-labelledby="inv-ask-h">
@@ -772,7 +900,7 @@ function SalesOrder({ folder, id, form, setError }) {
           <div className="tools">
             <button type="button" className="tool primary" onClick={() => generate(ask)}>Generate invoice</button>
             <button type="button" className="tool" onClick={() => generate({})}>Skip: retail = price</button>
-            <button type="button" className="tool" onClick={() => setAsk(null)}>Cancel</button>
+            <button type="button" className="tool" onClick={() => { emailAfter.current = false; setAsk(null) }}>Cancel</button>
           </div>
         </section>
       )}
@@ -854,21 +982,30 @@ function SalesOrder({ folder, id, form, setError }) {
                     <span className="handle"> {method.name} {method.handle}</span></>}
                 </span>
               </div>
-              <h3 className="gap">Notes &amp; terms</h3>
-              <textarea className="f" rows={4} aria-label="Notes and terms" value={doc.notes ?? ''} onChange={(e) => setField('notes', e.target.value)} />
+              {!blank(doc.notes) && <>
+                <h3 className="gap">Notes &amp; terms</h3>
+                {readOnly ? <div className="f ro">{doc.notes}</div>
+                  : <textarea className="f" rows={4} aria-label="Notes and terms" value={doc.notes ?? ''} onChange={(e) => setField('notes', e.target.value)} />}
+              </>}
             </div>
             <div className="totals" aria-live="polite">
               <span className="k">Retail value</span><span className="num">{money(s.retail)}</span>
               <span className="k save">Your savings</span><span className="num save">{s.retail - s.sub > 0 ? '−' + money(s.retail - s.sub) : money(0)}</span>
               <span className="k">Subtotal</span><span className="num">{money(s.sub)}</span>
-              <label className="k" htmlFor="f-ship">Shipping</label>
-              <input className="f num" id="f-ship" type="number" step="0.01" min="0" inputMode="decimal" value={doc.ship} onChange={(e) => setField('ship', e.target.value)} />
-              <label className="k" htmlFor="f-tax">Tax rate %</label>
-              <input className="f num" id="f-tax" type="number" step="0.01" min="0" inputMode="decimal" value={doc.taxPct} onChange={(e) => setField('taxPct', e.target.value)} />
-              <span className="k">Tax</span><span className="num">{money(s.tax)}</span>
+              {!blank(doc.ship) && <>
+                <label className="k" htmlFor="f-ship">Shipping</label>
+                <input className="f num" id="f-ship" type="number" step="0.01" min="0" inputMode="decimal" value={doc.ship} onChange={(e) => setField('ship', e.target.value)} />
+              </>}
+              {!blank(doc.taxPct) && <>
+                <label className="k" htmlFor="f-tax">Tax rate %</label>
+                <input className="f num" id="f-tax" type="number" step="0.01" min="0" inputMode="decimal" value={doc.taxPct} onChange={(e) => setField('taxPct', e.target.value)} />
+                <span className="k">Tax</span><span className="num">{money(s.tax)}</span>
+              </>}
               <span className="k total-line">Total</span><span className="num total-line">{money(s.total)}</span>
-              <label className="k" htmlFor="f-dep">Deposit paid</label>
-              <input className="f num" id="f-dep" type="number" step="0.01" min="0" inputMode="decimal" value={doc.deposit} onChange={(e) => setField('deposit', e.target.value)} />
+              {!blank(doc.deposit) && <>
+                <label className="k" htmlFor="f-dep">Deposit paid</label>
+                <input className="f num" id="f-dep" type="number" step="0.01" min="0" inputMode="decimal" value={doc.deposit} onChange={(e) => setField('deposit', e.target.value)} />
+              </>}
               <div className="due"><span>Balance due</span><strong>{money(s.due)}</strong></div>
             </div>
           </section>
@@ -899,10 +1036,47 @@ function SalesOrder({ folder, id, form, setError }) {
           ) : (
             <p className="hint">{ready ? 'Ready. Generate numbers this order and locks it.' : 'Generate turns on once the customer name and every price are filled in.'}</p>
           )}
-          {generateButton('bottom')}
+          <span className="gen-acts">
+            <button type="button" className="tool save-work" onClick={save} disabled={!dirty}>{dirty ? 'Save Work' : 'Saved'}</button>
+            {generateButton('bottom')}
+          </span>
+        </div>
+      )}
+
+      {leaving && (
+        <div className="inv-modal" role="presentation">
+          <section className="inv-leave" role="alertdialog" aria-modal="true" aria-labelledby="inv-leave-h">
+            <h2 id="inv-leave-h">{form.label}</h2>
+            <p>Do you want to save changes to <strong>{fileName(doc)}</strong>?</p>
+            <div className="tools">
+              <button type="button" className="tool primary" autoFocus onClick={() => leave('save')}>Save</button>
+              <button type="button" className="tool" onClick={() => leave('discard')}>Don&rsquo;t Save</button>
+              <button type="button" className="tool" onClick={() => leave('cancel')}>Cancel</button>
+            </div>
+          </section>
         </div>
       )}
     </>
+  )
+}
+
+// /invoice/:token, the link in the customer's email: no login, generated entries only.
+export function SharedInvoice() {
+  const { token } = useParams()
+  const forms = useForms()
+  const [entry, setEntry] = useState(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    rawFetch(`/api/shared/${encodeURIComponent(token)}`).then(setEntry)
+      .catch((err) => setError(err.status === 404 ? 'This invoice link is not valid. Please contact info@storyshapedstudios.com.' : err.message))
+  }, [token])
+  const form = entry && forms.find((f) => f.folder === entry.folder)
+  return (
+    <div className="admin-invoices is-shared">
+      {error ? <p className="inv-error" role="alert">{error}</p>
+        : form ? <SalesOrder shared={entry} folder={entry.folder} form={form} setError={setError} />
+          : <p className="inv-empty">Loading your invoice…</p>}
+    </div>
   )
 }
 

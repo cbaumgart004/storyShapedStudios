@@ -5,12 +5,16 @@
 //
 //   draft      saved as it is typed, no number, can change or be deleted
 //   generated  numbered (per folder, from FIRST_NUMBERS), never changes again;
-//              only its Sent and Paid flags move
+//              only its Sent and Paid flags move. It gets a share token: the
+//              link emailed to the customer (/invoice/<token>) reads it without
+//              a login, through shared(); drafts are never shared.
 //
 // The entry is kept whole in `data`, so the page shows it exactly as written.
 //
 // Takes a pg Pool (or anything with query()), so the tests run the same SQL
 // against PGlite.
+
+import { randomBytes } from 'node:crypto'
 
 export class FormError extends Error {
   constructor(status, message) {
@@ -35,15 +39,20 @@ const SCHEMA = `
     UNIQUE (folder, number)
   )`
 
+// Added after the table first shipped; one statement per query for PGlite.
+const SHARE_COLUMN = 'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE'
+
 let ready = null
 function ensureTable(db) {
-  ready ??= db.query(SCHEMA).catch((err) => {
+  ready ??= db.query(SCHEMA).then(() => db.query(SHARE_COLUMN)).catch((err) => {
     ready = null // try again on the next request
     throw err
   })
   return ready
 }
 export function resetFormTableForTests() { ready = null }
+
+const newToken = () => randomBytes(18).toString('base64url')
 
 // Where each folder's numbering starts. Sales orders start at 4122 so the first
 // does not read as number one; a folder not named here starts at 1001.
@@ -78,6 +87,7 @@ const out = (r) => ({
   created_at: r.created_at,
   updated_at: r.updated_at,
   generated_at: r.generated_at,
+  share: r.share_token ?? null,
 })
 
 const checkFolder = (folder) => {
@@ -153,9 +163,10 @@ export function createForms(db) {
         const stored = { ...data, i: { ...data.i, no: number } }
         try {
           const { rows } = await db.query(
-            `UPDATE form_entries SET number = $3, data = $4, status = 'generated', generated_at = now(), updated_at = now()
+            `UPDATE form_entries SET number = $3, data = $4, status = 'generated', generated_at = now(), updated_at = now(),
+               share_token = $5
              WHERE folder = $1 AND id = $2 AND status = 'draft' RETURNING *`,
-            [folder, id, number, JSON.stringify(stored)])
+            [folder, id, number, JSON.stringify(stored), newToken()])
           if (!rows[0]) throw new FormError(409, 'This entry is already generated.')
           return out(rows[0])
         } catch (err) {
@@ -164,6 +175,25 @@ export function createForms(db) {
         }
       }
       throw new FormError(409, 'Could not number the entry. Try again.')
+    },
+
+    // The share token of a generated entry, made now if it predates tokens.
+    async share(folder, id) {
+      const current = await row(folder, id)
+      if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before sharing it.')
+      if (current.share_token) return out(current)
+      const { rows } = await db.query(
+        `UPDATE form_entries SET share_token = $3 WHERE folder = $1 AND id = $2 RETURNING *`, [folder, id, newToken()])
+      return out(rows[0])
+    },
+
+    // What the customer's link shows: a generated entry only, without its flags.
+    async shared(token) {
+      await ensureTable(db)
+      const { rows } = await db.query(`SELECT * FROM form_entries WHERE share_token = $1 AND status = 'generated'`, [String(token ?? '')])
+      if (!rows[0]) throw new FormError(404, 'No such invoice.')
+      const { folder, number, file, data } = out(rows[0])
+      return { folder, number, file, data }
     },
 
     async setStatus(folder, id, { sent, paid } = {}) {

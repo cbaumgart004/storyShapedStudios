@@ -9,6 +9,7 @@ import libraryViews from './libraryViews.js'
 import inventory from './inventory.js'
 import forms from './forms.js'
 import customers from './customers.js'
+import shared from './shared.js'
 import marketplace from './marketplace.js'
 
 const router = express.Router()
@@ -22,6 +23,7 @@ router.use('/library/views', libraryViews)
 router.use('/inventory', inventory)
 router.use('/forms', forms)
 router.use('/customers', customers)
+router.use('/shared', shared)
 router.use('/marketplace', marketplace)
 
 export default router

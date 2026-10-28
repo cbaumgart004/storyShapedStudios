@@ -74,3 +74,16 @@ test('an entry with no fields is refused; a missing one is 404', async () => {
   await assert.rejects(f.createDraft(SO, null), { status: 400 })
   await assert.rejects(f.get(SO, 99), { status: 404 })
 })
+
+test('a generated entry gets a share token; the link reads it, never a draft', async () => {
+  const f = fresh()
+  const d = await f.createDraft(SO, form())
+  assert.equal(d.share, null)
+  await assert.rejects(f.share(SO, d.id), { status: 409 })
+  const g = await f.generate(SO, d.id, form())
+  assert.match(g.share, /^[A-Za-z0-9_-]{24}$/)
+  assert.equal((await f.share(SO, d.id)).share, g.share)
+  const s = await f.shared(g.share)
+  assert.deepEqual([s.number, s.folder, s.data.c.name, 'sent' in s], ['4122', SO, 'Acme', false])
+  await assert.rejects(f.shared('nope'), { status: 404 })
+})

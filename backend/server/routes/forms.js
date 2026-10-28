@@ -11,6 +11,9 @@
 //   DELETE /:folder/:id                   delete a draft (409 once generated)
 //   POST   /:folder/:id/generate          number it and lock it
 //   PATCH  /:folder/:id                   { sent?, paid? }, generated only
+//   POST   /:folder/:id/share             the entry with its share token (generated only)
+//
+// The customer's link reads through routes/shared.js, the one route without a login.
 //
 // Every route needs a login the Edge of the Map console says can edit this site
 // (utils/requireEditor.js), the same as /api/inventory.
@@ -69,6 +72,10 @@ router.delete('/:folder/:id', handle('DELETE /:folder/:id', async (req, res) => 
 
 router.post('/:folder/:id/generate', handle('POST /:folder/:id/generate', async (req, res) => {
   res.json(await forms.generate(req.params.folder, id(req.params.id), req.body))
+}))
+
+router.post('/:folder/:id/share', handle('POST /:folder/:id/share', async (req, res) => {
+  res.json(await forms.share(req.params.folder, id(req.params.id)))
 }))
 
 router.patch('/:folder/:id', handle('PATCH /:folder/:id', async (req, res) => {
