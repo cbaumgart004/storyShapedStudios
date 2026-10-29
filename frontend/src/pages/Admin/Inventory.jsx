@@ -243,7 +243,7 @@ export default function AdminInventory() {
       ) : !signedIn ? (
         <section className="ai-section">
           <p>Stock is for the studio only. Sign in with your Edge of the Map login to see it.</p>
-          <button type="button" onClick={signInThroughConsole}>Sign in</button>
+          <button type="button" onClick={() => signInThroughConsole()}>Sign in</button>
         </section>
       ) : (
       <>

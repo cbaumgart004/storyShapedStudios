@@ -1766,7 +1766,7 @@ export default function AdminForms({ page }) {
           {!HAS_BACKEND
             ? <p>Forms are not connected on this copy of the site. They are stored in the site&rsquo;s database, which this build does not reach.</p>
             : <><p>Forms are for the studio only. Sign in with your Edge of the Map login.</p>
-              <button type="button" className="tool primary" onClick={signInThroughConsole}>Sign in</button></>}
+              <button type="button" className="tool primary" onClick={() => signInThroughConsole()}>Sign in</button></>}
           <Link to="/" className="inv-back">← Back to site</Link>
         </div>
       </div>
