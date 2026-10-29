@@ -1,13 +1,14 @@
 // server/routes/shared.js
 // The customer's invoice link, mounted at /api/shared (see routes/index.js).
-// No studio login: the link's token plus a session from an emailed code
-// (utils/forms.js requestCode / verify), sent as X-Invoice-Session. Drafts are
-// never returned.
+// No studio login: the link's token plus a session, from the key a shared link
+// carries (utils/forms.js openKey) or else an emailed code (requestCode /
+// verify), sent as X-Invoice-Session. Drafts are never returned.
 //
 //   GET   /:token        { folder, number, file, data, signature, consent };
 //                        401 { error, verify: true, number, sentTo } without a session
 //   POST  /:token/code   { sentTo } emails a 6-digit code to the invoice's customer
 //   POST  /:token/verify { code } -> { session, ...the GET answer }
+//   POST  /:token/key    { key } -> the same, until the key expires; then 401 as GET, with expired: true
 //   POST  /:token/sign   { method: draw|type|upload, name, typed?, image?, consent: true };
 //                        a customer account's bearer token, when sent, is kept with the signature
 
@@ -50,6 +51,10 @@ router.post('/:token/code', handle('code', async (req, res) => {
 
 router.post('/:token/verify', handle('verify', async (req, res) => {
   res.json(await forms.verify(req.params.token, req.body?.code))
+}))
+
+router.post('/:token/key', handle('key', async (req, res) => {
+  res.json(await forms.openKey(req.params.token, req.body?.key))
 }))
 
 router.post('/:token/sign', handle('sign', async (req, res) => {

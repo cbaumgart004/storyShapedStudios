@@ -15,7 +15,7 @@
 //   POST   /:folder/:id/share             the entry with its share token (generated only)
 //   POST   /:folder/:id/relink            a new share token; the old link and its sessions stop
 //   POST   /:folder/:id/email             { email } on a generated entry; ends the link's sessions
-//   POST   /:folder/:id/deposit           { amount } paid toward a generated entry ('' clears)
+//   POST   /:folder/:id/link              the entry with a new link key ({ key, key_expires_at }), for Share
 //   POST   /:folder/:id/revise            a signed order's next version, as a draft
 //
 // The customer's link reads through routes/shared.js, the one route without a login.
@@ -99,8 +99,8 @@ router.post('/:folder/:id/revise', handle('POST /:folder/:id/revise', async (req
   res.status(201).json(await forms.revise(req.params.folder, id(req.params.id), by(req)))
 }))
 
-router.post('/:folder/:id/deposit', handle('POST /:folder/:id/deposit', async (req, res) => {
-  res.json(await forms.setDeposit(req.params.folder, id(req.params.id), req.body?.amount))
+router.post('/:folder/:id/link', handle('POST /:folder/:id/link', async (req, res) => {
+  res.json(await forms.issueKey(req.params.folder, id(req.params.id)))
 }))
 
 router.patch('/:folder/:id', handle('PATCH /:folder/:id', async (req, res) => {

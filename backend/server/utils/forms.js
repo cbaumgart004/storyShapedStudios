@@ -5,7 +5,7 @@
 //
 //   draft      saved as it is typed, no number, can change or be deleted
 //   generated  numbered (per folder, from FIRST_NUMBERS), never changes again;
-//              only its Sent and Paid flags and its deposit paid move. It gets a share token: the
+//              only its Sent and Paid flags move. It gets a share token: the
 //              link emailed to the customer (/invoice/<token>) reads it without
 //              a login, through shared(); drafts are never shared.
 //              The link alone shows nothing: requestCode() emails a 6-digit
@@ -13,6 +13,10 @@
 //              MAX_TRIES guesses, MAX_CODES an hour), and verify() trades it for
 //              a session kept SESSION_DAYS in that browser. relink() replaces a
 //              leaked link and ends its sessions.
+//              A shared link carries a key instead (issueKey(): ?k=<key>, tied to
+//              the customer email, KEY_DAYS to use), so it opens with no code and
+//              can be pasted into PayPal or a message. openKey() trades it for a
+//              session that ends with the key; after that, the code again.
 //   viewed     the customer got past the code (verify()). Set once, the first time.
 //   signed     the customer signed through that link (sign()): drawn, typed
 //              (must match the printed name) or uploaded, after agreeing to
@@ -22,8 +26,8 @@
 //              guest. Once signed it cannot be signed again.
 //   versions   a signed order never changes. revise() starts a draft of it as
 //              the next version (same number, `version` + 1, data.i.v); its
-//              Generate archives the one before (superseded_at) and carries over
-//              the deposit paid. The customer's old link follows to the newest
+//              Generate archives the one before (superseded_at). The customer's
+//              old link follows to the newest
 //              version (linked()), which needs a new code and a new signature.
 //              Revised orders: version > 1; archived ones: superseded_at set.
 //
@@ -67,9 +71,6 @@ const ADDED = [
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ',
-  // Kept beside `data`, not in it, so the order as signed (its hash) never changes.
-  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid NUMERIC(12, 2)',
-  'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMPTZ',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS version INT NOT NULL DEFAULT 1',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS supersedes_id INT',
   'ALTER TABLE form_entries ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ',
@@ -79,9 +80,15 @@ const ADDED = [
   // Ticked before the stamps existed: the last change stands in for the date (approximate).
   'UPDATE form_entries SET sent_at = updated_at WHERE sent AND sent_at IS NULL',
   'UPDATE form_entries SET paid_at = updated_at WHERE paid AND paid_at IS NULL',
+  // Deposits were retired before any real order took one.
+  'ALTER TABLE form_entries DROP COLUMN IF EXISTS deposit_paid',
+  'ALTER TABLE form_entries DROP COLUMN IF EXISTS deposit_paid_at',
   `CREATE TABLE IF NOT EXISTS share_codes (
      id SERIAL PRIMARY KEY, share_token TEXT NOT NULL, code_hash TEXT NOT NULL,
      tries INT NOT NULL DEFAULT 0, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS share_keys (
+     key_hash TEXT PRIMARY KEY, share_token TEXT NOT NULL, email TEXT NOT NULL,
+     expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS share_sessions (
      token_hash TEXT PRIMARY KEY, share_token TEXT NOT NULL, email TEXT NOT NULL,
      expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
@@ -90,6 +97,7 @@ export const CODE_MINUTES = 10
 const MAX_TRIES = 5
 const MAX_CODES = 5
 const SESSION_DAYS = 30
+export const KEY_DAYS = 30
 
 // What the customer agrees to before signing; stored with the signature.
 export const CONSENT = 'I agree to sign this order electronically. My electronic signature is the legal equivalent of my handwritten signature, and I consent to receive this order and its records electronically.'
@@ -151,8 +159,6 @@ const out = (r) => ({
   viewed_at: r.viewed_at ?? null,
   sent_at: r.sent_at ?? null,
   paid_at: r.paid_at ?? null,
-  deposit_paid: r.deposit_paid == null ? null : Number(r.deposit_paid),
-  deposit_paid_at: r.deposit_paid_at ?? null,
   version: r.version ?? 1,
   supersedes_id: r.supersedes_id ?? null,
   superseded_at: r.superseded_at ?? null,
@@ -160,9 +166,9 @@ const out = (r) => ({
 })
 // The customer's view: no flags, and the signature without IP and browser.
 const publicView = (r) => {
-  const { folder, number, file, data, signature, deposit_paid } = out(r)
+  const { folder, number, file, data, signature } = out(r)
   const sig = signature && (({ ip, ua, ...rest }) => rest)(signature)
-  return { folder, number, file, data, deposit_paid, signature: sig, consent: CONSENT }
+  return { folder, number, file, data, signature: sig, consent: CONSENT }
 }
 
 const checkFolder = (folder) => {
@@ -208,12 +214,31 @@ export function createForms(db, { mailer, templates } = {}) {
         'SELECT email FROM share_sessions WHERE token_hash = $1 AND share_token = $2 AND expires_at > now()', [sha(String(session)), r.share_token])
       if (s) return { ...r, verifiedEmail: s.email }
     }
+    throw needsCode(r)
+  }
+  const needsCode = (r, message = 'Enter the code we email you to open this invoice.', extra = {}) => {
     const to = emailOf(r.data)
-    throw new FormError(401, 'Enter the code we email you to open this invoice.', { verify: true, number: r.number, sentTo: to ? masked(to) : null })
+    return new FormError(401, message, { verify: true, number: r.number, sentTo: to ? masked(to) : null, ...extra })
+  }
+  // A session for this browser, ending at `until` (SQL), and the first view marked.
+  async function startSession(r, email, until) {
+    const session = randomBytes(32).toString('base64url')
+    await db.query(
+      `INSERT INTO share_sessions (token_hash, share_token, email, expires_at) VALUES ($1, $2, $3, ${until})`,
+      [sha(session), r.share_token, email])
+    const { rows: [seen] } = await db.query(
+      `UPDATE form_entries SET viewed_at = COALESCE(viewed_at, now()) WHERE id = $1 RETURNING *`, [r.id])
+    return { session, ...publicView(seen) }
+  }
+  // Ends every way into these links: sessions, codes and keys.
+  async function endAccess(tokens) {
+    for (const t of tokens.filter(Boolean)) {
+      for (const table of ['share_sessions', 'share_codes', 'share_keys']) await db.query(`DELETE FROM ${table} WHERE share_token = $1`, [t])
+    }
   }
 
   // Generates a revision: archives the version before (only if nobody else has),
-  // then numbers this one as it, with the deposit already paid.
+  // then numbers this one as it.
   async function generateVersion(current, data) {
     const { rows: [before] } = await db.query(
       `UPDATE form_entries SET superseded_at = now() WHERE id = $1 AND superseded_at IS NULL RETURNING *`, [current.supersedes_id])
@@ -222,9 +247,9 @@ export function createForms(db, { mailer, templates } = {}) {
     try {
       const { rows } = await db.query(
         `UPDATE form_entries SET number = $2, data = $3, status = 'generated', generated_at = now(), updated_at = now(),
-           share_token = $4, deposit_paid = $5, deposit_paid_at = $6
+           share_token = $4
          WHERE id = $1 AND status = 'draft' RETURNING *`,
-        [current.id, before.number, JSON.stringify(stored), newToken(), before.deposit_paid, before.deposit_paid_at])
+        [current.id, before.number, JSON.stringify(stored), newToken()])
       if (!rows[0]) throw new FormError(409, 'This entry is already generated.')
       return out(rows[0])
     } catch (err) {
@@ -379,13 +404,35 @@ export function createForms(db, { mailer, templates } = {}) {
         throw new FormError(400, 'That code is not right.')
       }
       await db.query('DELETE FROM share_codes WHERE share_token = $1', [r.share_token])
-      const session = randomBytes(32).toString('base64url')
-      await db.query(
-        `INSERT INTO share_sessions (token_hash, share_token, email, expires_at) VALUES ($1, $2, $3, now() + make_interval(days => $4))`,
-        [sha(session), r.share_token, emailOf(r.data).toLowerCase(), SESSION_DAYS])
-      const { rows: [seen] } = await db.query(
-        `UPDATE form_entries SET viewed_at = COALESCE(viewed_at, now()) WHERE id = $1 RETURNING *`, [r.id])
-      return { session, ...publicView(seen) }
+      return startSession(r, emailOf(r.data).toLowerCase(), `now() + interval '${SESSION_DAYS} days'`)
+    },
+
+    // A key for a generated entry's link, to email, copy, or paste into PayPal.
+    // Each share makes a new one; earlier keys keep working until they expire.
+    async issueKey(folder, id) {
+      let current = await row(folder, id)
+      if (current.status !== 'generated') throw new FormError(409, 'Generate the entry before sharing it.')
+      checkLive(current)
+      const email = emailOf(current.data).toLowerCase()
+      if (!email) throw new FormError(409, 'Add the customer email first: the link is tied to it.')
+      if (!current.share_token) {
+        current = (await db.query(`UPDATE form_entries SET share_token = $2 WHERE id = $1 RETURNING *`, [current.id, newToken()])).rows[0]
+      }
+      const key = randomBytes(24).toString('base64url')
+      const { rows: [k] } = await db.query(
+        `INSERT INTO share_keys (key_hash, share_token, email, expires_at) VALUES ($1, $2, $3, now() + interval '${KEY_DAYS} days') RETURNING expires_at`,
+        [sha(key), current.share_token, email])
+      return { ...out(current), key, key_expires_at: k.expires_at }
+    },
+
+    // Opens the link with its key: a session until the key expires, no code.
+    async openKey(token, key) {
+      const r = await linked(token)
+      const { rows: [k] } = await db.query(
+        'SELECT * FROM share_keys WHERE key_hash = $1 AND share_token = $2', [sha(String(key ?? '')), String(token ?? '')])
+      if (!k) throw needsCode(r, 'This link is not complete. Enter the code we email you to open the invoice.')
+      if (new Date(k.expires_at) <= new Date()) throw needsCode(r, 'This link has expired. Enter the code we email you to open it again.', { expired: true })
+      return startSession(r, k.email, `'${new Date(k.expires_at).toISOString()}'::timestamptz`)
     },
 
     // A new link for a generated entry; the old one and its sessions stop working.
@@ -396,11 +443,8 @@ export function createForms(db, { mailer, templates } = {}) {
       // Links sent for earlier versions follow to this one, so they stop too.
       const { rows: old } = await db.query(
         `SELECT id, share_token FROM form_entries WHERE folder = $1 AND number = $2 AND share_token IS NOT NULL`, [folder, current.number])
-      for (const o of old) {
-        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [o.share_token])
-        await db.query('DELETE FROM share_codes WHERE share_token = $1', [o.share_token])
-        if (o.id !== current.id) await db.query('UPDATE form_entries SET share_token = NULL WHERE id = $1', [o.id])
-      }
+      await endAccess(old.map((o) => o.share_token))
+      for (const o of old) if (o.id !== current.id) await db.query('UPDATE form_entries SET share_token = NULL WHERE id = $1', [o.id])
       const { rows } = await db.query(
         `UPDATE form_entries SET share_token = $3 WHERE folder = $1 AND id = $2 RETURNING *`, [folder, id, newToken()])
       return out(rows[0])
@@ -408,8 +452,8 @@ export function createForms(db, { mailer, templates } = {}) {
 
     // Adds or corrects the customer email on a generated entry: the one field
     // that may change after Generate, since the link's code goes there. The
-    // link stays; its sessions and unused codes end, so the next code goes to
-    // the new address.
+    // link stays; its sessions, unused codes and keys end, so the next code goes
+    // to the new address.
     async setEmail(folder, id, email) {
       const to = String(email ?? '').trim()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new FormError(400, 'Type a valid email address.')
@@ -417,10 +461,7 @@ export function createForms(db, { mailer, templates } = {}) {
       if (current.status !== 'generated') throw new FormError(409, 'A draft takes its email in the form.')
       checkLive(current)
       if (current.signed_at) throw new FormError(409, 'A signed order does not change. Revise it to change the email.')
-      if (current.share_token) {
-        await db.query('DELETE FROM share_sessions WHERE share_token = $1', [current.share_token])
-        await db.query('DELETE FROM share_codes WHERE share_token = $1', [current.share_token])
-      }
+      await endAccess([current.share_token])
       const data = { ...current.data, c: { ...current.data?.c, email: to } }
       const { rows } = await db.query(
         `UPDATE form_entries SET data = $3, updated_at = now() WHERE folder = $1 AND id = $2 RETURNING *`,
@@ -461,24 +502,6 @@ export function createForms(db, { mailer, templates } = {}) {
         [r.id, JSON.stringify(signature), signature.signedAt])
       if (!signed) throw new FormError(409, 'This order is already signed.')
       return publicView(signed)
-    },
-
-    // What the customer has paid toward a generated entry; it comes off the
-    // deposit required and the balance. Blank clears it.
-    async setDeposit(folder, id, amount) {
-      const blank = amount === null || amount === undefined || String(amount).trim() === ''
-      const n = blank ? null : Number(amount)
-      if (!blank && !(Number.isFinite(n) && n >= 0)) throw new FormError(400, 'Type the amount paid, 0 or more.')
-      const current = await row(folder, id)
-      if (current.status !== 'generated') throw new FormError(409, 'A draft takes its deposit in the form.')
-      checkLive(current)
-      const { rows } = await db.query(
-        `UPDATE form_entries SET deposit_paid = $3,
-           deposit_paid_at = CASE WHEN $3::numeric IS NULL THEN NULL WHEN deposit_paid IS DISTINCT FROM $3::numeric THEN now() ELSE deposit_paid_at END,
-           updated_at = now()
-         WHERE folder = $1 AND id = $2 RETURNING *`,
-        [folder, id, n == null ? null : Math.round(n * 100) / 100])
-      return out(rows[0])
     },
 
     async setStatus(folder, id, { sent, paid } = {}) {

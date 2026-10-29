@@ -94,7 +94,6 @@
 .inv-paper .totals .k { text-align: right; color: var(--muted); }
 .inv-paper .totals .save { color: var(--uranium-dim); }
 .inv-paper .totals .f { text-align: right; }
-.inv-paper .totals .dep-edit { margin-left: 8px; font-size: 12px; color: var(--uranium-dim); }
 .inv-paper .total-line { border-top: 1px solid var(--ink); padding-top: 6px; font-weight: 600; }
 .inv-paper .due { grid-column: 1 / -1; background: #000; color: var(--bone); display: flex; justify-content: space-between;
   align-items: baseline; padding: 12px 14px; margin-top: 8px; gap: 12px; }
@@ -217,7 +216,6 @@
 .pill.is-generated { color: var(--bone); background: rgba(217, 242, 217, .08); border: 1px solid #3A4D3C; }
 .pill.is-sent { color: #9FD3FF; background: rgba(80, 160, 230, .12); border: 1px solid rgba(80, 160, 230, .45); }
 .pill.is-viewed { color: #FFE3A8; background: rgba(240, 180, 60, .12); border: 1px solid rgba(240, 180, 60, .45); }
-.pill.is-partial { color: #D9F2D9; background: rgba(120, 200, 120, .14); border: 1px solid rgba(120, 200, 120, .5); }
 .pill.is-archived { color: #8FA592; background: transparent; border: 1px dashed #3A4D3C; }
 .pill.is-version { color: #FFE3A8; background: transparent; border: 1px solid rgba(240, 180, 60, .45); margin-left: 6px; }
 .pill.is-paid { color: #04140A; background: var(--uranium-dim); border: 1px solid var(--uranium-dim); }
@@ -286,7 +284,8 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .inv-paper.is-preview .inv-line .x, .inv-paper.is-preview .off { display: none; }
 
 /* ---------- Room for the docked console on a phone (useConsoleInset) ---------- */
-.admin-invoices { padding-bottom: calc(56px + var(--console-inset, 0px)); }
+/* Room below the page for the console docked over it on a phone, and then some. */
+.admin-invoices { padding-bottom: calc(140px + var(--console-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
 
 /* ---------- Validation: what is missing, and Generate waiting for it ---------- */
 .warn-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 7px 1px 2px;
@@ -630,3 +629,40 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .frow-head button[aria-pressed="true"] { border-color: var(--uranium-dim); }
 .frow-head button:not([aria-pressed="true"])::after { content: '⇅'; opacity: .5; font-size: 12px; }
 .frow-head .c-total { justify-content: flex-end; }
+
+/* ---------- Share: Email or Copy link ---------- */
+.share-menu { position: relative; display: inline-block; }
+.share-menu > summary { list-style: none; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.share-menu > summary::-webkit-details-marker { display: none; }
+.share-menu > summary.act { font-size: 13px; color: var(--bone); border: 1px solid var(--case-line); border-radius: 4px; padding: 5px 10px; }
+.share-menu[open] > summary { border-color: var(--uranium-dim); }
+.share-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; display: grid; min-width: 140px;
+  background: #0F1A11; border: 1px solid var(--uranium-dim); border-radius: 6px; padding: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+.share-pop button { font: inherit; font-size: 14px; text-align: left; color: var(--bone); background: none; border: 0; border-radius: 4px; padding: 9px 12px; cursor: pointer; }
+.share-pop button:hover, .share-pop button:focus-visible { background: rgba(47, 174, 55, .16); color: var(--uranium); }
+
+/* ---------- Folder: the arch the list scrolls over (public/assets/forms-arch.svg) ---------- */
+.admin-invoices > .forms-arch { position: fixed; inset: 0; z-index: 0; width: auto; max-width: none; margin: 0; pointer-events: none;
+  background: url('/assets/forms-arch.svg') center top / min(1100px, calc(100% + 24px)) auto no-repeat; opacity: .7; }
+.forms-arch ~ * { position: relative; z-index: 1; }
+.forms-arch ~ :is(.inv-folder-head, .inv-filters, .inv-empty) { background: rgba(10, 15, 11, .82); border-radius: 8px; padding: 10px 12px; }
+.forms-arch ~ .frow-head button { background: rgba(10, 15, 11, .9); }
+@media print { .forms-arch { display: none; } }
+
+/* ---------- Folder rows on a phone: title, status and total; the arrow opens the rest ---------- */
+.frow .more { display: none; }
+@media (max-width: 760px) {
+  .frow > * { order: 5; }
+  .frow .open { order: 0; }
+  .frow .c-status { order: 1; align-self: center; }
+  .frow .c-total { order: 2; text-align: right; align-self: center; font-size: 15px; }
+  .frow .c-total::before { display: none !important; }
+  .frow .frow-foot { order: 8; }
+  .frow .more { order: 9; }
+  .frow > .sent-ask { order: 10; }
+  .frow:not(.is-open) :is(.c-customer, .c-due, .c-updated, .frow-foot) { display: none; }
+  .frow .more { display: flex; grid-column: 1 / -1; justify-content: center; background: none; border: 0; border-top: 1px solid #1C2A1E;
+    color: #8FA592; padding: 4px 0 0; margin-top: 2px; font-size: 16px; cursor: pointer; }
+  .frow .more span { transition: transform .15s; }
+  .frow.is-open .more span { transform: rotate(180deg); }
+}

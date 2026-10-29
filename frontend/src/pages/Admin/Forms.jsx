@@ -6,7 +6,9 @@
 //   /admin/forms                          the templates: start a new entry, or open a folder
 //   /admin/forms/:folder                  one folder: every entry, drafts included, by date
 //                                         or status, with Sent / Paid, Preview and Download;
-//                                         a box at the top hides Paid (In Full)
+//                                         a box at the top hides Paid. On a phone a row
+//                                         shows title, status and total; the arrow opens the rest.
+//                                         Behind it, a fixed arch (public/assets/forms-arch.svg)
 //   /admin/forms/:folder/:id              one entry. A Draft saves as it is typed; Generate
 //                                         numbers it (backend utils/forms.js) and locks it
 //   /admin/forms/:folder/:id?view=preview the finished page alone; &download=1 opens the
@@ -33,14 +35,16 @@
 // scaled to fit the screen, so a phone shows every page whole. Preview drops
 // empty optional fields so a short order fits one page.
 //
-// Email: "Generate & email", the editor's Email and the folder's Share open a
-// mailto: (mailtoFor) carrying the customer's link, /invoice/<token>
-// (SharedInvoice), then offer to tick Sent: a mailto cannot report whether the
-// message went. The link opens only after a 6-digit code emailed to the
-// customer email on the order (VerifyGate; utils/forms.js requestCode), so
-// emailing needs that address; "Customer email" adds or corrects it on a
-// generated order. "New link" replaces a leaked link. The wording of
-// both emails is editable at /admin/emails (EmailTemplates, /api/emails).
+// Share (editor and folder): Email opens a mailto: (mailtoFor), Copy link puts
+// the link on the clipboard for PayPal or a message; "Generate & email" emails.
+// Each makes the link /invoice/<token>?k=<key> (shareLink; utils/forms.js
+// issueKey), which opens with no code until the key expires (KEY_DAYS), then
+// asks for a 6-digit code emailed to the customer email on the order
+// (VerifyGate; requestCode), so sharing needs that address. Both then offer to
+// tick Sent: neither can report whether it went. "Customer email" adds or
+// corrects it on an unsigned order. "New link" replaces a leaked link and ends
+// its keys. The wording of both emails is editable at /admin/emails
+// (EmailTemplates, /api/emails).
 //
 // Versions: a signed order never changes. Revise starts a draft of it as the
 // next version (same number, data.i.v; utils/forms.js revise); its Generate
@@ -101,7 +105,7 @@ const FALLBACK = {
       footer: { tagline: "The World's Largest Resource for Uranium Glass Jewelry", lines: ['storyshapedstudios.com', 'info@storyshapedstudios.com', 'Thank you for supporting handmade glass'] },
     },
     paymentMethods: [{ name: 'PayPal', label: 'StoryShapedStudios, LLC', handle: '@WVaught823', url: 'https://www.paypal.me/WVaught823' }],
-    terms: 'Custom order. Pricing reflects quantity discount from retail. 50% deposit due to begin production; balance due before shipment. Full invoice is due within 30 days of signing unless otherwise arranged with the seller. Uranium glass is handmade; minor variation in color and fluorescence is expected.',
+    terms: 'Custom order. Pricing reflects quantity discount from retail. Balance due before shipment. Full invoice is due within 30 days of signing unless otherwise arranged with the seller. Uranium glass is handmade; minor variation in color and fluorescence is expected.',
     sections: [{ name: 'acceptance', fields: [], text: 'By signing, the customer accepts this order, its pricing and the terms above.' }],
   },
 }
@@ -128,7 +132,7 @@ const salesOrderTemplate = (form) => ({
   i: { no: '', date: today(), po: '' },
   lines: [blankLine()],
   p: { method: form.paymentMethods?.[0]?.name ?? '' },
-  ship: '', taxPct: '', deposit: '', depositReq: '', depositDue: '', notes: withPayTerms(form.terms),
+  ship: '', taxPct: '', notes: withPayTerms(form.terms),
 })
 // Forms with an editor here, by schema name.
 const EDITORS = { salesOrder: { template: salesOrderTemplate } }
@@ -154,12 +158,7 @@ function settle(l) {
   return l
 }
 
-// Paid toward the order: on a generated entry the backend's deposit_paid, which
-// can change after Generate; on a draft the form's own Deposit paid.
-const paidOf = (r) => (r?.status !== 'draft' && r?.deposit_paid != null ? r.deposit_paid : num(r?.data?.deposit))
-
-// `paid` comes off the deposit required and the balance.
-function sums(d, paid = num(d?.deposit)) {
+function sums(d) {
   let retail = 0, sub = 0
   for (const l of d?.lines ?? []) {
     const q = num(l.qty) || 0, up = unitPrice(l)
@@ -168,8 +167,7 @@ function sums(d, paid = num(d?.deposit)) {
   }
   const tax = r2(sub * (num(d?.taxPct) || 0) / 100)
   const total = sub + (num(d?.ship) || 0) + tax
-  const depositLeft = num(d?.depositReq) ? Math.max(0, r2(num(d.depositReq) - (paid || 0))) : null
-  return { retail, sub, tax, total, paid: paid || 0, depositLeft, due: total - (paid || 0) }
+  return { retail, sub, tax, total, due: total }
 }
 
 // The invoice is due 30 days after the customer signs (PAY_TERMS).
@@ -290,11 +288,10 @@ function Paged({ on, render }) {
 // A line that charges something but has no retail to measure the discount from.
 const needsRetail = (l) => num(l.retail) == null && (num(l.price) != null || Boolean(num(l.qty)))
 
-// Where an entry stands, furthest last: Draft, Generated, Sent, Paid (Partial),
-// Paid (In Full). Partial is any amount paid short of the box ticked In Full.
-const STATUSES = ['draft', 'generated', 'sent', 'viewed', 'signed', 'partial', 'paid']
-const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', viewed: 'Viewed', signed: 'Signed', partial: 'Paid (Partial)', paid: 'Paid (In Full)' }
-const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : paidOf(r) > 0 ? 'partial' : r.signed_at ? 'signed'
+// Where an entry stands, furthest last: Draft, Generated, Sent, Viewed, Signed, Paid.
+const STATUSES = ['draft', 'generated', 'sent', 'viewed', 'signed', 'paid']
+const STATUS_LABEL = { draft: 'Draft', generated: 'Generated', sent: 'Sent', viewed: 'Viewed', signed: 'Signed', paid: 'Paid' }
+const statusOf = (r) => (r.status === 'draft' ? 'draft' : r.paid ? 'paid' : r.signed_at ? 'signed'
   : r.viewed_at ? 'viewed' : r.sent ? 'sent' : 'generated')
 
 // Listing variations by SKU: { title, price }. Drafts included; same read as /admin/inventory.
@@ -324,11 +321,10 @@ function invoiceVars(r, form) {
   return {
     name: String(d.c?.name ?? '').trim() || 'there',
     number: r.number,
-    link: `${window.location.origin}/invoice/${r.share}`,
-    balance: money(sums(d, paidOf(r)).due),
+    link: r.url ?? `${window.location.origin}/invoice/${r.share}`,
+    expires: r.key_expires_at ? mdy(r.key_expires_at) : '',
+    balance: money(sums(d).due),
     due: balanceDue(r) ? mdy(balanceDue(r) + 'T00:00:00') : '30 days after signing',
-    deposit: num(d.depositReq) ? money(num(d.depositReq)) : '',
-    deposit_due: d.depositDue ? mdy(d.depositDue + 'T00:00:00') : '',
     payment: m ? `Pay with ${m.name}: ${m.url}` : '',
   }
 }
@@ -342,25 +338,54 @@ async function mailtoFor(r, form) {
   const to = String(r.data?.c?.email ?? '').trim()
   return `mailto:${to}?subject=${encodeURIComponent(fillIn(t.subject, v))}&body=${encodeURIComponent(body)}`
 }
-// Opens the email with the entry's link, making the link first if it predates links.
-// One email per tap: a second tap, or a Generate & email that fires twice,
-// within a few seconds of the first opens nothing more.
+// The entry with a link that opens without a code until its key expires
+// (utils/forms.js issueKey): { ...entry, url, key_expires_at }.
+async function shareLink(r, folder) {
+  if (!String(r.data?.c?.email ?? '').trim()) {
+    throw new Error('This order has no customer email, and its link is tied to it. Open the order and use Customer email to add it.')
+  }
+  const k = await apiFetch(`${API}/${folder}/${r.id}/link`, { method: 'POST' })
+  return { ...r, ...k, url: `${window.location.origin}/invoice/${k.share}?k=${encodeURIComponent(k.key)}` }
+}
+// Opens the email with the entry's link. One email per tap: a second tap, or a
+// Generate & email that fires twice, within a few seconds opens nothing more (null).
 let lastMail = 0
 async function openEmail(r, folder, form) {
-  if (Date.now() - lastMail < 5000) return r.share
+  if (Date.now() - lastMail < 5000) return null
   lastMail = Date.now()
-  if (!String(r.data?.c?.email ?? '').trim()) {
-    throw new Error('This order has no customer email, and its link emails the customer a code. Open the order and use Customer email to add it.')
+  const linked = await shareLink(r, folder)
+  window.location.href = await mailtoFor(linked, form)
+  return linked
+}
+// Puts the link on the clipboard, to paste into PayPal, a text or a post.
+async function copyLink(r, folder) {
+  const linked = await shareLink(r, folder)
+  try { await navigator.clipboard.writeText(linked.url) } catch { window.prompt('Copy this link:', linked.url) }
+  return linked
+}
+const shareBy = (how, r, folder, form) => (how === 'copy' ? copyLink(r, folder) : openEmail(r, folder, form))
+
+// Share: Email or Copy link.
+function ShareMenu({ onShare, primary = false }) {
+  const pick = (e, how) => {
+    e.currentTarget.closest('details').open = false
+    onShare(how)
   }
-  const linked = r.share ? r : await apiFetch(`${API}/${folder}/${r.id}/share`, { method: 'POST' })
-  window.location.href = await mailtoFor({ ...r, share: linked.share }, form)
-  return linked.share
+  return (
+    <details className="share-menu">
+      <summary className={primary ? 'tool primary' : 'act'}>Share <span aria-hidden="true">▾</span></summary>
+      <div className="share-pop">
+        <button type="button" onClick={(e) => pick(e, 'email')}>Email</button>
+        <button type="button" onClick={(e) => pick(e, 'copy')}>Copy link</button>
+      </div>
+    </details>
+  )
 }
 
-function SentAsk({ onYes, onNo }) {
+function SentAsk({ onYes, onNo, how = 'email' }) {
   return (
     <div className="sent-ask" role="status">
-      <span>Email opened. Did it go out?</span>
+      <span>{how === 'copy' ? 'Link copied. Did you send it?' : 'Email opened. Did it go out?'}</span>
       <span className="acts">
         <button type="button" className="yes" onClick={onYes}>Yes, mark Sent</button>
         <button type="button" onClick={onNo}>Not yet</button>
@@ -370,10 +395,9 @@ function SentAsk({ onYes, onNo }) {
 }
 
 const shortDate = (at) => mdy(at)
-// Sent and Paid (In Full) are ticked by hand; Viewed and Signed tick themselves
-// when the customer enters their code or signs, Paid (Partial) when a Deposit
-// paid is entered on the order. Each shows the date it was ticked.
-const AUTO_WHEN = { viewed: 'the customer enters their code', signed: 'the customer signs', partial: 'Deposit paid is entered on the order' }
+// Sent and Paid are ticked by hand; Viewed and Signed tick themselves when the
+// customer opens the link or signs. Each shows the date it was ticked.
+const AUTO_WHEN = { viewed: 'the customer opens the link', signed: 'the customer signs' }
 function SentPaid({ r, onFlag }) {
   const locked = r.status === 'draft' || Boolean(r.superseded_at)
   const box = (field, label, checked, at, auto) => (
@@ -389,8 +413,7 @@ function SentPaid({ r, onFlag }) {
       {box('sent', 'Sent', r.sent, r.sent_at, false)}
       {box('viewed', 'Viewed', r.viewed_at, r.viewed_at, true)}
       {box('signed', 'Signed', r.signed_at, r.signed_at, true)}
-      {box('partial', 'Paid (Partial)', paidOf(r) > 0, r.deposit_paid_at, true)}
-      {box('paid', 'Paid (In Full)', r.paid, r.paid_at, false)}
+      {box('paid', 'Paid', r.paid, r.paid_at, false)}
     </>
   )
 }
@@ -463,8 +486,8 @@ function Templates({ setError }) {
 
 // Stand-ins for the placeholders, so a template reads as the customer will see it.
 const SAMPLE = {
-  name: 'Ann Lee', number: '4122', balance: '$12,250.00', due: '11/27/26', deposit: '$6,125.00', deposit_due: '11/04/26', code: '482913', minutes: 10,
-  link: `${typeof window === 'undefined' ? '' : window.location.origin}/invoice/sample-link`,
+  name: 'Ann Lee', number: '4122', balance: '$12,250.00', due: '11/27/26', expires: '11/27/26', code: '482913', minutes: 10,
+  link: `${typeof window === 'undefined' ? '' : window.location.origin}/invoice/sample-link?k=sample-key`,
   payment: 'Pay with PayPal: https://www.paypal.me/WVaught823 (StoryShapedStudios, LLC, @WVaught823)',
 }
 
@@ -586,10 +609,11 @@ function Folder({ folder, setError }) {
   const form = useFormIn(folder)
   const [rows, setRows] = useState(null)
   const [show, setShow] = useState('all')
-  const [hideFull, setHideFull] = useState(false) // leave out Paid (In Full)
+  const [hideFull, setHideFull] = useState(false) // leave out Paid
+  const [expanded, setExpanded] = useState(() => new Set()) // rows opened on a phone
   const [showArchived, setShowArchived] = useState(false) // versions a revision replaced
   const [sort, setSort] = useState({ key: 'order', dir: -1 })
-  const [asking, setAsking] = useState(null) // id whose email was just opened
+  const [asking, setAsking] = useState(null) // { id, how } just shared
 
   const load = useCallback(async () => {
     try { setRows(await apiFetch(`${API}/${folder}`)) } catch (err) { setError(err.message); setRows([]) }
@@ -610,15 +634,18 @@ function Folder({ folder, setError }) {
     } catch (err) { setError(err.message); load() }
   }
 
-  const share = async (r) => {
+  const share = async (r, how) => {
     try {
-      const token = await openEmail(r, folder, form)
-      setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, share: token } : x)))
-      setAsking(r.id)
+      const linked = await shareBy(how, r, folder, form)
+      if (!linked) return
+      setRows((rs) => rs.map((x) => (x.id === r.id ? { ...x, share: linked.share } : x)))
+      setAsking({ id: r.id, how })
     } catch (err) { setError(err.message) }
   }
+  const toggle = (id) => setExpanded((was) => { const next = new Set(was); if (!next.delete(id)) next.add(id); return next })
 
-  const head = <BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} />
+  // The arch the list scrolls over; fixed, behind everything (AdminForms.css).
+  const head = <><div className="forms-arch" aria-hidden="true" /><BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} /></>
   if (!rows) return <>{head}<p className="inv-empty">Loading…</p></>
   const live = showArchived ? rows : rows.filter((r) => !r.superseded_at)
   const archived = rows.length - rows.filter((r) => !r.superseded_at).length
@@ -641,7 +668,7 @@ function Folder({ folder, setError }) {
 
       <div className="inv-filters">
         <label className="hide-full">
-          <input type="checkbox" checked={hideFull} onChange={(e) => setHideFull(e.target.checked)} /> Exclude Paid (In Full)
+          <input type="checkbox" checked={hideFull} onChange={(e) => setHideFull(e.target.checked)} /> Exclude Paid
         </label>
         <label className="hide-full">
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived versions <span>{archived}</span>
@@ -655,7 +682,7 @@ function Folder({ folder, setError }) {
         </div>
       </div>
 
-      {!shown.length && <p className="inv-empty">{rows.length ? (hideFull && show === 'paid' ? 'Paid (In Full) is excluded.' : 'Nothing with this status.') : 'Nothing filed here yet.'}</p>}
+      {!shown.length && <p className="inv-empty">{rows.length ? (hideFull && show === 'paid' ? 'Paid is excluded.' : 'Nothing with this status.') : 'Nothing filed here yet.'}</p>}
       {shown.length > 0 && (
         <div className="frow-head" role="group" aria-label="Sort by">
           {COLUMNS.map((c) => (
@@ -670,8 +697,9 @@ function Folder({ folder, setError }) {
         const st = statusOf(r)
         const at = `${HOME}/${folder}/${r.id}`
         const due = balanceDue(r)
+        const isOpen = expanded.has(r.id)
         return (
-          <div className="frow" key={r.id}>
+          <div className={`frow${isOpen ? ' is-open' : ''}`} key={r.id}>
             <button type="button" className="open c-order" onClick={() => navigate(at)}>
               <strong>{r.file}</strong>
               <small>{mdy(dateOf(r) + 'T00:00:00')}</small>
@@ -690,10 +718,12 @@ function Folder({ folder, setError }) {
               <span className="row-actions">
                 <Link className="act" to={`${at}?view=preview`}>Preview</Link>
                 <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
-                {r.status === 'generated' && !r.superseded_at && <button type="button" className="act" onClick={() => share(r)}>Share</button>}
+                {r.status === 'generated' && !r.superseded_at && <ShareMenu onShare={(how) => share(r, how)} />}
               </span>
             </div>
-            {asking === r.id && <SentAsk onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
+            <button type="button" className="more" aria-expanded={isOpen} onClick={() => toggle(r.id)}
+              aria-label={isOpen ? 'Fewer details' : 'More details'}><span aria-hidden="true">▾</span></button>
+            {asking?.id === r.id && <SentAsk how={asking.how} onYes={() => { flag(r.id, 'sent', true); setAsking(null) }} onNo={() => setAsking(null)} />}
           </div>
         )
       })}
@@ -945,7 +975,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const download = params.get('download') === '1'
   const [rec, setRec] = useState(shared ? { ...shared, status: 'generated' } : null) // the stored entry
   const [doc, setDoc] = useState(shared?.data ?? null) // the form as typed
-  const [askSent, setAskSent] = useState(false) // email opened; ask whether it went
+  const [askSent, setAskSent] = useState(false) // 'email' | 'copy' just shared; ask whether it went
   const emailAfter = useRef(false) // Generate was pressed as "Generate & email"
   const [note, setNote] = useState('')
   const [skus, setSkus] = useState([])
@@ -1136,7 +1166,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
       setRec(g); setDoc(g.data); setSaving(''); setDirty(false)
       if (emailAfter.current) {
         emailAfter.current = false
-        await email(g)
+        await share('email', g)
       }
     } catch (err) {
       setError(err.message)
@@ -1160,17 +1190,6 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) { setError(err.message); return null }
   }
 
-  // What the customer has paid on a generated order; it comes off the deposit
-  // required and the balance, and ticks Paid (Partial).
-  const changeDeposit = async () => {
-    const was = rec.deposit_paid ?? num(doc.deposit)
-    const typed = window.prompt('Deposit paid so far (leave blank to clear):', was == null ? '' : String(was))
-    if (typed === null) return
-    try {
-      setRec(await apiFetch(`${at}/deposit`, { method: 'POST', body: { amount: typed.trim().replace(/[$,]/g, '') } }))
-    } catch (err) { setError(err.message) }
-  }
-
   // A signed order is never changed: its next version starts as a draft here.
   const revise = async () => {
     if (!window.confirm(`Revise order ${rec.number}? A draft of version ${(rec.version ?? 1) + 1} opens to change. Generating it archives this signed version, and the customer's link then shows the new one to sign.`)) return
@@ -1180,12 +1199,14 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     } catch (err) { setError(err.message) }
   }
 
-  const email = async (r = rec) => {
+  const share = async (how, r = rec) => {
     try {
       if (!String(r.data?.c?.email ?? '').trim() && !(r = await changeEmail())) return
-      const token = await openEmail(r, folder, form)
-      setRec((x) => ({ ...x, share: token }))
-      setAskSent(true)
+      const linked = await shareBy(how, r, folder, form)
+      if (!linked) return
+      setRec((x) => ({ ...x, share: linked.share }))
+      setAskSent(how)
+      if (how === 'copy') setNote(`Link copied. Paste it into an email, PayPal or a message: it opens without a code until ${mdy(linked.key_expires_at)}, then asks for one.`)
     } catch (err) { setError(err.message) }
   }
 
@@ -1194,7 +1215,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     if (!window.confirm('Make a new link for this order? The link already sent stops working, and the customer needs the new email.')) return
     try {
       setRec(await apiFetch(`${at}/relink`, { method: 'POST' }))
-      setNote('New link made. Use Email to send it.')
+      setNote('New link made. Use Share to send it.')
     } catch (err) { setError(err.message) }
   }
 
@@ -1226,7 +1247,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const ready = !Object.keys(problemsIn(doc)).length
   const problems = problemsIn(doc, tried === 'email')
   const shownProblems = tried ? problems : {}
-  const s = sums(doc, locked ? paidOf(rec) : num(doc.deposit))
+  const s = sums(doc)
   const methods = form.paymentMethods ?? []
   const method = methods.find((m) => m.name === doc.p?.method)
   const company = form.document?.company ?? {}
@@ -1307,7 +1328,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
           <button type="button" className="tool" onClick={downloadPdf}>Download PDF</button>
           {locked && !archived && !sig && <button type="button" className="tool" onClick={changeEmail}>Customer email</button>}
           {locked && !archived && rec.share && <button type="button" className="tool" onClick={relink} title="Replace the customer's link if it went to the wrong person">New link</button>}
-          {locked && !archived && <button type="button" className="tool primary" onClick={() => email()}>Email</button>}
+          {locked && !archived && <ShareMenu primary onShare={(how) => share(how)} />}
           {!locked && !preview && generateButton('top')}
         </div>
       </div>
@@ -1326,7 +1347,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
         </p>
       )}
       {askSent && !rec.sent && !shared && (
-        <SentAsk onYes={() => { flag(null, 'sent', true); setAskSent(false) }} onNo={() => setAskSent(false)} />
+        <SentAsk how={askSent} onYes={() => { flag(null, 'sent', true); setAskSent(false) }} onNo={() => setAskSent(false)} />
       )}
 
       {ask && (
@@ -1444,30 +1465,6 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
                 <span className="k">Tax</span><span className="num">{money(s.tax)}</span>
               </>}
               <span className="k total-line">Total</span><span className="num total-line">{money(s.total)}</span>
-              {!(preview && blank(doc.depositReq)) && <>
-                <label className="k" htmlFor="f-depreq">Deposit required</label>
-                {readOnly ? <span className="num">{num(doc.depositReq) ? money(num(doc.depositReq)) : 'None'}</span>
-                  : <input className="f num" id="f-depreq" type="number" step="0.01" min="0" inputMode="decimal" value={doc.depositReq ?? ''}
-                    placeholder={s.total ? money(r2(s.total / 2)) + ' is 50%' : ''} onChange={(e) => setField('depositReq', e.target.value)} />}
-              </>}
-              {!blank(doc.depositDue) && <>
-                <label className="k" htmlFor="f-depdue">Deposit due by</label>
-                <input className="f num" id="f-depdue" type="date" value={doc.depositDue ?? ''} onChange={(e) => setField('depositDue', e.target.value)} />
-              </>}
-              {!locked ? <>
-                <label className="k" htmlFor="f-dep">Deposit paid</label>
-                <input className="f num" id="f-dep" type="number" step="0.01" min="0" inputMode="decimal" value={doc.deposit} onChange={(e) => setField('deposit', e.target.value)} />
-              </> : (s.paid > 0 || !preview) && <>
-                <span className="k">Deposit paid</span>
-                {/* Not an input: the locked fieldset disables every control inside it. */}
-                <span className="num">{money(s.paid)}{!preview && !archived && (
-                  <a href="#deposit" role="button" className="dep-edit" title="Record what the customer has paid"
-                    onClick={(e) => { e.preventDefault(); changeDeposit() }}>Edit</a>
-                )}</span>
-              </>}
-              {s.depositLeft != null && s.paid > 0 && <>
-                <span className="k">Deposit still due</span><span className="num">{money(s.depositLeft)}</span>
-              </>}
               <div className="due"><span>Balance due</span><strong>{money(s.due)}</strong></div>
             </div>
           </section>
@@ -1608,8 +1605,9 @@ function ContinueAs({ invoice, onDone }) {
   )
 }
 
-// The link shows nothing until the customer enters the code emailed to the
-// address on the order (utils/forms.js requestCode / verify).
+// Without a live key (?k=, utils/forms.js openKey) or session, the link shows
+// nothing until the customer enters the code emailed to the address on the
+// order (requestCode / verify).
 function VerifyGate({ token, gate, onOpened }) {
   const [sentTo, setSentTo] = useState(null)
   const [code, setCode] = useState('')
@@ -1634,6 +1632,7 @@ function VerifyGate({ token, gate, onOpened }) {
     <div className="inv-gate inv-verify">
       <img alt="StoryShaped Studios" src="/assets/StoryShapedStudiosNeonGlow_Rect.png" />
       <h1>Invoice {gate.number}</h1>
+      {gate.expired && <p>This link has expired. We&rsquo;ll check it&rsquo;s you with a code, then it opens again.</p>}
       {!gate.sentTo ? (
         <p>This invoice has no email on file, so it cannot be opened here. Please contact info@storyshapedstudios.com.</p>
       ) : !sentTo ? (
@@ -1689,7 +1688,18 @@ export function SharedInvoice() {
     setCustomer(null)
   }
   useEffect(() => {
-    rawFetch(`/api/shared/${encodeURIComponent(token)}`, { headers: session ? { 'X-Invoice-Session': session } : undefined }).then(setEntry)
+    const at = `/api/shared/${encodeURIComponent(token)}`
+    const get = () => rawFetch(at, { headers: session ? { 'X-Invoice-Session': session } : undefined }).then(setEntry)
+    // A shared link's key opens it without a code; it leaves the address bar so
+    // a copy of the address is not the key. A refused key falls back to this
+    // browser's session, then the code (with the key's reason).
+    const key = new URLSearchParams(window.location.search).get('k')
+    if (key) window.history.replaceState(window.history.state, '', window.location.pathname)
+    const load = key
+      ? rawFetch(`${at}/key`, { method: 'POST', body: { key } }).then(opened)
+        .catch((err) => { if (err.status !== 401) throw err; return get().catch((e) => { throw e.status === 401 ? err : e }) })
+      : get()
+    load
       .catch((err) => {
         if (err.status === 401 && err.data?.verify) {
           try { localStorage.removeItem(sessionKey) } catch { /* private mode */ }

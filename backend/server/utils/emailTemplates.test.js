@@ -6,9 +6,8 @@ import assert from 'node:assert/strict'
 import { PGlite } from '@electric-sql/pglite'
 import { createTemplates, resetTemplateTableForTests, fill, DEFAULTS } from './emailTemplates.js'
 
-function fresh() {
+function fresh(pg = new PGlite()) {
   resetTemplateTableForTests()
-  const pg = new PGlite()
   return createTemplates({ async query(text, params) { const r = await pg.query(text, params); return { rows: r.rows } } })
 }
 
@@ -53,4 +52,14 @@ test('an added email takes forms from the others; a form goes out with one email
   assert.deepEqual(await t.reset(w.key), { key: w.key, deleted: true })
   assert.equal((await t.forForm('sales_orders')).key, 'invoice')
   await assert.rejects(t.get(w.key), { status: 404 })
+})
+
+test('a saved email from before link keys gets the new sentence and loses its deposit lines', async () => {
+  const pg = new PGlite()
+  await pg.query('CREATE TABLE email_templates (key TEXT PRIMARY KEY, subject TEXT NOT NULL, body TEXT NOT NULL, updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())')
+  await pg.query(`INSERT INTO email_templates (key, subject, body) VALUES ('invoice', 'Hi', $1)`,
+    ['See {{link}}\nWhen you open it we will email you a 6-digit code, so only you can see it.\nDeposit: {{deposit}}\nDue {{ deposit_due }}\nBalance: {{balance}}'])
+  const t = fresh(pg)
+  assert.equal((await t.get('invoice')).body,
+    'See {{link}}\nThe link opens until {{expires}}. After that, opening it emails you a 6-digit code, so only you can see it.\nBalance: {{balance}}')
 })

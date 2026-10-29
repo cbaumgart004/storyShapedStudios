@@ -22,17 +22,20 @@ export class TemplateError extends Error {
   }
 }
 
+const OLD_CODE_LINE = 'When you open it we will email you a 6-digit code, so only you can see it.'
+const KEY_LINE = 'The link opens until {{expires}}. After that, opening it emails you a 6-digit code, so only you can see it.'
+
 export const DEFAULTS = {
   invoice: {
     label: 'Invoice link',
-    help: 'Opens in your mail app from Generate & email, Email and Share.',
-    placeholders: ['name', 'number', 'link', 'balance', 'due', 'deposit', 'deposit_due', 'payment'],
+    help: 'Opens in your mail app from Generate & email and Share > Email.',
+    placeholders: ['name', 'number', 'link', 'expires', 'balance', 'due', 'payment'],
     subject: 'StoryShaped Studios invoice {{number}}',
     body: [
       'Hi {{name}},', '',
       'Here is invoice {{number}} from StoryShaped Studios.', '',
       'View, sign or download it: {{link}}',
-      'When you open it we will email you a 6-digit code, so only you can see it.', '',
+      KEY_LINE, '',
       'Balance due: {{balance}} by {{due}}',
       '{{payment}}', '',
       'Thank you,', 'StoryShaped Studios',
@@ -71,6 +74,11 @@ const SCHEMA = [
   )`,
   'ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS label TEXT',
   `ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS forms JSONB NOT NULL DEFAULT '[]'`,
+  // Saved link emails written before links carried a key: the new sentence, and no deposit lines.
+  `UPDATE email_templates SET body = replace(body, '${OLD_CODE_LINE}', '${KEY_LINE}')
+     WHERE key <> 'code' AND position('${OLD_CODE_LINE}' in body) > 0`,
+  String.raw`UPDATE email_templates SET body = regexp_replace(body, '^[^\n]*\{\{\s*deposit(_due)?\s*\}\}[^\n]*\n?', '', 'gn')
+     WHERE key <> 'code' AND body ~ '\{\{\s*deposit(_due)?\s*\}\}'`,
 ]
 
 let ready = null
