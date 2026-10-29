@@ -581,6 +581,35 @@ const COLUMNS = [
   { key: 'status', label: 'Status', dir: 1, val: (r) => STATUSES.indexOf(statusOf(r)) },
 ]
 
+// A gargoyle on a flying buttress, drawn in the console's uranium line. The
+// folder's entries stand between two, the right one mirrored (AdminForms.css
+// shows them only where the screen leaves room beside the list).
+function Buttress({ side }) {
+  return (
+    <div className={`gothic is-${side}`} aria-hidden="true">
+      <svg viewBox="0 0 120 420" fill="none" strokeLinejoin="round" strokeLinecap="round">
+        {/* Pier and pinnacle */}
+        <path className="stone" d="M8 420V140h4v-12h20v12h4v280z" />
+        <path d="M4 420v-112l4-6M40 420v-112l-4-6" />
+        <path className="stone" d="M12 128 22 84l10 44z" />
+        <path d="M22 84v-10m-4 4h8M15 112l-3-2m17 2 3-2M17 98l-3-2m13 2 3-2" />
+        <path d="M17 160v24a5 5 0 0 0 10 0v-24a5 5 0 0 0-10 0z" />
+        {/* Flying buttresses: the upper carries the gargoyle */}
+        <path className="stone" d="M36 168 120 128v62q-50 2-84 68z" />
+        <circle cx="92" cy="160" r="6" />
+        <path d="M92 152v16m-8-8h16" />
+        <path className="stone" d="M36 318 120 288v48q-48 2-84 56z" />
+        <circle cx="96" cy="310" r="4" />
+        {/* Gargoyle, crouched on the upper flyer, facing out */}
+        <path className="stone" d="M110 139c2-20-4-38-18-42l-8-5c-4-8-14-8-20-2l-8 4 8 4-4 6h12c6 4 8 12 6 22l-4 12z" />
+        <path d="M96 98c8-22 20-28 22-36-6 10-12 12-18 12 4 8 0 16-4 24zM70 86c-2-8 2-14 8-16-2 6-2 12-2 16M80 88l6-8v10M72 139l-6 2m10-2-4 3M110 139c6 2 8-6 4-10" />
+        <circle className="eye" cx="69" cy="91" r="1.6" />
+        <path className="spout" d="M57 99q-8 22-10 64" />
+      </svg>
+    </div>
+  )
+}
+
 function Folder({ folder, setError }) {
   const navigate = useNavigate()
   const form = useFormIn(folder)
@@ -666,6 +695,9 @@ function Folder({ folder, setError }) {
           ))}
         </div>
       )}
+      {shown.length > 0 && <div className="frows">
+      <Buttress side="left" />
+      <Buttress side="right" />
       {ordered.map((r) => {
         const st = statusOf(r)
         const at = `${HOME}/${folder}/${r.id}`
@@ -697,6 +729,7 @@ function Folder({ folder, setError }) {
           </div>
         )
       })}
+      </div>}
     </>
   )
 }

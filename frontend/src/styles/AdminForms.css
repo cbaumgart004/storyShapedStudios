@@ -630,3 +630,16 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .frow-head button[aria-pressed="true"] { border-color: var(--uranium-dim); }
 .frow-head button:not([aria-pressed="true"])::after { content: '⇅'; opacity: .5; font-size: 12px; }
 .frow-head .c-total { justify-content: flex-end; }
+
+/* ---------- Folder: gargoyles on flying buttresses either side of the entries (Buttress) ---------- */
+.frows { position: relative; }
+.gothic { display: none; position: absolute; top: 0; bottom: 0; width: 132px; pointer-events: none; color: var(--uranium-dim); }
+.gothic.is-left { right: calc(100% + 10px); }
+.gothic.is-right { left: calc(100% + 10px); transform: scaleX(-1); }
+.gothic svg { position: sticky; top: 24px; display: block; width: 100%; height: auto; overflow: visible;
+  stroke: currentColor; stroke-width: 1.4; filter: drop-shadow(0 0 4px rgba(0, 251, 0, .35)); }
+.gothic .stone { fill: rgba(47, 174, 55, .07); }
+.gothic .eye { fill: var(--uranium); stroke: none; }
+.gothic .spout { stroke: var(--uranium); stroke-dasharray: 2 5; opacity: .6; }
+@media (min-width: 1290px) { .gothic { display: block; } }
+@media print { .gothic { display: none !important; } }
