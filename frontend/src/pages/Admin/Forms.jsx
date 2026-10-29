@@ -981,6 +981,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const [doc, setDoc] = useState(shared?.data ?? null) // the form as typed
   const [askSent, setAskSent] = useState(false) // 'email' | 'copy' just shared; ask whether it went
   const emailAfter = useRef(false) // Generate was pressed as "Generate & email"
+  const generating = useRef(false) // a Generate in flight (generate below)
   const [note, setNote] = useState('')
   const [skus, setSkus] = useState([])
   const [saving, setSaving] = useState('') // '', 'Saving…', 'Saved', 'Unsaved changes'
@@ -1142,7 +1143,6 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
 
   // Missing retail: ask first. `typed` holds what was entered; a line left blank
   // (or every line, when skipped) takes its price as retail, so 0% off.
-  const generating = useRef(false)
   const generate = async (typed) => {
     if (generating.current) return
     setNameDone(true)
