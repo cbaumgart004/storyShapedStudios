@@ -8,8 +8,7 @@
 //                                         or status, with Sent / Paid, Preview and Download;
 //                                         a box at the top hides Paid. On a phone a row
 //                                         shows title, status and total; the arrow opens the rest.
-//                                         Behind it, a fixed arch (public/assets/forms-arch.svg)
-//   /admin/forms/:folder/:id              one entry. A Draft saves as it is typed; Generate
+//   /admin/forms/:folder/:entry           one entry (its order number, or draft-<id>). A Draft saves as it is typed; Generate
 //                                         numbers it (backend utils/forms.js) and locks it
 //   /admin/forms/:folder/:id?view=preview the finished page alone; &download=1 opens the
 //                                         print dialog to save it as a PDF
@@ -68,7 +67,7 @@
 // Needs a console sign-in, as /admin/inventory does.
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
 import { editorToken, signInThroughConsole, CONSOLE_API, useSchema } from '@/lib/siteConsole'
 import '@/styles/AdminForms.css'
@@ -136,6 +135,12 @@ const salesOrderTemplate = (form) => ({
 })
 // Forms with an editor here, by schema name.
 const EDITORS = { salesOrder: { template: salesOrderTemplate } }
+
+// An entry's address: its order number (v<version> once revised), or draft-<id>
+// before it has one. Links pass the id along in state; a typed address is looked up (Entry).
+const refOf = ({ id, number, version }) => (number ? `${number}${version > 1 ? `v${version}` : ''}` : `draft-${id}`)
+const toEntry = (folder, r) => [`${HOME}/${folder}/${refOf(r)}`, { state: { id: r.id } }]
+const linkTo = ([to, opts]) => ({ to, ...opts })
 
 const num = (v) => (v === '' || v == null || isNaN(+v) ? null : +v)
 const r2 = (v) => Math.round(v * 100) / 100
@@ -444,7 +449,7 @@ function Templates({ setError }) {
   const startNew = async (f) => {
     try {
       const d = await apiFetch(`${API}/${f.folder}`, { method: 'POST', body: EDITORS[f.name].template(f) })
-      navigate(`${HOME}/${f.folder}/${d.id}`)
+      navigate(...toEntry(f.folder, d))
     } catch (err) { setError(err.message) }
   }
 
@@ -623,7 +628,7 @@ function Folder({ folder, setError }) {
   const startNew = async () => {
     try {
       const d = await apiFetch(`${API}/${folder}`, { method: 'POST', body: EDITORS[form.name].template(form) })
-      navigate(`${HOME}/${folder}/${d.id}`)
+      navigate(...toEntry(folder, d))
     } catch (err) { setError(err.message) }
   }
   const flag = async (id, field, value) => {
@@ -644,8 +649,7 @@ function Folder({ folder, setError }) {
   }
   const toggle = (id) => setExpanded((was) => { const next = new Set(was); if (!next.delete(id)) next.add(id); return next })
 
-  // The arch the list scrolls over; fixed, behind everything (AdminForms.css).
-  const head = <><div className="forms-arch" aria-hidden="true" /><BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} /></>
+  const head = <><BrandHead eyebrow={`Forms / ${folder}`} title={folderTitle(folder)} back={<Link to={HOME} className="tool">← Forms</Link>} /></>
   if (!rows) return <>{head}<p className="inv-empty">Loading…</p></>
   const live = showArchived ? rows : rows.filter((r) => !r.superseded_at)
   const archived = rows.length - rows.filter((r) => !r.superseded_at).length
@@ -695,12 +699,12 @@ function Folder({ folder, setError }) {
       )}
       {ordered.map((r) => {
         const st = statusOf(r)
-        const at = `${HOME}/${folder}/${r.id}`
+        const [at, withId] = toEntry(folder, r)
         const due = balanceDue(r)
         const isOpen = expanded.has(r.id)
         return (
           <div className={`frow${isOpen ? ' is-open' : ''}`} key={r.id}>
-            <button type="button" className="open c-order" onClick={() => navigate(at)}>
+            <button type="button" className="open c-order" onClick={() => navigate(at, withId)}>
               <strong>{r.file}</strong>
               <small>{mdy(dateOf(r) + 'T00:00:00')}</small>
             </button>
@@ -716,8 +720,8 @@ function Folder({ folder, setError }) {
             <div className="frow-foot">
               <span className="flags"><SentPaid r={r} onFlag={flag} /></span>
               <span className="row-actions">
-                <Link className="act" to={`${at}?view=preview`}>Preview</Link>
-                <Link className="act" to={`${at}?view=preview&download=1`}>Download PDF</Link>
+                <Link className="act" to={`${at}?view=preview`} {...withId}>Preview</Link>
+                <Link className="act" to={`${at}?view=preview&download=1`} {...withId}>Download PDF</Link>
                 {r.status === 'generated' && !r.superseded_at && <ShareMenu onShare={(how) => share(r, how)} />}
               </span>
             </div>
@@ -1164,6 +1168,8 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
       setError('')
       const g = await apiFetch(`${at}/generate`, { method: 'POST', body: { ...doc, lines } })
       setRec(g); setDoc(g.data); setSaving(''); setDirty(false)
+      const [to, withId] = toEntry(folder, g) // now its order number
+      navigate(`${to}${window.location.search}`, { ...withId, replace: true })
       if (emailAfter.current) {
         emailAfter.current = false
         await share('email', g)
@@ -1195,7 +1201,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
     if (!window.confirm(`Revise order ${rec.number}? A draft of version ${(rec.version ?? 1) + 1} opens to change. Generating it archives this signed version, and the customer's link then shows the new one to sign.`)) return
     try {
       const d = await apiFetch(`${at}/revise`, { method: 'POST' })
-      navigate(`${HOME}/${folder}/${d.id}`)
+      navigate(...toEntry(folder, d))
     } catch (err) { setError(err.message) }
   }
 
@@ -1235,7 +1241,7 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
   const copy = async () => {
     try {
       const d = await apiFetch(`${API}/${folder}`, { method: 'POST', body: { ...doc, i: { ...doc.i, no: '', v: undefined, date: today() } } })
-      navigate(`${HOME}/${folder}/${d.id}`)
+      navigate(...toEntry(folder, d))
     } catch (err) { setError(err.message) }
   }
 
@@ -1337,13 +1343,13 @@ function SalesOrder({ folder, id, form, setError, shared = null }) {
       {archived && !shared && (
         <p className="inv-note" role="status">
           Archived version {rec.version ?? 1}, kept as signed.{' '}
-          {rec.superseded_by && <Link to={`${HOME}/${folder}/${rec.superseded_by}`}>Open the newest version</Link>}
+          {rec.superseded_by && <Link {...linkTo(toEntry(folder, { id: rec.superseded_by, number: rec.number, version: (rec.version ?? 1) + 1 }))}>Open the newest version</Link>}
         </p>
       )}
       {!locked && rec.supersedes_id && !shared && (
         <p className="inv-note" role="status">
           Version {rec.version} of order {doc.i?.no}. Generating it archives the signed version and the customer signs again.{' '}
-          <Link to={`${HOME}/${folder}/${rec.supersedes_id}`}>Open the signed version</Link>
+          <Link {...linkTo(toEntry(folder, { id: rec.supersedes_id, number: doc.i?.no, version: rec.version - 1 }))}>Open the signed version</Link>
         </p>
       )}
       {askSent && !rec.sent && !shared && (
@@ -1725,11 +1731,24 @@ export function SharedInvoice() {
   )
 }
 
-function Entry({ folder, id, setError }) {
+function Entry({ folder, entry, setError }) {
   const form = useFormIn(folder)
+  const passed = useLocation().state?.id
+  const [found, setFound] = useState(null) // { entry, id } looked up from a typed address
+  const id = passed ?? (found?.entry === entry ? found.id : null)
+  useEffect(() => {
+    if (passed) return
+    const draft = /^draft-(\d+)$/.exec(entry)
+    if (draft) { setFound({ entry, id: Number(draft[1]) }); return }
+    apiFetch(`${API}/${folder}`).then((rows) => {
+      const r = rows.find((x) => refOf(x) === entry) ?? rows.find((x) => String(x.id) === entry) // an address from before numbers
+      if (r) setFound({ entry, id: r.id }); else setError(`No order ${entry} in ${folder}.`)
+    }).catch((err) => setError(err.message))
+  }, [passed, entry, folder, setError])
   if (!form) return <p className="inv-empty">No form files into {folder}. <Link to={HOME}>Back to Forms</Link></p>
   if (form.name !== 'salesOrder') return <p className="inv-empty">The {form.label} has no editor yet. <Link to={`${HOME}/${folder}`}>Back to {folder}</Link></p>
-  return <SalesOrder folder={folder} id={id} form={form} setError={setError} />
+  if (!id) return <p className="inv-empty">Loading…</p>
+  return <SalesOrder key={id} folder={folder} id={id} form={form} setError={setError} />
 }
 
 export default function AdminForms({ page }) {
@@ -1758,7 +1777,7 @@ export default function AdminForms({ page }) {
     <div className="admin-invoices" style={{ '--console-inset': `${inset}px` }}>
       {error && <p className="inv-error" role="alert">{error}</p>}
       {page === 'emails' ? <EmailTemplates setError={setError} />
-        : id ? <Entry key={`${folder}/${id}`} folder={folder} id={id} setError={setError} />
+        : id ? <Entry key={folder} folder={folder} entry={id} setError={setError} />
         : folder ? <Folder key={folder} folder={folder} setError={setError} />
           : <Templates setError={setError} />}
     </div>

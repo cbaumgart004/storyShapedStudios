@@ -641,13 +641,8 @@ fieldset.inv-body { border: 0; margin: 0; min-width: 0; }
 .share-pop button { font: inherit; font-size: 14px; text-align: left; color: var(--bone); background: none; border: 0; border-radius: 4px; padding: 9px 12px; cursor: pointer; }
 .share-pop button:hover, .share-pop button:focus-visible { background: rgba(47, 174, 55, .16); color: var(--uranium); }
 
-/* ---------- Folder: the arch the list scrolls over (public/assets/forms-arch.svg) ---------- */
-.admin-invoices > .forms-arch { position: fixed; inset: 0; z-index: 0; width: auto; max-width: none; margin: 0; pointer-events: none;
-  background: url('/assets/forms-arch.svg') center top / min(1100px, calc(100% + 24px)) auto no-repeat; opacity: .7; }
-.forms-arch ~ * { position: relative; z-index: 1; }
-.forms-arch ~ :is(.inv-folder-head, .inv-filters, .inv-empty) { background: rgba(10, 15, 11, .82); border-radius: 8px; padding: 10px 12px; }
-.forms-arch ~ .frow-head button { background: rgba(10, 15, 11, .9); }
-@media print { .forms-arch { display: none; } }
+/* A row with its Share menu open sits above the rows after it. */
+.frow:has(.share-menu[open]) { position: relative; z-index: 3; }
 
 /* ---------- Folder rows on a phone: title, status and total; the arrow opens the rest ---------- */
 .frow .more { display: none; }
