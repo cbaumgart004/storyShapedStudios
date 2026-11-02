@@ -20,6 +20,8 @@ Prefer these as the source of truth; do not duplicate them here.
 - `docs/CURRENT_WORK.md` — active objective, current state, next steps.
 - `structure.txt` — annotated source tree.
 - `CLAUDE.md` — working rules and common commands.
+- `docs/SEO-AND-AI-VISIBILITY.md` — AI-training opt-out (footer, `robots.txt`, TDM
+  reservation), SEO head tags, and the Etsy SEO steps for Whitney.
 - Whitney's **"Website notes" Google Doc** — the design source of truth for the
   splash/home redesign. Live and edited in place, so re-read it rather than
   trusting a stale summary:

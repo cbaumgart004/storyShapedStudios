@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-kept list of the fixed routes. Library entries (/library/<slug>) are not
+     listed yet: see docs/SEO-AND-AI-VISIBILITY.md, "Website: next steps". -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://storyshapedstudios.com/</loc></url>
+  <url><loc>https://storyshapedstudios.com/meet-the-artist</loc></url>
+  <url><loc>https://storyshapedstudios.com/shop</loc></url>
+  <url><loc>https://storyshapedstudios.com/library</loc></url>
+  <url><loc>https://storyshapedstudios.com/glossary</loc></url>
+</urlset>
