@@ -19,9 +19,30 @@ Search engines and AI assistants cannot see sales volume. They rank what they ca
 pages, how well those words match the question, and how often other sites mention and link to the
 shop. A shop whose **name** contains the words people type ("atomic", "jewelry") gets a head start on
 every query containing them, and a competitor with a crawlable website of text pages gets cited by
-AI assistants while a shop that exists mainly as Etsy listings does not. **Unverified:** why Atomic
-Jewelry specifically ranks first. One web search did not find it under that name; send the shop URL
-and the exact searches where it beats Whitney, and the comparison can be made properly.
+AI assistants while a shop that exists mainly as Etsy listings does not.
+
+### StoryShaped against AtomicJewelryStore (read from both Etsy shop pages, 2026-11-02)
+
+| | StoryShapedStudios | AtomicJewelryStore |
+|---|---|---|
+| Sales, reviews, years | 20,751, 5.6k, 7 | 4,442, 2k, 3 |
+| Active listings | 608 | 241 |
+| What they are | About half supplies: beads 167, gems and cabs 88, vintage glass and supplies 59 | Almost all finished jewelry: rings 119, pendants 49, earrings 31 |
+| Listing titles | Lead with material or era: "Sterling Blue Uranium Glass Ring...", "4ct Sterling 925 YAG Necklace...", "Vintage Uranium Glass Necklace Pendant..." | Every one leads with "Uranium Glass Ring / Earrings / Pendant" and ends "that glows under black / UV light" |
+| Own website | storyshapedstudios.com | AtomicJewelryStore.com, announced in the shop |
+| Announcement, policies | Last updated Jan 2021; About still says "I am excited to build up my Etsy shop!" | Announcement updated Feb 2026 |
+
+What this shows, as inference from the two pages (Etsy does not publish its ranking):
+
+- **Etsy ranks listings, not shops.** Most of Whitney's 20.8k sales are $3 to $6 beads. They lift
+  the shop's reputation but give her rings and necklaces little sales history of their own, while
+  each Atomic ring competes on a long record of ring sales.
+- **Atomic's titles match the search word for word.** A buyer types "uranium glass ring" or "glows
+  under blacklight"; Atomic's titles open with the first and close with the second. Whitney's open
+  with "Sterling", "Vintage" or a carat weight, so the phrase that matches sits later or is split.
+- **AI assistants see a jewelry store with its own site and a name that is the query.** "Atomic
+  jewelry" is a common way to search for uranium glass jewelry, and that is the shop's name and
+  domain. StoryShaped reads, from outside, as a bead and supply shop that also makes jewelry.
 
 ## How the site is served to crawlers (verified)
 
@@ -119,8 +140,9 @@ section) and shipping price. Volume helps only through those signals.
 
 1. **Shop title** (the one-line tagline under the shop name): Google indexes it. Make it descriptive:
    "Handmade Uranium Glass Jewelry and Vintage Czech Uranium Glass Beads".
-2. **About section, policies, shop announcement, profile photo**: fill every field. Incomplete shops
-   are ranked down.
+2. **Refresh the announcement and policies** (both last updated Jan 2021) and the About text ("I am
+   excited to build up my Etsy shop!" reads as 2019). Lead the About with what she makes; link the
+   website there.
 3. **Shop sections named the way buyers search**: "Uranium Glass Necklaces", "Uranium Glass
    Earrings", "Vintage Czech Uranium Beads".
 4. **Website link** in the About section to storyshapedstudios.com. **Unverified:** which link
@@ -130,9 +152,11 @@ section) and shipping price. Volume helps only through those signals.
 
 **Every listing**
 
-1. **Title:** lead with what it is, in buyer words: "Uranium Glass Necklace, Glows Under Blacklight,
-   Handmade Sterling Silver". Etsy's current guidance favours short, readable titles over
-   comma-stuffed ones; no repeated words.
+1. **Title, finished jewelry first:** open with "Uranium Glass" and the item type, then what makes
+   it different, then the glow: "Uranium Glass Ring Blue Sapphire Color Oval in 925 Sterling Silver,
+   Glows Under Blacklight". Move "Sterling", "Vintage" and carat weights after the item type. Start
+   with the rings, necklaces and earrings, where Atomic outranks her. Etsy's current guidance
+   favours short, readable titles over comma-stuffed ones; no repeated words.
 2. **All 13 tags**, multi-word phrases, no repeats of words already in the title or attributes:
    "vaseline glass", "atomic jewelry", "glow in blacklight", "uv reactive necklace", "radioactive
    glass gift", "vintage czech glass", "witchy jewelry". Use "atomic" as a tag so her listings
