@@ -1,8 +1,14 @@
 # SEO and AI visibility: storyshapedstudios.com and the Etsy shop
 
+Published for review as a [Google Doc](https://docs.google.com/document/d/1qnWFUrD73QaRS2IGcRzScJ7fSvQh9ZjZ9LUTpssRRJw/edit).
+This file is the source of truth; edit here and republish.
+
 Two goals that look like they conflict and do not: **keep AI companies from training on Whitney's
 work**, and **get her found by Google and by AI assistants** (ChatGPT, Claude, Perplexity, Gemini,
 Copilot). Training and answering are done by different crawlers, so each can be told separately.
+
+**Priority: the website first, then Etsy.** Her own site is the one place that can carry the AI
+opt-out and the original writing AI assistants cite; Etsy can do neither.
 
 Verified means read from this repo or observed in a build. Everything else is marked **unverified**.
 
