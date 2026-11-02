@@ -123,9 +123,8 @@ Committed to `main` as `292741b` ("Inventory: Phase 1 foundation").
    filters; true paired daylight/UV photos need a new data model (no
    existing convention to build on). Overlaps Track B issue #13.
 6. **TinaCMS for marketing content** (Home, About, FAQs, Meet the Artist) —
-   port the schema/config pattern from the user's `LiveSpiritSeedsMk2` repo
-   (`tina/config.ts`, `docs/adr/0002-tinacms-content-management.md`,
-   `docs/tinacms-vite-playbook.md` there), which is Vite/React-compatible.
+   port a TinaCMS schema/config pattern from an earlier client project, which
+   is Vite/React-compatible.
    Explicitly does not cover inventory data.
 7. Reconnect Railway ↔ GitHub auto-deploy (still disconnected as of the
    Library work — see prior notes); until then, `railway up` from the repo
@@ -658,7 +657,7 @@ Section type other than Card.
 - **TinaCMS rejected (2026-09-27):** the client found its editing UI unusable,
   and it cannot carry the site's branding. Storage and auth (Neon, Neon
   Auth) are in `docs/adr/0005-free-first-hosting-stack.md`. The editor is now a
-  console shared with LiveSpiritSeeds and future sites:
+  console shared with other client sites:
   `docs/adr/0006-shared-admin-console.md`.
 
 **E3. Inventory API: finish Phase 1 and wire to marketplaces.**

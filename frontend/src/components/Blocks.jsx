@@ -343,7 +343,7 @@ export function labelOf(block) {
 
 // A section type the owner designed in the console (Types and names), drawn
 // from its fields in the Card's style until it is given a design of its own.
-// The rules follow Spirit Seeds' CustomSection: the first short text is the
+// The rules: the first short text is the
 // heading, formatted text is HTML, a photo is framed, a link is an arrow link
 // (labelled by the text field just before it, if any), a list repeats its own
 // fields. Text fields can be changed where they stand (data-eotm-text).

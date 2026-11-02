@@ -11,7 +11,7 @@ Copilot). Training and answering are done by different crawlers, so each can be 
 opt-out and the original writing AI assistants cite; Etsy can do neither.
 
 Verified means read from this repo or the console repo, or observed against the live site.
-Everything else is marked **unverified**. The same AI-training treatment is applied to Spirit Seeds.
+Everything else is marked **unverified**.
 
 ## The problem in one paragraph
 

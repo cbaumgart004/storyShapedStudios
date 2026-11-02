@@ -40,7 +40,7 @@ panel. The console is Edge of the Map's product, so its code lives on that domai
 - **Connection strings are AWS SSM Parameter Store SecureStrings**, one per site, not Lambda
   environment variables, because self-serve signup adds sites without a redeploy.
 - **Supabase is out.** The plan's §3.1 assumes Supabase auth; Neon Auth replaces it, as ADR-0006
-  already required for LiveSpiritSeeds.
+  already required.
 
 ## Rejected
 
@@ -102,4 +102,4 @@ panel. The console is Edge of the Map's product, so its code lives on that domai
   be given its own bucket in Manage. The original bullet follows for history.
 - **Photos:** the upload-signing Lambda is central, but each customer keeps its own S3 bucket. The
   3 free CloudFront flat-rate plans per AWS account (ADR-0005) are used by StoryShaped,
-  LiveSpiritSeeds and Edge of the Map.
+  another client site and Edge of the Map.

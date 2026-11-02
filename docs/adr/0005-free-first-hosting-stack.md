@@ -133,7 +133,7 @@ before relying on either column.
 
 ## Multi-site growth
 
-More client sites are leaving Vercel Hobby (LiveSpiritSeeds included; `LiveSpiritSeedsMk2/vercel.json`), so what scales per site and what is shared per account decides
+More client sites are leaving Vercel Hobby, so what scales per site and what is shared per account decides
 whether "free" holds past this one.
 
 | Allowance | Scope | Effect on more sites |
@@ -146,8 +146,8 @@ whether "free" holds past this one.
 - **Decided 2026-09-27: client sites run in Edge of the Map's own AWS account for now.** The
   owner sets up hosting, preview and logins; clients only sign in to the console. Asking a client to
   open and secure an AWS account is setup work they should not carry. Cost: every site draws on one
-  account's free allowances, and the 3 flat-rate Free plans are used by StoryShaped, LiveSpiritSeeds
-  and Edge of the Map, so a fourth site needs Pro ($15/mo) or a second account. Any bill lands on the
+  account's free allowances, and the 3 flat-rate Free plans are used by StoryShaped, another client
+  site and Edge of the Map, so a fourth site needs Pro ($15/mo) or a second account. Any bill lands on the
   owner's card.
 - ~~**Proposed for later sites:** each client site runs in the client's own AWS account.~~ Rejected
   for now, above. It stays the exit route: a client who leaves can be moved into an account of their
