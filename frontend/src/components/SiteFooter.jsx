@@ -45,8 +45,9 @@ export default function SiteFooter({ brand = true }) {
         &copy; {new Date().getFullYear()} {owner}.{notice ? ` ${notice}` : ''}
       </p>
       {/* Fixed, not a console field: the machine-readable half of this
-          reservation is index.html, robots.txt and .well-known/tdmrep.json
-          (docs/SEO-AND-AI-VISIBILITY.md), and the two must not disagree. */}
+          reservation is index.html, .well-known/tdmrep.json and the console's
+          robots.txt (schema robots.blockTraining; docs/SEO-AND-AI-VISIBILITY.md),
+          and the two must not disagree. */}
       <p className="footer-note footer-ai">
         No content on this site, including text, photographs and designs, may be used to train
         artificial intelligence or machine learning models.

@@ -10,7 +10,8 @@ Copilot). Training and answering are done by different crawlers, so each can be 
 **Priority: the website first, then Etsy.** Her own site is the one place that can carry the AI
 opt-out and the original writing AI assistants cite; Etsy can do neither.
 
-Verified means read from this repo or observed in a build. Everything else is marked **unverified**.
+Verified means read from this repo or the console repo, or observed against the live site.
+Everything else is marked **unverified**. The same AI-training treatment is applied to Spirit Seeds.
 
 ## The problem in one paragraph
 
@@ -22,14 +23,35 @@ AI assistants while a shop that exists mainly as Etsy listings does not. **Unver
 Jewelry specifically ranks first. One web search did not find it under that name; send the shop URL
 and the exact searches where it beats Whitney, and the comparison can be made properly.
 
-## AI training reservation (done in this repo)
+## How the site is served to crawlers (verified)
+
+The Amplify app does not serve `robots.txt`, `sitemap.xml` or page addresses from this build. Its
+rewrite rules send them to the Edge of the Map console API, which answers per site:
+
+- **Pages are already pre-rendered, live.** `GET /api/sites/storyshaped/page/<path>` returns this
+  build's `index.html` with the page's title, description, canonical, Open Graph tags, JSON-LD
+  (Library entries as `Article`) and its words in a `<noscript>`, so crawlers that run no JavaScript
+  read the content. A published edit reaches crawlers within the five-minute edge cache, **with no
+  rebuild and no webhook** (console `api/prerender.js`). Observed 2026-11-02: `/library` and
+  `/meet-the-artist` on preview and production carry their own titles and the pre-rendered words.
+- **`sitemap.xml`** lists every published page, Library entries included, with publish dates.
+- **`robots.txt`** comes from the console. A preview address gets disallow-all, so previews stay out
+  of search.
+
+A static `robots.txt` or `sitemap.xml` in `frontend/public/` is never reached; do not add one.
+
+## AI training reservation
 
 | Layer | What it does | Where |
 |---|---|---|
 | Footer line | Human-readable notice on every page | `frontend/src/components/SiteFooter.jsx` |
-| `robots.txt` | Asks named training crawlers to stay out entirely | `frontend/public/robots.txt` |
+| `robots.txt` | Asks named training crawlers to stay out entirely, when the site's schema sets `robots.blockTraining` | console `api/handler.js`, list `TRAINING_CRAWLERS` in `schema/schema.js`, flag in `schema/sites/storyshaped.json` |
 | TDM Reservation Protocol | Machine-readable opt-out (`tdm-reservation` meta + `/.well-known/tdmrep.json`). The EU copyright directive (Art. 4) treats a machine-readable reservation as binding on text-and-data mining | `frontend/index.html`, `frontend/public/.well-known/tdmrep.json` |
 | `noai, noimageai` meta | Informal convention; some crawlers honour it, Google ignores it | `frontend/index.html` |
+
+**Blocked:** GPTBot, ClaudeBot, anthropic-ai, Google-Extended, Applebot-Extended, CCBot,
+Meta-ExternalAgent, FacebookBot, Bytespider, cohere-ai, cohere-training-data-crawler, Amazonbot,
+Diffbot, omgili, Timpibot, ImagesiftBot.
 
 **Allowed on purpose:** Googlebot, Bingbot, Applebot, `OAI-SearchBot` and `ChatGPT-User` (ChatGPT
 search and browsing), `Claude-SearchBot` and `Claude-User`, `PerplexityBot`. Blocking these would
@@ -50,48 +72,42 @@ Google Search and AI Overviews use Googlebot. Same for `Applebot-Extended` versu
   Privacy before assuming not. The practical response is to make **her own site** the canonical home
   of her writing (Library, story, process) and keep Etsy listings to product facts.
 
-**Unverified:** that Amplify's SPA rewrite rule serves `robots.txt`, `sitemap.xml` and
-`/.well-known/tdmrep.json` as files rather than rewriting them to `index.html`. The build puts all
-three in `dist/` (verified). After deploy, open each URL and confirm it is not the site's HTML.
+`/.well-known/tdmrep.json` is served on preview through the console's `/_static/` redirect
+(observed 2026-11-02). Production serves it once the `production` branch carries this commit.
 
 ## Tracking AI access
 
-Possible, from **Amplify access logs** (Amplify console → the app → Hosting → Monitoring → Access
-logs). Each request carries its user agent, so counts per crawler (`GPTBot`, `ClaudeBot`,
-`OAI-SearchBot`, `PerplexityBot`, `ChatGPT-User`...) per page are a filter over the CSV. That shows
-who **asked**, and whether blocked crawlers keep requesting pages anyway. It cannot show what a
-crawler did with a page, and user agents can be faked. **Unverified:** the retention window and
-export format of Amplify access logs in this account. A small script to tally a downloaded log is a
-reasonable next step; it is not written yet.
+Possible, two ways. **Amplify access logs** (Amplify console → the app → Hosting → Monitoring →
+Access logs) carry each request's user agent, so counts per crawler (`GPTBot`, `ClaudeBot`,
+`OAI-SearchBot`, `PerplexityBot`, `ChatGPT-User`...) per page are a filter over the CSV. Or the
+console's page route, which every page request passes through on a cache miss, could count crawler
+user agents the way its visitor traffic already skips robots. Either shows who **asked**, and whether
+blocked crawlers keep requesting pages anyway. Neither shows what a crawler did with a page, and user
+agents can be faked. **Unverified:** the log retention window, and whether Amplify forwards the
+crawler's user agent to the console on its rewrites. Neither is built yet.
 
-## Website: done in this repo
+## Website: done
 
-- Title and meta description that name the product ("handmade uranium glass jewelry").
-- Canonical URL, Open Graph and Twitter card tags, so shared links render with a title and image.
+- Pre-rendered pages, per-page titles and descriptions, `Article` JSON-LD for Library entries, and a
+  sitemap of every published page: the console, above.
+- Default title and meta description that name the product ("handmade uranium glass jewelry").
+- Open Graph and Twitter card defaults, so shared links render with a title and image.
 - `OnlineStore` structured data linking the site to the Etsy, eBay, Facebook and Instagram profiles
   (`sameAs`). This is how Google and AI assistants learn that all of them are one business.
-- `sitemap.xml` with the fixed routes.
 
 ## Website: next steps, in order of payoff
 
-1. **Prerender the pages.** The site is a client-rendered React app: the HTML a crawler receives is
-   an empty `<div id="root">` until JavaScript runs. Googlebot runs JavaScript (slowly, in a second
-   pass); **most AI crawlers do not**, so today ChatGPT, Claude and Perplexity see almost nothing
-   beyond the `<head>` added above. Prerendering each route to static HTML at build time is the
-   single biggest change for AI visibility. It is a build change with a trade-off (console edits
-   appear to crawlers only after a rebuild), so it needs its own decision.
-2. **Put the Library in the sitemap.** Generate `/library/<slug>` entries at build time. The Library
-   is the strongest asset here: original, researched uranium glass content is exactly what AI
-   assistants cite.
-3. **Per-page descriptions.** `SitePage.jsx` sets the title per page but every page shares the home
-   description.
-4. **Register with Google Search Console and Bing Webmaster Tools**, submit the sitemap. Bing's index
-   feeds ChatGPT search and Copilot, so Bing matters more than its search share suggests.
-5. **Answer the questions buyers ask, on the site, in plain text.** "Is uranium glass jewelry safe
+1. **Fill in "Search and sharing" on each page in the console**: a description written for the page,
+   and a share image. Without one the pre-render uses the words under the page's heading.
+2. **Register with Google Search Console and Bing Webmaster Tools**, submit
+   `https://storyshapedstudios.com/sitemap.xml`. Bing's index feeds ChatGPT search and Copilot, so
+   Bing matters more than its search share suggests. Validate a Library entry in Google's Rich
+   Results Test.
+3. **Answer the questions buyers ask, on the site, in plain text.** "Is uranium glass jewelry safe
    to wear?", "Why does uranium glass glow?", "How to tell real uranium glass from glowing resin."
    Short direct answer first, detail after. This is the format AI assistants quote.
-6. **Product structured data** (`Product`, price, availability) on shop pages once inventory is live.
-7. **Link from Library entries to the matching Etsy listings**, and from the site to Etsy generally.
+4. **Product structured data** (`Product`, price, availability) on shop pages once inventory is live.
+5. **Link from Library entries to the matching Etsy listings**, and from the site to Etsy generally.
 
 ## Etsy: steps for Whitney (no code; done in Shop Manager)
 
@@ -138,6 +154,14 @@ section) and shipping price. Volume helps only through those signals.
 4. **Etsy Ads**: a small daily budget on the best sellers, judged from Ads stats after two weeks.
    **Unverified:** whether Etsy listings currently surface in ChatGPT shopping results; if they do,
    the listing title and description above are what it reads.
+
+## Withdrawn
+
+- **"Prerender at build time, rebuild on publish through an Amplify webhook."** Withdrawn
+  2026-11-02: the console already pre-renders every published page on request, so neither a build
+  step nor a webhook is needed.
+- **Static `robots.txt` and `sitemap.xml` in `frontend/public/`.** Withdrawn 2026-11-02: Amplify's
+  rewrites send both paths to the console, so the files were never served.
 
 ## Sources
 
