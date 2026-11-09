@@ -16,7 +16,7 @@ To do, for each site at desktop, tablet and phone width:
 - Confirm each can be selected on the page, edited, and saved, and that the save shows on the page.
 - Fix what fails in the same pass, or remove the element.
 
-Build the check as a script rather than doing it by hand: walk the rendered pages and report visible elements with no editor marking, and CSS values with no field or class behind them. Not built yet. It can then run on every release.
+The check is built: `console/scripts/reach-audit.mjs` (Edge of the Map). The known gaps are `console/scripts/reach-baseline/<site>.json`: work that list down to zero. It reads what is marked on the page; it does not yet click each element and save a change, so "can be selected, edited and saved" is still a manual check per element.
 
 Known gaps (2026-11-09, from reading the code):
 - Spirit Seeds: the gap between section backgrounds is hard-coded in `src/styles/layout.css`, with no field.
