@@ -129,12 +129,25 @@ function Card({ raw, fetchRaw, names }) {
 
 // Every field Etsy filled on at least one listing that the model has no place
 // for. filled: field -> how many listings fill it, counted by the backend.
-function Gaps({ filled: counts, total }) {
+function Gaps({ filled: counts, total, listings }) {
   const gaps = useMemo(() => Object.entries(counts ?? {})
     .filter(([k]) => !(k in MAPPED) && !IGNORED.has(k))
     .sort((a, b) => b[1] - a[1]), [counts])
+  // SKUs per listing, counted over its variations (a listing with no
+  // variations has one product).
+  const skus = useMemo(() => {
+    const out = { all: 0, some: 0, none: 0 }
+    for (const { listing: l } of listings) {
+      const products = l.inventory?.products ?? []
+      const set = products.filter((p) => p.sku).length
+      out[products.length && set === products.length ? 'all' : set ? 'some' : 'none']++
+    }
+    return out
+  }, [listings])
   return (
     <section className="ai-section">
+      <h2>SKUs</h2>
+      <p>{skus.all} of {total} listings have a SKU on every variation, {skus.some} on some, {skus.none} on none.</p>
       <h2>Model gaps</h2>
       {gaps.length ? (
         <>
@@ -208,7 +221,7 @@ export default function EtsyReview() {
             {note && <span className="ai-muted">{note}</span>}
           </section>
           {listings && !listings.length && <p>No snapshot yet. Refresh from Etsy to read the shop.</p>}
-          {listings?.length > 0 && <Gaps filled={filled} total={listings.length} />}
+          {listings?.length > 0 && <Gaps filled={filled} total={listings.length} listings={listings} />}
           <div className="er-grid">{matching.slice(0, limit).map((l) => <Card key={l.external_key} raw={l.listing} names={names} fetchRaw={(key) => call('GET', `/${encodeURIComponent(key)}`)} />)}</div>
           {matching.length > limit && (
             <p><button type="button" onClick={() => setLimit(limit + PAGE)}>Show {Math.min(PAGE, matching.length - limit)} more</button></p>
