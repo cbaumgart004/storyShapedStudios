@@ -81,7 +81,8 @@ function Variations({ inventory }) {
 }
 
 // raw: the listing cut to what the card shows; fetchRaw reads it whole.
-function Card({ raw, fetchRaw }) {
+// names: { sections, categories }, id to name, from the same GET.
+function Card({ raw, fetchRaw, names }) {
   const [full, setFull] = useState(null)
   const images = raw.images ?? []
   const [shown, setShown] = useState(0)
@@ -107,8 +108,8 @@ function Card({ raw, fetchRaw }) {
           {raw.url && <> · <a href={raw.url} target="_blank" rel="noreferrer">on Etsy</a></>}
         </p>
         <dl className="er-facts">
-          <dt>Section</dt><dd>{raw.shop_section_id ?? 'none'}</dd>
-          <dt>Category</dt><dd>{raw.taxonomy_id ?? 'none'}</dd>
+          <dt>Section</dt><dd>{raw.shop_section_id == null ? 'none' : names.sections?.[raw.shop_section_id] ?? raw.shop_section_id}</dd>
+          <dt>Category</dt><dd>{raw.taxonomy_id == null ? 'none' : names.categories?.[raw.taxonomy_id] ?? raw.taxonomy_id}</dd>
           <dt>Who made, when</dt><dd>{[raw.who_made, raw.when_made].filter(Boolean).join(', ') || 'not set'}{raw.is_supply ? ' (supply)' : ''}</dd>
           <dt>SKUs</dt><dd>{(raw.skus ?? []).join(', ') || <span className="ai-error">none</span>}</dd>
           <dt>Tags</dt><dd>{(raw.tags ?? []).join(', ') || 'none'}</dd>
@@ -155,6 +156,8 @@ export default function EtsyReview() {
   const [limit, setLimit] = useState(PAGE)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState(null)
+  const [names, setNames] = useState({})
   const [query, setQuery] = useState('')
 
   const call = useCallback(async (method, path = '') => {
@@ -166,10 +169,14 @@ export default function EtsyReview() {
     if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`)
     return data
   }, [])
-  const load = useCallback(() => call('GET').then((d) => { setListings(d.listings); setFilled(d.filled) }).catch((e) => setError(e.message)), [call])
+  const load = useCallback(() => call('GET').then((d) => { setListings(d.listings); setFilled(d.filled); setNames({ sections: d.sections, categories: d.categories }) }).catch((e) => setError(e.message)), [call])
   const refresh = async () => {
     setBusy(true); setError(null)
-    try { await call('POST'); await load() } catch (e) { setError(e.message) } finally { setBusy(false) }
+    try {
+      const out = await call('POST')
+      setNote(`Etsy read: ${out.kept ?? 0} new or changed, ${out.unchanged ?? 0} unchanged.`)
+      await load()
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   // The token decides; the login only re-renders the page when it changes.
   const signedIn = Boolean(editorToken())
@@ -198,10 +205,11 @@ export default function EtsyReview() {
             <button type="button" onClick={refresh} disabled={busy}>{busy ? 'Reading Etsy…' : 'Refresh from Etsy'}</button>
             <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }} placeholder="Title, SKU or tag" aria-label="Filter" />
             <span className="ai-muted">{listings ? `${matching.length} of ${listings.length} listings` : 'Loading…'}</span>
+            {note && <span className="ai-muted">{note}</span>}
           </section>
           {listings && !listings.length && <p>No snapshot yet. Refresh from Etsy to read the shop.</p>}
           {listings?.length > 0 && <Gaps filled={filled} total={listings.length} />}
-          <div className="er-grid">{matching.slice(0, limit).map((l) => <Card key={l.external_key} raw={l.listing} fetchRaw={(key) => call('GET', `/${encodeURIComponent(key)}`)} />)}</div>
+          <div className="er-grid">{matching.slice(0, limit).map((l) => <Card key={l.external_key} raw={l.listing} names={names} fetchRaw={(key) => call('GET', `/${encodeURIComponent(key)}`)} />)}</div>
           {matching.length > limit && (
             <p><button type="button" onClick={() => setLimit(limit + PAGE)}>Show {Math.min(PAGE, matching.length - limit)} more</button></p>
           )}

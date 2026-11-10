@@ -69,3 +69,16 @@ test('a sale of a SKU with no Stock Item is kept, not lost', async () => {
   const out = await sync.pullSales()
   assert.deepEqual(out.ebay.map((l) => l.outcome), ['no stock item'])
 })
+
+test('a snapshot keeps only new or changed listings, and drops repeats left by earlier refreshes', async () => {
+  const { db, sync } = await fresh({})
+  const a = { listing_id: 1, title: 'Ring', views: 5 }
+  const b = { listing_id: 2, title: 'Bead', views: 1 }
+  assert.equal((await sync.snapshot('etsy', [a, b])).kept, 2)
+  // A repeat stored the old way, before a refresh kept only changes.
+  await db.query(`INSERT INTO import_snapshots (source, external_key, raw, outcome) VALUES ('etsy', '1', $1, 'snapshot')`, [JSON.stringify({ ...a, views: 9 })])
+  const out = await sync.snapshot('etsy', [{ ...a, views: 40 }, { ...b, title: 'Glass bead' }, { listing_id: 3, title: 'New' }])
+  assert.deepEqual([out.kept, out.unchanged], [2, 1])
+  const { rows } = await db.query(`SELECT external_key, raw->>'title' AS title FROM import_snapshots ORDER BY id`)
+  assert.deepEqual(rows.map((r) => `${r.external_key}:${r.title}`), ['1:Ring', '2:Bead', '2:Glass bead', '3:New'])
+})

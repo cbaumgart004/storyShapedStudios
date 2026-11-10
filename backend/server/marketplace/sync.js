@@ -22,6 +22,11 @@ import { taxonomyId } from './etsy.js'
 import { ensureStockTables } from '../utils/stock.js'
 import { loadToken } from '../utils/tokens.js'
 
+// Fields of a Marketplace listing that move without the shop changing it
+// (shoppers' counters, Etsy's own clocks); a snapshot differing only in these
+// is not kept.
+const VOLATILE = ['views', 'num_favorers', 'featured_rank', 'state_timestamp', 'updated_timestamp', 'last_modified_timestamp']
+
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS marketplace_links (
     provider       TEXT NOT NULL CHECK (provider IN ('etsy', 'ebay')),
@@ -53,6 +58,31 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
   // Read on each call: locally, dotenv loads after this module is imported.
   const isLive = () => env.MARKETPLACE_SYNC === 'on'
   let ready = null
+
+  // Names for the section and category ids the review shows: { sections:
+  // {id: title}, categories: {id: "Jewelry < Rings < ..."} }, only for ids in
+  // use. Read from Etsy, kept ten minutes per instance; without Etsy (no
+  // sign-in, a stub) the ids stand alone.
+  let named = null
+  const etsyNames = async (listings) => {
+    try {
+      if (!named || Date.now() - named.at > 600_000) {
+        const [sections, taxonomy] = await Promise.all([etsy.sections(), etsy.taxonomy()])
+        const paths = {}
+        const walk = (nodes, above) => { for (const n of nodes ?? []) { const p = above ? `${above} < ${n.name}` : n.name; paths[n.id] = p; walk(n.children, p) } }
+        walk(taxonomy.results, '')
+        named = { at: Date.now(), sections: Object.fromEntries((sections.results ?? []).map((s) => [s.shop_section_id, s.title])), paths }
+      }
+      const pick = (all, ids) => Object.fromEntries([...new Set(ids)].filter((id) => id != null && all[id]).map((id) => [id, all[id]]))
+      return {
+        sections: pick(named.sections, listings.map((l) => l.shop_section_id)),
+        categories: pick(named.paths, listings.map((l) => l.taxonomy_id)),
+      }
+    } catch (err) {
+      console.warn(`[marketplace] etsy section and category names unavailable: ${err.message}`)
+      return { sections: {}, categories: {} }
+    }
+  }
   const ensure = () => (ready ??= (async () => {
     for (const s of SCHEMA.split(';').map((x) => x.trim()).filter(Boolean)) await db.query(s)
   })().catch((err) => { ready = null; throw err }))
@@ -240,14 +270,36 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
         keys.push(String(key)); skus.push(sku ? String(sku) : null); raws.push(JSON.stringify(r))
       }
       // One statement for the lot: a round trip per row ran past the Lambda's
-      // 20-second limit on the shop's listings.
+      // 20-second limit on the shop's listings. A listing is kept only when it
+      // is new or differs from its newest snapshot, counters (VOLATILE) aside,
+      // so each kept row is a real change.
+      let kept = 0
       if (keys.length) {
+        const out = await db.query(
+          `WITH incoming AS (
+             SELECT k, s, r::jsonb AS r FROM unnest($2::text[], $3::text[], $4::text[]) AS t(k, s, r)
+           ), latest AS (
+             SELECT DISTINCT ON (external_key) external_key, raw FROM import_snapshots
+             WHERE source = $1 AND external_key = ANY($2::text[])
+             ORDER BY external_key, imported_at DESC, id DESC
+           )
+           INSERT INTO import_snapshots (source, external_key, sku, raw, outcome)
+           SELECT $1, i.k, i.s, i.r, 'snapshot' FROM incoming i LEFT JOIN latest l ON l.external_key = i.k
+           WHERE l.raw IS NULL OR (l.raw - $5::text[]) IS DISTINCT FROM (i.r - $5::text[])`,
+          [source, keys, skus, raws, VOLATILE])
+        kept = out.rowCount
+        // Refreshes before this one kept every listing every time: drop each
+        // snapshot that only repeats the one before it, keeping the first.
         await db.query(
-          `INSERT INTO import_snapshots (source, external_key, sku, raw, outcome)
-           SELECT $1, k, s, r::jsonb, 'snapshot' FROM unnest($2::text[], $3::text[], $4::text[]) AS t(k, s, r)`,
-          [source, keys, skus, raws])
+          `DELETE FROM import_snapshots WHERE id IN (
+             SELECT id FROM (
+               SELECT id, raw - $2::text[] AS body,
+                      LAG(raw - $2::text[]) OVER (PARTITION BY external_key ORDER BY imported_at, id) AS before
+               FROM import_snapshots WHERE source = $1
+             ) t WHERE body = before)`,
+          [source, VOLATILE])
       }
-      return { source, kept: keys.length, skipped: rows.length - keys.length }
+      return { source, kept, unchanged: keys.length - kept, skipped: rows.length - keys.length }
     },
 
     // Every active Etsy listing with its images and inventory, through the API
@@ -262,7 +314,7 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       }
       const read = Date.now()
       const out = await this.snapshot('etsy', rows)
-      console.log(`[marketplace] etsy snapshot: ${rows.length} listings, Etsy ${read - started} ms, kept ${Date.now() - read} ms`)
+      console.log(`[marketplace] etsy snapshot: ${rows.length} listings, ${out.kept} new or changed, Etsy ${read - started} ms, kept ${Date.now() - read} ms`)
       return out
     },
 
@@ -301,7 +353,7 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
           },
         }
       })
-      return { count: listings.length, filled, listings }
+      return { count: listings.length, filled, listings, ...(await etsyNames(listings.map((l) => l.listing))) }
     },
     etsySnapshot: async (key) => {
       await ensureStockTables(db)
