@@ -156,7 +156,10 @@ export default function EtsyReview() {
   const [query, setQuery] = useState('')
 
   const call = useCallback(async (method) => {
+    // A request that runs out of time comes back with no CORS header, which
+    // the browser reports only as a failed fetch.
     const res = await fetch(API, { method, headers: { Authorization: `Bearer ${editorToken()}` } })
+      .catch(() => { throw new Error('The request did not finish. It may have run too long; try again, and if it repeats, say so.') })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`)
     return data

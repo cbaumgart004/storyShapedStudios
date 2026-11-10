@@ -232,28 +232,38 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       if (!Array.isArray(rows)) throw new Error('rows must be a list')
       await ensureStockTables(db)
       const pick = (r, names) => names.map((n) => Object.entries(r).find(([k]) => k.trim().toLowerCase() === n)?.[1]).find((v) => v != null && String(v).trim() !== '')
-      let kept = 0
+      const keys = [], skus = [], raws = []
       for (const r of rows) {
         const key = pick(r, ['listing_id', 'listing id', 'item number', 'item id', 'itemid', 'sku', 'custom label (sku)', 'title'])
         if (!key) continue
         const sku = pick(r, ['sku', 'custom label (sku)', 'custom label'])
-        await db.query('INSERT INTO import_snapshots (source, external_key, sku, raw, outcome) VALUES ($1, $2, $3, $4, $5)',
-          [source, String(key), sku ? String(sku) : null, JSON.stringify(r), 'snapshot'])
-        kept++
+        keys.push(String(key)); skus.push(sku ? String(sku) : null); raws.push(JSON.stringify(r))
       }
-      return { source, kept, skipped: rows.length - kept }
+      // One statement for the lot: a round trip per row ran past the Lambda's
+      // 20-second limit on the shop's listings.
+      if (keys.length) {
+        await db.query(
+          `INSERT INTO import_snapshots (source, external_key, sku, raw, outcome)
+           SELECT $1, k, s, r::jsonb, 'snapshot' FROM unnest($2::text[], $3::text[], $4::text[]) AS t(k, s, r)`,
+          [source, keys, skus, raws])
+      }
+      return { source, kept: keys.length, skipped: rows.length - keys.length }
     },
 
     // Every active Etsy listing with its images and inventory, through the API
     // (needs a listings_r token), into the same snapshots.
     snapshotEtsy: async function () {
       const rows = []
+      const started = Date.now()
       for (let offset = 0; ; offset += 100) {
         const page = await etsy.listings(offset)
         rows.push(...(page.results ?? []))
         if (!page.results?.length || rows.length >= page.count) break
       }
-      return this.snapshot('etsy', rows)
+      const read = Date.now()
+      const out = await this.snapshot('etsy', rows)
+      console.log(`[marketplace] etsy snapshot: ${rows.length} listings, Etsy ${read - started} ms, kept ${Date.now() - read} ms`)
+      return out
     },
 
     // The newest snapshot of each Etsy listing, as Etsy sent it: what the
