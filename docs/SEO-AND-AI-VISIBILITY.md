@@ -118,9 +118,16 @@ crawler's user agent to the console on its rewrites. Neither is built yet.
 
 ## Website: next steps, in order of payoff
 
+0. **Ship `preview` to production.** Measured 2026-11-09: the live home page has none of the title,
+   share image, `OnlineStore` data, `noai` or `tdmrep.json` listed as done above. They are on `preview`
+   only.
 1. **Fill in "Search and sharing" on each page in the console**: a description written for the page,
-   and a share image. Without one the pre-render uses the words under the page's heading.
-2. **Register with Google Search Console and Bing Webmaster Tools**, submit
+   and a share image. Without one the pre-render uses the words under the page's heading. It is filled
+   on no page today (2026-11-09). Start with "Is wearing uranium glass safe?", whose derived description
+   is the opening joke, then Home, then the entries whose derived text is button labels, color names
+   or a raw URL.
+2. **Register with Google Search Console and Bing Webmaster Tools** (whether this is done is
+   unverified), submit
    `https://storyshapedstudios.com/sitemap.xml`. Bing's index feeds ChatGPT search and Copilot, so
    Bing matters more than its search share suggests. Validate a Library entry in Google's Rich
    Results Test.
@@ -129,6 +136,18 @@ crawler's user agent to the console on its rewrites. Neither is built yet.
    Short direct answer first, detail after. This is the format AI assistants quote.
 4. **Product structured data** (`Product`, price, availability) on shop pages once inventory is live.
 5. **Link from Library entries to the matching Etsy listings**, and from the site to Etsy generally.
+6. **Shorten and correct Library titles.** About 22 of 30 run past 60 characters (worst 224), and some
+   carry typos ("if them gem(s)", "a gems or beads", "a jewelry pieces"). Whether a retitled entry's
+   address changes is unverified: check before renaming one, a changed address needs a redirect.
+7. **Expand thin entries** (under 150 words, measured 2026-11-09): why does my jewelry (19), why was
+   (47), which Geiger (73), dark blue (82), blacklight hunting (91), is it radioactive (96), white glass
+   (97), how can I date (119), radium (119), sterling (132).
+8. **Move the five `library.md` entries with no console document into the console.** They show in the
+   Library but return 404 on direct load and are not in the sitemap.
+9. **Pre-render links and more structured data** (console change). The pre-rendered `/library` has no
+   links to entries and entries have no related links, so crawlers that do not run scripts find
+   entries only through the sitemap. Add `DefinedTermSet` on Glossary, `CollectionPage` on Library,
+   `Person` on Meet the Artist, `datePublished` and an image on `Article`.
 
 ## Etsy: steps for Whitney (no code; done in Shop Manager)
 
@@ -186,6 +205,10 @@ section) and shipping price. Volume helps only through those signals.
   step nor a webhook is needed.
 - **Static `robots.txt` and `sitemap.xml` in `frontend/public/`.** Withdrawn 2026-11-02: Amplify's
   rewrites send both paths to the console, so the files were never served.
+- **"`/shop` is hidden from the nav, so drop it from the sitemap."** Withdrawn 2026-11-09: it is in
+  the Menu document, as are `/images` and `/customer-creations`. All three stay.
+- **"The `/images` pre-render omits image pairs."** Withdrawn 2026-11-09: none are published and the
+  page has no pair gallery section.
 
 ## Sources
 

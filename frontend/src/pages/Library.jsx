@@ -35,7 +35,7 @@ import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import { API_BASE, HAS_BACKEND } from '@/lib/api'
-import { slugify } from '@/lib/librarySlug'
+import { entryPath, fullSlug, slugify } from '@/lib/librarySlug'
 import { parseSections } from '@/lib/libraryMarkdown'
 import { fetchPublished, useLiveDocuments, useConsoleOrder, isDraft, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
@@ -260,23 +260,28 @@ export default function Library() {
   }, [slug, location.hash, navigate])
 
   const current = useMemo(
-    () => (slug ? sections.find((s) => s.id === slug || s.slug === slug) : null),
+    () => (slug ? sections.find((s) => s.id === slug || s.slug === slug || fullSlug(s.title) === slug) : null),
     [slug, sections]
   )
+
+  // A link saved with the old cut-off address moves to the entry's real one.
+  useEffect(() => {
+    if (current?.slug && slug !== current.slug) navigate(entryPath(current), { replace: true })
+  }, [slug, current, navigate])
 
   // Count a visit whenever a valid article page is shown.
   useEffect(() => {
     if (status === 'ready' && current) recordView(current.id)
   }, [status, current?.id, recordView]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const goTo = (id) => navigate(`/library/${encodeURIComponent(id)}`)
+  const goTo = (entry) => navigate(entryPath(entry))
 
-  const copyLink = async (id) => {
-    const url = `${window.location.origin}/library/${encodeURIComponent(id)}`
+  const copyLink = async (entry) => {
+    const url = `${window.location.origin}${entryPath(entry)}`
     const ok = await copyToClipboard(url)
     if (ok) {
-      setCopiedId(id)
-      setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1600)
+      setCopiedId(entry.id)
+      setTimeout(() => setCopiedId((cur) => (cur === entry.id ? null : cur)), 1600)
     }
   }
 
@@ -312,7 +317,7 @@ export default function Library() {
     setQuery('')
     setSuggestOpen(false)
     setActiveSuggestion(-1)
-    goTo(s.id)
+    goTo(s)
   }
 
   const onSearchKeyDown = (e) => {
@@ -490,7 +495,7 @@ export default function Library() {
                             type="button"
                             className="lib-chip"
                             {...articleMark(s)}
-                            onClick={() => goTo(s.id)}
+                            onClick={() => goTo(s)}
                           >
                             {s.title}
                             <span className="lib-chip-count">{views[s.id]}</span>
@@ -528,7 +533,7 @@ export default function Library() {
                         className={`lib-toc-link${
                           current && current.id === s.id ? ' is-active' : ''
                         }`}
-                        onClick={() => goTo(s.id)}
+                        onClick={() => goTo(s)}
                         aria-current={
                           current && current.id === s.id ? 'page' : undefined
                         }
@@ -538,7 +543,7 @@ export default function Library() {
                       <button
                         type="button"
                         className="lib-toc-copy"
-                        onClick={() => copyLink(s.id)}
+                        onClick={() => copyLink(s)}
                         aria-label={`Copy link to “${s.title}”`}
                         title="Copy link to this entry"
                       >
@@ -561,17 +566,17 @@ export default function Library() {
             {!slug && (
               <>
                 <header className="lib-hero" {...(heading ? pageMark(heading) : {})}>
-                  {heading?.eyebrow && <p className="eyebrow">{heading.eyebrow}</p>}
-                  <h1>{heading?.heading || 'Uranium Glass Library'}</h1>
+                  {heading?.eyebrow && <p className="eyebrow" data-eotm-text="eyebrow">{heading.eyebrow}</p>}
+                  <h1 data-eotm-text="heading">{heading?.heading || 'Uranium Glass Library'}</h1>
                   <p className="lib-hero-sub">{sections.length} entries</p>
-                  {heading?.body && <div className="lib-hero-sub page-rich" dangerouslySetInnerHTML={{ __html: heading.body }} />}
+                  {heading?.body && <div className="lib-hero-sub page-rich" data-eotm-richtext="body" dangerouslySetInnerHTML={{ __html: heading.body }} />}
                 </header>
 
                 <ol className="lib-index-list">
                   {sections.map((s) => (
                     <li key={s.id} {...articleMark(s)}>
                       <Link
-                        to={`/library/${encodeURIComponent(s.id)}`}
+                        to={entryPath(s)}
                         className="lib-index-link"
                       >
                         {s.title}
@@ -579,7 +584,7 @@ export default function Library() {
                       <button
                         type="button"
                         className="lib-toc-copy"
-                        onClick={() => copyLink(s.id)}
+                        onClick={() => copyLink(s)}
                         aria-label={`Copy link to “${s.title}”`}
                         title="Copy link to this entry"
                       >
@@ -614,7 +619,7 @@ export default function Library() {
                   <button {...frame.part('copyLink')}
                     type="button"
                     className="lib-copy"
-                    onClick={() => copyLink(current.id)}
+                    onClick={() => copyLink(current)}
                     aria-label={`Copy link to “${current.title}”`}
                     title="Copy link to this entry"
                   >
@@ -646,7 +651,7 @@ export default function Library() {
                 <nav className="lib-prevnext" aria-label="More entries" {...frame.part('prevNext')}>
                   {prev ? (
                     <Link
-                      to={`/library/${encodeURIComponent(prev.id)}`}
+                      to={entryPath(prev)}
                       className="lib-prevnext-link lib-prevnext-prev"
                     >
                       <span className="lib-prevnext-dir">← Previous</span>
@@ -657,7 +662,7 @@ export default function Library() {
                   )}
                   {next ? (
                     <Link
-                      to={`/library/${encodeURIComponent(next.id)}`}
+                      to={entryPath(next)}
                       className="lib-prevnext-link lib-prevnext-next"
                     >
                       <span className="lib-prevnext-dir">Next →</span>
