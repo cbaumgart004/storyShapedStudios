@@ -10,10 +10,12 @@
 //   POST /snapshots/etsy         every active Etsy listing through the API, kept the same way
 //   GET  /snapshots/etsy         the newest snapshot of each Etsy listing, cut to what the review shows
 //   GET  /snapshots/etsy/:key    one listing's newest snapshot as Etsy sent it
+//   GET  /etsy/sections          the shop's section titles, for the Listing editor
+//   GET  /etsy/categories        every Etsy category as its path, the same way
 //
 // Each answers what it did, or, while MARKETPLACE_SYNC is not "on", what it
-// would have sent. Every route needs a console sign-in for this site, as
-// /api/inventory does. A schedule calling /sales/pull is not set up yet.
+// would have sent. Every route but the two /etsy/ choice lists needs a console
+// sign-in for this site, as /api/inventory does. A schedule calling /sales/pull is not set up yet.
 
 import express from 'express'
 import { pool, hasDb } from '../utils/db.js'
@@ -24,8 +26,21 @@ import { createEtsy } from '../marketplace/etsy.js'
 import { createEbay } from '../marketplace/ebay.js'
 
 const router = express.Router()
-router.use(requireEditor)
 export const sync = hasDb ? createSync({ db: pool, stock: createStock(pool), etsy: createEtsy(), ebay: createEbay() }) : null
+
+// The Listing editor's choices (console schema optionsUrl), [{ value, label }].
+// Open, ahead of the sign-in: the console asks without a token, and a shop's
+// section titles and Etsy's category tree are public on Etsy already. 503 when
+// Etsy cannot be asked, and the editor keeps its own list.
+for (const kind of ['sections', 'categories']) {
+  router.get(`/etsy/${kind}`, async (_req, res) => {
+    const list = sync ? await sync.etsyChoices(kind) : null
+    if (!list) return res.status(503).json({ error: `Etsy ${kind} unavailable.` })
+    res.set('Cache-Control', 'public, max-age=600').json(list)
+  })
+}
+
+router.use(requireEditor)
 
 const handle = (label, fn) => async (req, res) => {
   if (!sync) return res.status(503).json({ error: 'Marketplace sync not configured.' })
