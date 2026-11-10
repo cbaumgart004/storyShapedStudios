@@ -1,13 +1,21 @@
 // src/lib/librarySlug.js
-// Shared slug generator for library article anchors. Used by the Library page
-// (to build each entry's id) and by the Glossary index (to link into those
-// entries via /library#<slug>). Keeping one implementation guarantees the two
-// stay in sync — a glossary link only lands on the right heading if its slug is
-// byte-for-byte identical to the id the Library assigns.
-export function slugify(text) {
+// Library slugs, shared by the Library page and the Glossary index.
+
+// An entry's address: the slug the console gives the document, uncut. This is
+// what the sitemap lists and what a direct request finds.
+export function fullSlug(text) {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
 }
+
+// An entry's id, cut to 60 characters. Stored view counts and each entry's
+// "Place in contents" use it, so it stays as it is; it is not an address.
+export function slugify(text) {
+  return fullSlug(text).slice(0, 60)
+}
+
+// The page of a Library entry, { slug, id }; an entry from the bundled markdown
+// has no document, so no slug.
+export const entryPath = (entry) => `/library/${encodeURIComponent(entry.slug ?? entry.id)}`

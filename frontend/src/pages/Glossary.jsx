@@ -17,7 +17,7 @@ import { Link } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
-import { slugify } from '@/lib/librarySlug'
+import { fullSlug, slugify } from '@/lib/librarySlug'
 import { BUILT_IN } from '@/lib/glossaryPage'
 import { fetchPublished, useLiveDocuments, textOf, useSchema } from '@/lib/siteConsole'
 import SourceLink from '@/components/SourceLink'
@@ -25,7 +25,7 @@ import { Extras, Elements, lookFor } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
 import '@/styles/Glossary.css'
 
-const libLink = (title) => `/library/${slugify(title)}`
+const libLink = (title) => `/library/${fullSlug(title)}`
 const termId = (term) => `term-${slugify(term)}`
 
 function matches(term, q) {
@@ -81,9 +81,9 @@ export default function Glossary() {
 
       <div className="gl-shell" {...(doc ? { 'data-eotm-edit': `referencePage:${doc.id}`, 'data-eotm-label': page.title } : {})}>
         <header className="gl-hero">
-          {page.eyebrow && <p className="eyebrow">{page.eyebrow}</p>}
-          <h1>{page.title}</h1>
-          {page.intro && <p className="gl-hero-sub">{page.intro}</p>}
+          {page.eyebrow && <p className="eyebrow" data-eotm-text="eyebrow">{page.eyebrow}</p>}
+          <h1 data-eotm-text="title">{page.title}</h1>
+          {page.intro && <p className="gl-hero-sub" data-eotm-text="intro">{page.intro}</p>}
           <p className="gl-hero-sub">
             {allTerms.length} terms on uranium glass, jewelry, gems, and
             metals — search or browse by category. Looking for the how-to

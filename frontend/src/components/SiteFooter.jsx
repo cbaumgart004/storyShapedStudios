@@ -29,7 +29,7 @@ export default function SiteFooter({ brand = true }) {
       {brand && (
         <div className="footer-brand" {...frame.part('brand')}>
           <img className="mark" src={logo} alt="" />
-          <span className="footer-wordmark">{siteName}</span>
+          <span className="footer-wordmark" data-eotm-field="siteName">{siteName}</span>
         </div>
       )}
       <div className="footer-socials" {...frame.part('socials')}>
@@ -41,7 +41,7 @@ export default function SiteFooter({ brand = true }) {
       </div>
       {/* Year is derived, not hardcoded, so the notice does not go stale
           (board #31). Whitney asked for this twice in the notes doc. */}
-      <p className="footer-note" {...frame.part('copyright')}>
+      <p className="footer-note" data-eotm-field="copyrightOwner" {...frame.part('copyright')}>
         &copy; {new Date().getFullYear()} {owner}.{notice ? ` ${notice}` : ''}
       </p>
       <Extras at="types.siteSettings" data={settings} className="extras footer-extras" frame={frame} />
