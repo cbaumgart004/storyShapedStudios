@@ -98,32 +98,31 @@ app.get('/oauth/etsy-callback', async (req, res) => {
   const { code, state, error: authError, error_description } = req.query
 
   if (authError || !code) {
+    // The names of what arrived (never the values), to tell a denied consent
+    // from a request that lost its query on the way in.
     console.error(
       '❌ Etsy OAuth failed:',
-      authError || 'Missing authorization code.'
+      authError || 'Missing authorization code.',
+      'query keys:',
+      Object.keys(req.query).join(',') || '(none)'
     )
     return res.status(400).send(
-      `Etsy OAuth failed: ${authError || 'No authorization code received.'}$
-        {error_description ? ' - ' + error_description : ''}`
+      `Etsy OAuth failed: ${authError || 'No authorization code received.'}${error_description ? ` - ${error_description}` : ''}`
     )
   }
 
   try {
+    // Etsy's token endpoint takes the client id in the form body and refuses
+    // any Authorization header that is not a Bearer token, so no Basic login.
     const response = await axios.post(
       'https://api.etsy.com/v3/public/oauth/token',
-      {
+      new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: CLIENT_ID_ETSY,
         redirect_uri: REDIRECT_URI_ETSY,
         code,
         code_verifier: etsyVerifier(String(state ?? '')),
-      },
-      {
-        auth: {
-          username: CLIENT_ID_ETSY,
-          password: CLIENT_SECRET_ETSY,
-        },
-      }
+      })
     )
     // obtained_at lets marketplace/etsy.js refresh it when it expires.
     const tokenObject = { ...response.data, obtained_at: Date.now() }
