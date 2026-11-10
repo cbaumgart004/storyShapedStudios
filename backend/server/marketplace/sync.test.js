@@ -82,3 +82,16 @@ test('a snapshot keeps only new or changed listings, and drops repeats left by e
   const { rows } = await db.query(`SELECT external_key, raw->>'title' AS title FROM import_snapshots ORDER BY id`)
   assert.deepEqual(rows.map((r) => `${r.external_key}:${r.title}`), ['1:Ring', '2:Bead', '2:Glass bead', '3:New'])
 })
+
+test("the editor's choices are the shop's section titles and every category path, or null without Etsy", async () => {
+  const etsy = {
+    sections: async () => ({ results: [{ shop_section_id: 2, title: 'Rings' }, { shop_section_id: 1, title: 'Beads' }] }),
+    taxonomy: async () => ({ results: [{ id: 1, name: 'Jewelry', children: [{ id: 2, name: 'Rings', children: [] }] }] }),
+  }
+  const { sync } = await fresh({}, { etsy })
+  assert.deepEqual(await sync.etsyChoices('sections'), [{ value: 'Beads', label: 'Beads' }, { value: 'Rings', label: 'Rings' }])
+  assert.deepEqual((await sync.etsyChoices('categories')).map((o) => o.value), ['Jewelry', 'Jewelry < Rings'])
+
+  const down = await fresh({}, { etsy: { sections: async () => { throw new Error('no sign-in') }, taxonomy: etsy.taxonomy } })
+  assert.equal(await down.sync.etsyChoices('sections'), null)
+})

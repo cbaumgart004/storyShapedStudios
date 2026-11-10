@@ -64,15 +64,19 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
   // use. Read from Etsy, kept ten minutes per instance; without Etsy (no
   // sign-in, a stub) the ids stand alone.
   let named = null
+  const loadNames = async () => {
+    if (!named || Date.now() - named.at > 600_000) {
+      const [sections, taxonomy] = await Promise.all([etsy.sections(), etsy.taxonomy()])
+      const paths = {}
+      const walk = (nodes, above) => { for (const n of nodes ?? []) { const p = above ? `${above} < ${n.name}` : n.name; paths[n.id] = p; walk(n.children, p) } }
+      walk(taxonomy.results, '')
+      named = { at: Date.now(), sections: Object.fromEntries((sections.results ?? []).map((s) => [s.shop_section_id, s.title])), paths }
+    }
+    return named
+  }
   const etsyNames = async (listings) => {
     try {
-      if (!named || Date.now() - named.at > 600_000) {
-        const [sections, taxonomy] = await Promise.all([etsy.sections(), etsy.taxonomy()])
-        const paths = {}
-        const walk = (nodes, above) => { for (const n of nodes ?? []) { const p = above ? `${above} < ${n.name}` : n.name; paths[n.id] = p; walk(n.children, p) } }
-        walk(taxonomy.results, '')
-        named = { at: Date.now(), sections: Object.fromEntries((sections.results ?? []).map((s) => [s.shop_section_id, s.title])), paths }
-      }
+      await loadNames()
       const pick = (all, ids) => Object.fromEntries([...new Set(ids)].filter((id) => id != null && all[id]).map((id) => [id, all[id]]))
       return {
         sections: pick(named.sections, listings.map((l) => l.shop_section_id)),
@@ -132,6 +136,21 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
   }
 
   return {
+
+    // The Listing editor's choices (console optionsUrl): the shop's sections by
+    // title, or every Etsy category as its path, [{ value, label }]. The values
+    // are what etsyPlan matches on. null when Etsy cannot be asked; the editor
+    // then keeps its own list.
+    etsyChoices: async (kind) => {
+      try {
+        const { sections, paths } = await loadNames()
+        const values = kind === 'sections' ? Object.values(sections) : Object.values(paths)
+        return [...new Set(values)].sort((a, b) => a.localeCompare(b)).map((v) => ({ value: v, label: v }))
+      } catch (err) {
+        console.warn(`[marketplace] etsy ${kind} unavailable: ${err.message}`)
+        return null
+      }
+    },
 
     // check: read the draft and send nothing, whatever MARKETPLACE_SYNC says.
     pushListing: async (docId, { check = false } = {}) => {
