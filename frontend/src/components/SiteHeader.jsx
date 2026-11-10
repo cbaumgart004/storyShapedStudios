@@ -24,7 +24,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
 import { utilityIcons, FormsIcon } from '@/components/navIcons'
-import { useOwner, useCustomerView, openEditor, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
+import { useOwner, useCustomerView, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
+import { openAccount } from '@/lib/account'
+import { Welcome } from '@/components/SignedIn'
 import { SocialMark, lookFor } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
 
@@ -125,7 +127,7 @@ export default function SiteHeader({ featured = false }) {
                 aria-pressed={lit}
                 title="Toggle blacklight"
               >
-                <span className="uv-label">{lit ? settings?.blacklightLabel || 'Blacklight' : settings?.daylightLabel || 'Daylight'}</span>
+                <span className="uv-label" {...edit} data-eotm-field={lit ? 'blacklightLabel' : 'daylightLabel'}>{lit ? settings?.blacklightLabel || 'Blacklight' : settings?.daylightLabel || 'Daylight'}</span>
                 <span className="uv-switch" aria-hidden="true" />
               </button>
             </span>
@@ -161,21 +163,24 @@ export default function SiteHeader({ featured = false }) {
               board #22). They are real buttons rather than links so nothing
               404s, and they announce themselves as unavailable. The rule
               goes with them. */}
-          {/* Sign in shows to the owner on every build; the other three stay
+          {/* Sign in shows to everyone on every build; the other three stay
               behind the flag. */}
-          {(UTILITY_ICONS_VISIBLE || owner) && (
-            <>
+          <>
               <span className="sss-nav-sep" aria-hidden="true" />
-              {utilityIcons.filter(({ label }) => (label === 'Sign in' ? owner : UTILITY_ICONS_VISIBLE)).map(({ label, Icon }) => label === 'Sign in' ? (
-                // The owner's way into the editor (lib/siteConsole.js, openEditor).
+              {utilityIcons.filter(({ label }) => label === 'Sign in' || UTILITY_ICONS_VISIBLE).map(({ label, Icon }) => label === 'Sign in' ? (
+                // The account window (lib/account.js, openAccount): sign in,
+                // create an account, or sign out. An owner's sign-in on the
+                // live address hands her to the preview address to edit.
                 <React.Fragment key={label}>
-                  <button type="button" className="sss-nav-util is-live" aria-label="Edit the site" title="Edit the site" onClick={openEditor}>
+                  <button type="button" className="sss-nav-util is-live" aria-label="Your account" title="Your account" onClick={() => openAccount()}>
                     <Icon />
                   </button>
                   {/* The owner's Forms (sales orders and the like), /admin/forms. */}
-                  <Link to="/admin/forms" className="sss-nav-util is-live" aria-label="Forms" title="Forms">
-                    <FormsIcon />
-                  </Link>
+                  {owner && (
+                    <Link to="/admin/forms" className="sss-nav-util is-live" aria-label="Forms" title="Forms">
+                      <FormsIcon />
+                    </Link>
+                  )}
                 </React.Fragment>
               ) : (
                 <button
@@ -190,9 +195,9 @@ export default function SiteHeader({ featured = false }) {
                   <Icon />
                 </button>
               ))}
-            </>
-          )}
+          </>
         </div>
+        <Welcome />
       </section>
     </>
   )

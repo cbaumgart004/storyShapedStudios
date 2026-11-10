@@ -9,7 +9,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
-import { editorToken, signInThroughConsole, CONSOLE_API } from '@/lib/siteConsole'
+import { editorToken, CONSOLE_API } from '@/lib/siteConsole'
+import { openAccount } from '@/lib/account'
 import Marketplaces from './Marketplaces'
 import '@/styles/AdminInventory.css'
 
@@ -243,7 +244,7 @@ export default function AdminInventory() {
       ) : !signedIn ? (
         <section className="ai-section">
           <p>Stock is for the studio only. Sign in with your Edge of the Map login to see it.</p>
-          <button type="button" onClick={() => signInThroughConsole()}>Sign in</button>
+          <button type="button" onClick={() => openAccount()}>Sign in</button>
         </section>
       ) : (
       <>

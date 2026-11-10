@@ -69,7 +69,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
-import { editorToken, signInThroughConsole, CONSOLE_API, useSchema } from '@/lib/siteConsole'
+import { editorToken, CONSOLE_API, useSchema } from '@/lib/siteConsole'
+import { openAccount } from '@/lib/account'
 import '@/styles/AdminForms.css'
 
 const API = '/api/forms'
@@ -1766,7 +1767,7 @@ export default function AdminForms({ page }) {
           {!HAS_BACKEND
             ? <p>Forms are not connected on this copy of the site. They are stored in the site&rsquo;s database, which this build does not reach.</p>
             : <><p>Forms are for the studio only. Sign in with your Edge of the Map login.</p>
-              <button type="button" className="tool primary" onClick={() => signInThroughConsole()}>Sign in</button></>}
+              <button type="button" className="tool primary" onClick={() => openAccount()}>Sign in</button></>}
           <Link to="/" className="inv-back">← Back to site</Link>
         </div>
       </div>

@@ -1,0 +1,62 @@
+/* Admin/EtsyReview.jsx: one card per Etsy listing, inside .admin-inventory. */
+.admin-inventory {
+  --er-line: #d9d4cc;
+  --er-ground: #fff;
+  --er-soft: #f4f1ec;
+  --er-accent: #3f7d2a;
+}
+@media (prefers-color-scheme: dark) {
+  .admin-inventory {
+    --er-line: #3a3833;
+    --er-ground: #1d1c1a;
+    --er-soft: #262522;
+    --er-accent: #8fd16b;
+  }
+}
+
+.er-grid {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+.er-card {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--er-line);
+  border-radius: 8px;
+  background: var(--er-ground);
+}
+@media (max-width: 720px) {
+  .er-card { grid-template-columns: minmax(0, 1fr); }
+}
+.er-photos img { width: 100%; height: auto; border-radius: 6px; display: block; }
+.er-nophoto {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: var(--er-soft);
+  border-radius: 6px;
+}
+.er-thumbs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.er-thumbs button {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  width: 48px;
+}
+.er-thumbs button.er-on { border-color: var(--er-accent); }
+.er-body h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+.er-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0;
+}
+.er-facts dt { font-weight: 600; }
+.er-facts dd { margin: 0; overflow-wrap: anywhere; }
+.er-variations { margin: 0.5rem 0; }
+.er-description { white-space: pre-wrap; }

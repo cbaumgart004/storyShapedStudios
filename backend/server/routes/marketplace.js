@@ -8,6 +8,7 @@
 //   POST /sales/pull             paid Etsy receipts and eBay orders since the last pull, into stock
 //   POST /snapshots              { source: etsy|ebay, rows: [...] } a CSV export, kept unmodified
 //   POST /snapshots/etsy         every active Etsy listing through the API, kept the same way
+//   GET  /snapshots/etsy         the newest snapshot of each Etsy listing
 //
 // Each answers what it did, or, while MARKETPLACE_SYNC is not "on", what it
 // would have sent. Every route needs a console sign-in for this site, as
@@ -42,5 +43,6 @@ router.post('/quantities/push', handle('push quantities', (req) => sync.pushQuan
 router.post('/sales/pull', handle('pull sales', () => sync.pullSales()))
 router.post('/snapshots', handle('snapshot', (req) => sync.snapshot(req.body?.source, req.body?.rows)))
 router.post('/snapshots/etsy', handle('snapshot etsy', () => sync.snapshotEtsy()))
+router.get('/snapshots/etsy', handle('read etsy snapshots', () => sync.etsySnapshots()))
 
 export default router
