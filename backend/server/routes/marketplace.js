@@ -10,7 +10,8 @@
 //   POST /snapshots/etsy         every active Etsy listing through the API, kept the same way
 //   GET  /snapshots/etsy         the newest snapshot of each Etsy listing, cut to what the review shows
 //   GET  /snapshots/etsy/:key    one listing's newest snapshot as Etsy sent it
-//   GET  /etsy/sections          the shop's section titles, for the Listing editor
+//   POST /import/etsy            a draft Listing for each snapshot no Listing holds yet
+//   GET  /etsy/sections         the shop's section titles, for the Listing editor
 //   GET  /etsy/categories        every Etsy category as its path, the same way
 //
 // Each answers what it did, or, while MARKETPLACE_SYNC is not "on", what it
@@ -61,5 +62,6 @@ router.post('/snapshots', handle('snapshot', (req) => sync.snapshot(req.body?.so
 router.post('/snapshots/etsy', handle('snapshot etsy', () => sync.snapshotEtsy()))
 router.get('/snapshots/etsy', handle('read etsy snapshots', () => sync.etsySnapshots()))
 router.get('/snapshots/etsy/:key', handle('read etsy snapshot', (req) => sync.etsySnapshot(req.params.key)))
+router.post('/import/etsy', handle('import etsy listings', (req) => sync.importEtsyListings(req.editor)))
 
 export default router

@@ -191,6 +191,19 @@ export default function EtsyReview() {
       await load()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
+  // Draft Listings in the editor for every listing here no Listing holds yet;
+  // nothing is published or sent to Etsy.
+  const IMPORT = 'https://storyshapedstudios.com/api/marketplace/import/etsy'
+  const importListings = async () => {
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(IMPORT, { method: 'POST', headers: { Authorization: `Bearer ${editorToken()}` } })
+        .catch(() => { throw new Error('The request did not finish. Try again; a second run only adds what is still missing.') })
+      const out = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(out.error || `Request failed: ${res.status}`)
+      setNote(`Draft Listings made: ${out.created}. Already in the editor: ${out.existing}.${out.withoutSku ? ` ${out.withoutSku} of the new ones have a variation with no SKU.` : ''}`)
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
   // The token decides; the login only re-renders the page when it changes.
   const signedIn = Boolean(editorToken())
   useEffect(() => { if (signedIn) load() }, [signedIn, login, load])
@@ -215,7 +228,8 @@ export default function EtsyReview() {
         <>
           {error && <p className="ai-error">{error}</p>}
           <section className="ai-section ai-inline-form">
-            <button type="button" onClick={refresh} disabled={busy}>{busy ? 'Reading Etsy…' : 'Refresh from Etsy'}</button>
+            <button type="button" onClick={refresh} disabled={busy}>{busy ? 'Working…' : 'Refresh from Etsy'}</button>
+            {listings?.length > 0 && <button type="button" onClick={importListings} disabled={busy} title="A draft Listing in the editor for each listing here that has none; nothing is published or sent to Etsy">Make draft Listings</button>}
             <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }} placeholder="Title, SKU or tag" aria-label="Filter" />
             <span className="ai-muted">{listings ? `${matching.length} of ${listings.length} listings` : 'Loading…'}</span>
             {note && <span className="ai-muted">{note}</span>}
