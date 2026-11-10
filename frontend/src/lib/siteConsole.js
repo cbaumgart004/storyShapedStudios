@@ -6,6 +6,7 @@
 // which is the live preview.
 
 import { useEffect, useMemo, useState } from 'react'
+import { openAccount } from './account'
 
 export const CONSOLE_API = 'https://admin.theedgeofthemap.com/api/sites/storyshaped'
 
@@ -291,10 +292,11 @@ export function useOwner() {
 }
 
 // The owner's way into the editor: open it here when this tab already holds a
-// token, otherwise sign in through the console, which brings her back with it.
+// token, otherwise the site's own sign-in (lib/account.js), which hands her
+// to the preview address with one.
 export function openEditor() {
   if (editorToken() && window.EOTM?.open) window.EOTM.open()
-  else signInThroughConsole()
+  else openAccount()
 }
 
 // Visible text of a rich-text field, for search. DOMParser builds an inert

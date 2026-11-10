@@ -2,33 +2,40 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- A preview address is the owner's alone. Without an editor token in this
-         browser it goes to the console sign-in; a signed-in owner lands with the
-         editor open (once per tab, so closing it sticks). #eotm-token is the
-         console handing back, which the loader takes. A customer's invoice link
-         (/invoice/<token>, Forms.jsx SharedInvoice) is open to anyone holding it. -->
+    <!-- The preview address is the owner's alone, and it has no sign-in of its
+         own: without an unexpired editor token in this browser it goes to the
+         live address with #eotm-renew, whose session hands a token back
+         (src/lib/account.js), or asks her to sign in there. #eotm-token is that
+         hand-back arriving, which the loader takes. Once a minute at most, so a
+         failed hand-back cannot loop. The Amplify branch address goes to the
+         preview address first, so it is gated the same way. A customer's invoice
+         link (/invoice/<token>, Forms.jsx SharedInvoice) is open to anyone
+         holding it. -->
     <script>
       (function (site) {
+        var EDIT = 'https://preview.storyshapedstudios.com'
+        var LIVE = 'https://storyshapedstudios.com'
         if (!/^preview\./.test(location.hostname)) return
-        if (/^\/invoice\//.test(location.pathname)) return
-        if (/eotm-token=/.test(location.hash)) {
-          try { sessionStorage.setItem('eotm:preview', '1') } catch (e) { /* private mode */ }
+        if (location.origin !== EDIT) {
+          location.replace(EDIT + location.pathname + location.search + location.hash)
           return
         }
+        if (/^\/invoice\//.test(location.pathname)) return
+        if (/(?:^#|&)eotm-token=/.test(location.hash)) return
+        var KEY = 'eotm:token:' + site
         try {
-          var t = localStorage.getItem('eotm:token:' + site)
-          var p = t && JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-          if (p && p.site === site && p.exp * 1000 > Date.now()) {
-            if (!sessionStorage.getItem('eotm:preview')) {
-              sessionStorage.setItem('eotm:preview', '1')
-              sessionStorage.setItem('eotm:edit', '1')
-            }
-            return
+          var t = localStorage.getItem(KEY) || sessionStorage.getItem(KEY)
+          if (t) {
+            var p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+            if (p.site === site && p.exp * 1000 > Date.now()) return
           }
-        } catch (e) { /* storage blocked: sign in each visit */ }
-        var back = location.pathname === '/preview' ? '/' : location.pathname + location.search
-        location.replace('https://admin.theedgeofthemap.com/?handoff=' + site + '&return=' + encodeURIComponent(back) + '&origin=' + encodeURIComponent(location.origin))
+          if (Date.now() - Number(sessionStorage.getItem('sss:renewing') || 0) < 60000) return
+          sessionStorage.setItem('sss:renewing', String(Date.now()))
+        } catch (e) { return }
+        location.replace(LIVE + location.pathname + '#eotm-renew')
       })('storyshaped')
+      // The preview address is not for search engines.
+      if (/^preview\./.test(location.hostname)) document.write('<meta name="robots" content="noindex, nofollow" />')
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StoryShaped Studios</title>
@@ -39,7 +46,9 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <!-- Edge of the Map console (ADR-0007). Visitors get only this small loader;
-         the editor loads for a signed-in owner via ?edit or Ctrl/Cmd+Shift+E. -->
-    <script src="https://admin.theedgeofthemap.com/loader.js" data-site="storyshaped" async></script>
+         the editor loads for a signed-in owner via ?edit or Ctrl/Cmd+Shift+E.
+         data-entry="sign-in": the site's own sign-in (src/lib/account.js) is the
+         way in, not the console's admin page. -->
+    <script src="https://admin.theedgeofthemap.com/loader.js" data-site="storyshaped" data-entry="sign-in" async></script>
   </body>
 </html>

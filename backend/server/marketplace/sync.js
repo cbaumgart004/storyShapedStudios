@@ -216,7 +216,7 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       const { rows } = await db.query('SELECT provider, sku, listing_doc_id, external_id, pushed_at FROM marketplace_links ORDER BY pushed_at DESC')
       return {
         live: isLive(),
-        etsy: { configured: Boolean(env.ETSY_CLIENT_ID && env.ETSY_SHOP_ID), signedIn: await has('etsy') },
+        etsy: { configured: Boolean(env.ETSY_CLIENT_ID), signedIn: await has('etsy') },
         ebay: { configured: Boolean(env.EBAY_CLIENT_ID), signedIn: await has('ebay'), environment: env.EBAY_ENVIRONMENT || 'sandbox' },
         links: rows,
       }
@@ -254,6 +254,16 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
         if (!page.results?.length || rows.length >= page.count) break
       }
       return this.snapshot('etsy', rows)
+    },
+
+    // The newest snapshot of each Etsy listing, as Etsy sent it: what the
+    // review page (Admin/EtsyReview.jsx) lays beside the Listing model.
+    etsySnapshots: async () => {
+      await ensureStockTables(db)
+      const { rows } = await db.query(
+        `SELECT DISTINCT ON (external_key) external_key, sku, raw, imported_at FROM import_snapshots
+         WHERE source = 'etsy' ORDER BY external_key, imported_at DESC`)
+      return { listings: rows }
     },
 
     // One Marketplace sale line into stock, at most once. Exported for the

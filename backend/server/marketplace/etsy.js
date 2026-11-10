@@ -9,7 +9,8 @@
 // body, the inventory JSON, an image multipart (the same spec).
 //
 // Settings, by name: ETSY_CLIENT_ID (the keystring), ETSY_CLIENT_SECRET,
-// ETSY_SHOP_ID.
+// ETSY_SHOP_ID (optional: without it the shop is the signed-in seller's own,
+// asked of Etsy's GET /users/me once per instance).
 
 import { loadToken, saveToken } from '../utils/tokens.js'
 
@@ -17,7 +18,15 @@ const API = 'https://api.etsy.com/v3'
 
 export function createEtsy({ fetch: http = fetch, env = process.env } = {}) {
   // Read when called: locally, dotenv loads after this module is imported.
-  const shopId = () => env.ETSY_SHOP_ID
+  let foundShop = null
+  async function shopId() {
+    if (env.ETSY_SHOP_ID) return env.ETSY_SHOP_ID
+    foundShop ??= request('GET', '/users/me').then((me) => {
+      if (!me?.shop_id) throw new Error('The signed-in Etsy account has no shop.')
+      return String(me.shop_id)
+    }).catch((err) => { foundShop = null; throw err })
+    return foundShop
+  }
   const apiKey = () => `${env.ETSY_CLIENT_ID}:${env.ETSY_CLIENT_SECRET}`
 
   async function token() {
@@ -39,20 +48,23 @@ export function createEtsy({ fetch: http = fetch, env = process.env } = {}) {
   // as: 'json' | 'form' (urlencoded; an array joined by commas, **unverified**
   // against Etsy's parser) | 'multipart' (a FormData).
   async function call(method, path, body, as = 'json') {
-    if (!shopId()) throw new Error('ETSY_SHOP_ID is not set.')
+    return request(method, path.includes('{shop}') ? path.replace('{shop}', await shopId()) : path, body, as)
+  }
+  async function request(method, path, body, as = 'json') {
     const headers = { 'x-api-key': apiKey(), authorization: `Bearer ${await token()}` }
     if (body && as === 'json') { headers['content-type'] = 'application/json'; body = JSON.stringify(body) }
     if (body && as === 'form') {
       headers['content-type'] = 'application/x-www-form-urlencoded'
       body = new URLSearchParams(Object.entries(body).filter(([, v]) => v != null).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]))
     }
-    const res = await http(`${API}/application${path.replace('{shop}', shopId())}`, { method, headers, body })
+    const res = await http(`${API}/application${path}`, { method, headers, body })
     const text = await res.text()
     if (!res.ok) throw new Error(`Etsy ${method} ${path}: ${res.status} ${text}`)
     return text ? JSON.parse(text) : null
   }
 
   return {
+    shopId,
     sections: () => call('GET', '/shops/{shop}/sections'),
     taxonomy: () => call('GET', '/seller-taxonomy/nodes'),
     createDraft: (body) => call('POST', '/shops/{shop}/listings', body, 'form'),
