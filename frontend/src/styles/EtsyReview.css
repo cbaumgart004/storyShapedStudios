@@ -1,18 +1,76 @@
-/* Admin/EtsyReview.jsx: one card per Etsy listing, inside .admin-inventory. */
-.admin-inventory {
+/* Admin/EtsyReview.jsx: one card per Etsy listing. The root carries
+   .admin-inventory and .er-page; every color here is a token, so the page
+   reads in both schemes (AdminInventory.css alone is light only). */
+.er-page {
+  --er-text: #1a1a1a;
+  --er-muted: #5f5b55;
+  --er-page: #f7f5f1;
   --er-line: #d9d4cc;
   --er-ground: #fff;
   --er-soft: #f4f1ec;
   --er-accent: #3f7d2a;
+  --er-link: #1d5fa8;
+  --er-button: #1a1a1a;
+  --er-button-text: #fff;
+  --er-error: #fdecea;
+  --er-error-line: #f5c2c0;
+  --er-error-text: #7a1f1f;
 }
 @media (prefers-color-scheme: dark) {
-  .admin-inventory {
+  .er-page {
+    --er-text: #ece9e3;
+    --er-muted: #aaa59c;
+    --er-page: #141311;
     --er-line: #3a3833;
     --er-ground: #1d1c1a;
     --er-soft: #262522;
     --er-accent: #8fd16b;
+    --er-link: #8cbcf0;
+    --er-button: #ece9e3;
+    --er-button-text: #141311;
+    --er-error: #3a1a19;
+    --er-error-line: #6b2b28;
+    --er-error-text: #f4b8b4;
   }
 }
+
+.admin-inventory.er-page {
+  max-width: none;
+  color: var(--er-text);
+  background: var(--er-page);
+  min-height: 100vh;
+}
+.er-page > * { max-width: 1000px; margin-left: auto; margin-right: auto; }
+.er-page a { color: var(--er-link); }
+.er-page .ai-header .eyebrow,
+.er-page .ai-back-link,
+.er-page .ai-muted { color: var(--er-muted); }
+.er-page .ai-error { background: var(--er-error); border-color: var(--er-error-line); color: var(--er-error-text); }
+.er-page .ai-table th,
+.er-page .ai-table td { border-bottom-color: var(--er-line); }
+.er-page input,
+.er-page button { color: inherit; }
+.er-page .ai-inline-form input {
+  background: var(--er-ground);
+  border-color: var(--er-line);
+  color: var(--er-text);
+}
+.er-page .ai-inline-form button,
+.er-page > p > button,
+.er-page .ai-section > button {
+  border: 1px solid var(--er-button);
+  background: var(--er-button);
+  color: var(--er-button-text);
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.er-page code,
+.er-page .ai-pre {
+  background: var(--er-soft);
+  color: var(--er-text);
+}
+.er-page .ai-pre { padding: 0.75rem; border-radius: 6px; }
 
 .er-grid {
   display: grid;
