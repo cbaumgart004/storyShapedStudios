@@ -17,6 +17,8 @@ import '@/styles/AdminInventory.css'
 import '@/styles/EtsyReview.css'
 
 const API = 'https://storyshapedstudios.com/api/marketplace/snapshots/etsy'
+// Cards drawn at a time: the shop has several hundred listings.
+const PAGE = 48
 
 // Etsy's listing field -> where the Listing model keeps it.
 const MAPPED = {
@@ -55,7 +57,6 @@ const IGNORED = new Set([
   'url', 'views', 'num_favorers', 'featured_rank', 'listing_type', 'language', 'has_variations',
   'file_data', 'shipping_profile', 'shop', 'user', 'translations', 'videos', 'production_partners',
 ])
-const filled = (v) => v != null && v !== '' && v !== false && !(Array.isArray(v) && !v.length)
 const money = (p) => (p?.amount != null ? `${(p.amount / (p.divisor || 100)).toFixed(2)} ${p.currency_code ?? ''}`.trim() : '')
 
 function Variations({ inventory }) {
@@ -79,7 +80,9 @@ function Variations({ inventory }) {
   )
 }
 
-function Card({ raw }) {
+// raw: the listing cut to what the card shows; fetchRaw reads it whole.
+function Card({ raw, fetchRaw }) {
+  const [full, setFull] = useState(null)
   const images = raw.images ?? []
   const [shown, setShown] = useState(0)
   const img = images[shown]
@@ -114,31 +117,28 @@ function Card({ raw }) {
         </dl>
         <Variations inventory={raw.inventory} />
         <details><summary>Description</summary><p className="er-description">{raw.description}</p></details>
-        <details><summary className="ai-muted">As Etsy sent it</summary><pre className="ai-pre">{JSON.stringify(raw, null, 2)}</pre></details>
+        <details onToggle={(e) => { if (e.currentTarget.open && !full) fetchRaw(raw.listing_id).then((d) => setFull(d.raw ?? d), (err) => setFull({ error: err.message })) }}>
+          <summary className="ai-muted">As Etsy sent it</summary>
+          <pre className="ai-pre">{full ? JSON.stringify(full, null, 2) : 'Loading…'}</pre>
+        </details>
       </div>
     </article>
   )
 }
 
-// Every field Etsy filled on at least one listing that the model has no place for.
-function Gaps({ listings }) {
-  const gaps = useMemo(() => {
-    const count = new Map()
-    for (const { raw } of listings) {
-      for (const [k, v] of Object.entries(raw)) {
-        if (k in MAPPED || IGNORED.has(k) || !filled(v)) continue
-        count.set(k, (count.get(k) ?? 0) + 1)
-      }
-    }
-    return [...count].sort((a, b) => b[1] - a[1])
-  }, [listings])
+// Every field Etsy filled on at least one listing that the model has no place
+// for. filled: field -> how many listings fill it, counted by the backend.
+function Gaps({ filled: counts, total }) {
+  const gaps = useMemo(() => Object.entries(counts ?? {})
+    .filter(([k]) => !(k in MAPPED) && !IGNORED.has(k))
+    .sort((a, b) => b[1] - a[1]), [counts])
   return (
     <section className="ai-section">
       <h2>Model gaps</h2>
       {gaps.length ? (
         <>
           <p>Etsy fields filled on these listings that the Listing model has no field for:</p>
-          <ul className="ai-bom-list">{gaps.map(([k, n]) => <li key={k}><code>{k}</code> <span className="ai-muted">on {n} of {listings.length}</span></li>)}</ul>
+          <ul className="ai-bom-list">{gaps.map(([k, n]) => <li key={k}><code>{k}</code> <span className="ai-muted">on {n} of {total}</span></li>)}</ul>
         </>
       ) : <p>None: every filled Etsy field has a place in the Listing model.</p>}
       <details><summary className="ai-muted">Where each Etsy field goes</summary>
@@ -151,20 +151,22 @@ function Gaps({ listings }) {
 export default function EtsyReview() {
   const login = useLogin()
   const [listings, setListings] = useState(null)
+  const [filled, setFilled] = useState(null)
+  const [limit, setLimit] = useState(PAGE)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
 
-  const call = useCallback(async (method) => {
+  const call = useCallback(async (method, path = '') => {
     // A request that runs out of time comes back with no CORS header, which
     // the browser reports only as a failed fetch.
-    const res = await fetch(API, { method, headers: { Authorization: `Bearer ${editorToken()}` } })
+    const res = await fetch(API + path, { method, headers: { Authorization: `Bearer ${editorToken()}` } })
       .catch(() => { throw new Error('The request did not finish. It may have run too long; try again, and if it repeats, say so.') })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`)
     return data
   }, [])
-  const load = useCallback(() => call('GET').then((d) => setListings(d.listings)).catch((e) => setError(e.message)), [call])
+  const load = useCallback(() => call('GET').then((d) => { setListings(d.listings); setFilled(d.filled) }).catch((e) => setError(e.message)), [call])
   const refresh = async () => {
     setBusy(true); setError(null)
     try { await call('POST'); await load() } catch (e) { setError(e.message) } finally { setBusy(false) }
@@ -173,7 +175,7 @@ export default function EtsyReview() {
   const signedIn = Boolean(editorToken())
   useEffect(() => { if (signedIn) load() }, [signedIn, login, load])
 
-  const shown = (listings ?? []).filter(({ raw }) => !query || `${raw.title} ${(raw.skus ?? []).join(' ')} ${(raw.tags ?? []).join(' ')}`.toLowerCase().includes(query.toLowerCase()))
+  const matching = (listings ?? []).filter(({ listing: raw }) => !query || `${raw.title} ${(raw.skus ?? []).join(' ')} ${(raw.tags ?? []).join(' ')}`.toLowerCase().includes(query.toLowerCase()))
 
   return (
     <div className="admin-inventory">
@@ -194,12 +196,15 @@ export default function EtsyReview() {
           {error && <p className="ai-error">{error}</p>}
           <section className="ai-section ai-inline-form">
             <button type="button" onClick={refresh} disabled={busy}>{busy ? 'Reading Etsy…' : 'Refresh from Etsy'}</button>
-            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Title, SKU or tag" aria-label="Filter" />
-            <span className="ai-muted">{listings ? `${shown.length} of ${listings.length} listings` : 'Loading…'}</span>
+            <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }} placeholder="Title, SKU or tag" aria-label="Filter" />
+            <span className="ai-muted">{listings ? `${matching.length} of ${listings.length} listings` : 'Loading…'}</span>
           </section>
           {listings && !listings.length && <p>No snapshot yet. Refresh from Etsy to read the shop.</p>}
-          {listings?.length > 0 && <Gaps listings={listings} />}
-          <div className="er-grid">{shown.map((l) => <Card key={l.external_key} raw={l.raw} />)}</div>
+          {listings?.length > 0 && <Gaps filled={filled} total={listings.length} />}
+          <div className="er-grid">{matching.slice(0, limit).map((l) => <Card key={l.external_key} raw={l.listing} fetchRaw={(key) => call('GET', `/${encodeURIComponent(key)}`)} />)}</div>
+          {matching.length > limit && (
+            <p><button type="button" onClick={() => setLimit(limit + PAGE)}>Show {Math.min(PAGE, matching.length - limit)} more</button></p>
+          )}
         </>
       )}
     </div>

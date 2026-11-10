@@ -266,14 +266,48 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       return out
     },
 
-    // The newest snapshot of each Etsy listing, as Etsy sent it: what the
-    // review page (Admin/EtsyReview.jsx) lays beside the Listing model.
+    // The newest snapshot of each Etsy listing, cut to what the review page
+    // (Admin/EtsyReview.jsx) shows: the whole shop as Etsy sent it is past the
+    // Lambda's 6 MB response limit. `filled` counts, over the full rows, how
+    // many listings fill each Etsy field, so the page can find model gaps.
+    // etsySnapshot(key) is one listing as Etsy sent it.
     etsySnapshots: async () => {
       await ensureStockTables(db)
       const { rows } = await db.query(
-        `SELECT DISTINCT ON (external_key) external_key, sku, raw, imported_at FROM import_snapshots
+        `SELECT DISTINCT ON (external_key) external_key, raw, imported_at FROM import_snapshots
          WHERE source = 'etsy' ORDER BY external_key, imported_at DESC`)
-      return { listings: rows }
+      const filled = {}
+      const has = (v) => v != null && v !== '' && v !== false && !(Array.isArray(v) && !v.length)
+      const listings = rows.map(({ external_key, raw: r, imported_at }) => {
+        for (const [k, v] of Object.entries(r)) if (has(v)) filled[k] = (filled[k] ?? 0) + 1
+        return {
+          external_key, imported_at,
+          listing: {
+            listing_id: r.listing_id, title: r.title, description: r.description, url: r.url,
+            price: r.price, quantity: r.quantity, skus: r.skus, tags: r.tags, materials: r.materials,
+            shop_section_id: r.shop_section_id, taxonomy_id: r.taxonomy_id,
+            who_made: r.who_made, when_made: r.when_made, is_supply: r.is_supply,
+            item_weight: r.item_weight, item_weight_unit: r.item_weight_unit,
+            item_length: r.item_length, item_width: r.item_width, item_height: r.item_height,
+            item_dimensions_unit: r.item_dimensions_unit,
+            images: (r.images ?? []).map((m) => ({ listing_image_id: m.listing_image_id, url_570xN: m.url_570xN, url_75x75: m.url_75x75, alt_text: m.alt_text })),
+            inventory: r.inventory && {
+              products: (r.inventory.products ?? []).map((p) => ({
+                product_id: p.product_id, sku: p.sku,
+                property_values: (p.property_values ?? []).map((v) => ({ property_name: v.property_name, values: v.values })),
+                offerings: (p.offerings ?? []).slice(0, 1).map((o) => ({ price: o.price, quantity: o.quantity })),
+              })),
+            },
+          },
+        }
+      })
+      return { count: listings.length, filled, listings }
+    },
+    etsySnapshot: async (key) => {
+      await ensureStockTables(db)
+      const { rows: [row] } = await db.query(
+        `SELECT raw FROM import_snapshots WHERE source = 'etsy' AND external_key = $1 ORDER BY imported_at DESC LIMIT 1`, [String(key)])
+      return row ? { raw: row.raw } : { error: 'No snapshot of that listing.' }
     },
 
     // One Marketplace sale line into stock, at most once. Exported for the
