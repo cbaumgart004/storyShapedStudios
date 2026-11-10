@@ -178,7 +178,7 @@ export default function EtsyReview() {
   const matching = (listings ?? []).filter(({ listing: raw }) => !query || `${raw.title} ${(raw.skus ?? []).join(' ')} ${(raw.tags ?? []).join(' ')}`.toLowerCase().includes(query.toLowerCase()))
 
   return (
-    <div className="admin-inventory">
+    <div className="admin-inventory er-page">
       <header className="ai-header">
         <div>
           <p className="eyebrow">Internal tool</p>
