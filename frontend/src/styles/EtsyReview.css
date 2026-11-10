@@ -46,6 +46,15 @@
 .er-page .ai-back-link,
 .er-page .ai-muted { color: var(--er-muted); }
 .er-page .ai-error { background: var(--er-error); border-color: var(--er-error-line); color: var(--er-error-text); }
+/* A missing value inside a fact or a table cell: a tag, not the page's error box. */
+.er-page dd .ai-error,
+.er-page td .ai-error {
+  display: inline-block;
+  padding: 0 0.4rem;
+  margin: 0;
+  border-radius: 4px;
+  line-height: 1.4;
+}
 .er-page .ai-table th,
 .er-page .ai-table td { border-bottom-color: var(--er-line); }
 .er-page input,
