@@ -19,6 +19,7 @@
 
 import { toEtsy, toEbay, units, sellsOn } from './translate.js'
 import { taxonomyId } from './etsy.js'
+import { fromEtsy, slugify } from './fromEtsy.js'
 import { ensureStockTables } from '../utils/stock.js'
 import { loadToken } from '../utils/tokens.js'
 
@@ -379,6 +380,49 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       const { rows: [row] } = await db.query(
         `SELECT raw FROM import_snapshots WHERE source = 'etsy' AND external_key = $1 ORDER BY imported_at DESC LIMIT 1`, [String(key)])
       return row ? { raw: row.raw } : { error: 'No snapshot of that listing.' }
+    },
+
+    // A draft Listing (console documents, type listing) for every Etsy listing
+    // in the newest snapshots that no Listing holds yet (data.etsyListingId).
+    // A Listing already made, here or in the editor, is left as it is, so this
+    // can run again after a refresh and only adds. Nothing is published and
+    // nothing is sent to Etsy. One statement, with its revision rows: several
+    // hundred listings in one round trip.
+    importEtsyListings: async (user = null) => {
+      await ensureStockTables(db)
+      const { rows: snaps } = await db.query(
+        `SELECT DISTINCT ON (external_key) external_key, raw FROM import_snapshots
+         WHERE source = 'etsy' ORDER BY external_key, imported_at DESC`)
+      const { rows: have } = await db.query(`SELECT slug, data->>'etsyListingId' AS etsy FROM documents WHERE type = 'listing'`)
+      const held = new Set(have.map((r) => r.etsy).filter(Boolean))
+      const slugs = new Set(have.map((r) => r.slug))
+      let names = { sections: {}, paths: {} }
+      try { names = await loadNames() } catch (err) { console.warn(`[marketplace] import without section and category names: ${err.message}`) }
+      const rows = []
+      for (const { raw } of snaps) {
+        if (held.has(String(raw.listing_id))) continue
+        const data = fromEtsy(raw, names)
+        const base = slugify(data.title) || 'listing'
+        let slug = base
+        for (let n = 2; slugs.has(slug); n++) slug = `${base}-${n}`
+        slugs.add(slug)
+        rows.push({ slug, data })
+      }
+      if (!rows.length) return { created: 0, existing: held.size, snapshots: snaps.length }
+      const author = user?.id ?? null
+      const { rows: made } = await db.query(
+        `WITH input AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(slug text, data jsonb)),
+         ins AS (
+           INSERT INTO documents (type, slug, status, version, data, updated_at, updated_by)
+           SELECT 'listing', slug, 'draft', 1, data, now(), $2 FROM input
+           ON CONFLICT (type, slug) DO NOTHING
+           RETURNING id, version, data)
+         INSERT INTO document_revisions (document_id, version, data, author)
+         SELECT id, version, data, $2 FROM ins RETURNING document_id`,
+        [JSON.stringify(rows), author])
+      const noSku = rows.filter((r) => r.data.variations.some((v) => !v.sku)).length
+      console.log(`[marketplace] etsy import: ${made.length} draft Listings made, ${held.size} already held`)
+      return { created: made.length, existing: held.size, snapshots: snaps.length, withoutSku: noSku }
     },
 
     // One Marketplace sale line into stock, at most once. Exported for the

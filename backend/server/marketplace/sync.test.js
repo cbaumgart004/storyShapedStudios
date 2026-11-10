@@ -95,3 +95,46 @@ test("the editor's choices are the shop's section titles and every category path
   const down = await fresh({}, { etsy: { sections: async () => { throw new Error('no sign-in') }, taxonomy: etsy.taxonomy } })
   assert.equal(await down.sync.etsyChoices('sections'), null)
 })
+
+test('the import makes a draft Listing per Etsy listing once, mapped field by field, and leaves Listings already made', async () => {
+  const etsy = {
+    sections: async () => ({ results: [{ shop_section_id: 7, title: 'Uranium Glass Rings' }] }),
+    taxonomy: async () => ({ results: [{ id: 1, name: 'Jewelry', children: [{ id: 2, name: 'Rings', children: [] }] }] }),
+  }
+  const { db, sync } = await fresh({}, { etsy })
+  // The console's own table (its migration 001), as in each site's database.
+  await db.query(`CREATE TABLE documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), type text NOT NULL, slug text NOT NULL,
+    status text NOT NULL, version integer NOT NULL, data jsonb NOT NULL, published_data jsonb, published_at timestamptz,
+    updated_at timestamptz NOT NULL DEFAULT now(), updated_by text, UNIQUE (type, slug))`)
+  await db.query(`CREATE TABLE document_revisions (id bigserial PRIMARY KEY, document_id uuid NOT NULL, version integer NOT NULL,
+    data jsonb NOT NULL, author text, created_at timestamptz NOT NULL DEFAULT now())`)
+  const ring = {
+    listing_id: 11, title: 'Blue Ring', description: 'Glows.', shop_section_id: 7, taxonomy_id: 2,
+    tags: ['uranium glass'], materials: ['silver'], who_made: 'i_did', when_made: 'made_to_order', is_supply: false,
+    item_weight: 2, item_weight_unit: 'oz', shipping_profile_id: 555, style: ['Art Deco'], should_auto_renew: true,
+    images: [{ url_fullxfull: 'https://i.etsystatic.com/a.jpg', alt_text: 'Ring' }],
+    inventory: { products: [
+      { sku: 'RING-7', property_values: [{ property_name: 'Ring size', values: ['7'] }], offerings: [{ price: { amount: 14900, divisor: 100, currency_code: 'USD' } }] },
+      { sku: '', property_values: [{ property_name: 'Ring size', values: ['8'] }], offerings: [{ price: { amount: 15900, divisor: 100, currency_code: 'USD' } }] },
+    ] },
+  }
+  await sync.snapshot('etsy', [ring, { listing_id: 12, title: 'Blue Ring', price: { amount: 500, divisor: 100, currency_code: 'USD' } }])
+  // One made in the editor already holds listing 12.
+  await db.query(`INSERT INTO documents (type, slug, status, version, data) VALUES ('listing', 'mine', 'draft', 1, '{"etsyListingId":"12"}')`)
+
+  const out = await sync.importEtsyListings({ id: 'u1' })
+  assert.deepEqual([out.created, out.existing, out.withoutSku], [1, 1, 1])
+  const { rows: [doc] } = await db.query(`SELECT slug, status, published_data, data FROM documents WHERE data->>'etsyListingId' = '11'`)
+  assert.equal(doc.slug, 'blue-ring')
+  assert.equal(doc.status, 'draft')
+  assert.equal(doc.published_data, null)
+  const d = doc.data
+  assert.deepEqual([d.section, d.etsyCategory, d.variationName, d.etsy.shippingProfileId], ['Uranium Glass Rings', 'Jewelry < Rings', 'Ring size', '555'])
+  assert.deepEqual(d.variations.map((v) => [v.option, v.sku, v.price.amount]), [['7', 'RING-7', 14900], ['8', '', 15900]])
+  assert.deepEqual(d.photos, [{ src: 'https://i.etsystatic.com/a.jpg', index: 'Light', alt: 'Ring' }])
+  assert.deepEqual([d.tags[0].tag, d.etsy.styles[0].style, d.package.weight], ['uranium glass', 'Art Deco', 2])
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM document_revisions')).rows[0].n, 1)
+
+  // Again: nothing new.
+  assert.equal((await sync.importEtsyListings()).created, 0)
+})
