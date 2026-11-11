@@ -74,6 +74,8 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` | `server.js` | eBay app credentials |
 | `EBAY_REDIRECT_URI` | `server.js` | eBay's RuName for `https://<site>/oauth/ebay-callback` |
 | `EBAY_ENVIRONMENT` | `server.js` | `sandbox` or `production` |
+| `EBAY_DELETION_VERIFICATION_TOKEN` | `routes/ebayAccountDeletion.js` | The verification token entered in eBay's developer portal for Marketplace Account Deletion (32 to 80 of letters, digits, `_`, `-`) |
+| `EBAY_DELETION_ENDPOINT` | `routes/ebayAccountDeletion.js` | `https://<site>/api/ebay/account-deletion`, exactly as entered in eBay's portal (it is part of the challenge hash) |
 | `MAIL_FROM`, `MAIL_REGION` | `utils/mail.js` | Optional; default `StoryShaped Studios <info@storyshapedstudios.com>`, `us-east-1` |
 
 On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=none` with its function URL:
