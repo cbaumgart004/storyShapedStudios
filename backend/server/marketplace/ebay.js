@@ -56,6 +56,8 @@ export function createEbay({ fetch: http = fetch, env = process.env } = {}) {
   const inv = '/sell/inventory/v1'
 
   return {
+    // The seller's account standing; the cheapest call that proves the token works.
+    privileges: () => call('GET', '/sell/account/v1/privilege'),
     putItem: (sku, body) => call('PUT', `${inv}/inventory_item/${encodeURIComponent(sku)}`, body),
     putGroup: (key, body) => call('PUT', `${inv}/inventory_item_group/${encodeURIComponent(key)}`, body),
     offers: (sku) => call('GET', `${inv}/offer?sku=${encodeURIComponent(sku)}`),

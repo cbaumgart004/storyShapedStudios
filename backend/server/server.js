@@ -8,7 +8,7 @@ import path from 'path'
 import open from 'open'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
-import { EBAY_SCOPES } from './marketplace/ebay.js'
+import { EBAY_SCOPES, createEbay } from './marketplace/ebay.js'
 import {
   saveToken as saveEtsyToken,
   loadToken as loadEtsyToken,
@@ -59,10 +59,6 @@ const EBAY_TOKEN_URL =
   EBAY_ENV === 'sandbox'
     ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
     : 'https://api.ebay.com/identity/v1/oauth2/token'
-const EBAY_VALIDATE_URL =
-  EBAY_ENV === 'sandbox'
-    ? 'https://api.sandbox.ebay.com/ws/api.dll'
-    : 'https://api.ebay.com/ws/api.dll'
 
 app.get('/', (req, res) => {
   res.json({
@@ -210,27 +206,18 @@ app.get('/oauth/ebay-callback', async (req, res) => {
   }
 })
 
+// Proves the stored token with a real Sell API call (refreshing it when it has
+// expired), so "valid" means eBay accepted it, not merely that it answered.
 app.get('/api/ebay/validate-token', async (req, res) => {
-  const tokenData = await loadEbayToken()
-  const accessToken = tokenData?.access_token
-
-  if (!accessToken) {
+  if (!(await loadEbayToken())?.access_token) {
     return res.status(400).json({ error: 'Missing eBay access token.' })
   }
-
   try {
-    const response = await axios.get(EBAY_VALIDATE_URL, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
-    res.json({ message: '✅ eBay token is valid.', data: response.data })
+    const { sellerRegistrationCompleted, sellingLimit } = await createEbay().privileges()
+    res.json({ message: '✅ eBay token is valid.', data: { sellerRegistrationCompleted, sellingLimit } })
   } catch (error) {
-    const errData = error.response?.data || error.message
-    console.error('❌ eBay token validation failed:', errData)
-    res
-      .status(401)
-      .json({ error: 'Invalid or expired token.', details: errData })
+    console.error('❌ eBay token validation failed:', error.message)
+    res.status(401).json({ error: 'Invalid or expired token.', details: error.message })
   }
 })
 
