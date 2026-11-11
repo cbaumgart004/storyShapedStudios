@@ -18,6 +18,7 @@ import {
   loadToken as loadEbayToken,
 } from './utils/ebayTokenStorage.js'
 import ebayDummyListing from './routes/ebayDummyListing.js'
+import ebayAccountDeletion from './routes/ebayAccountDeletion.js'
 import apiRoutes from './routes/index.js'
 
 // Path setup for future flexibility
@@ -37,6 +38,7 @@ app.use(cors())
 
 // Externalized eBay dummy listing route
 app.use(ebayDummyListing)
+app.use(ebayAccountDeletion)
 
 // Content routes: /api/mock, /api/listings, /api/sales, /api/about, /api/faqs
 app.use('/api', apiRoutes)
