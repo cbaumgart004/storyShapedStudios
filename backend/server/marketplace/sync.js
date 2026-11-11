@@ -71,7 +71,7 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       const paths = {}
       const walk = (nodes, above) => { for (const n of nodes ?? []) { const p = above ? `${above} < ${n.name}` : n.name; paths[n.id] = p; walk(n.children, p) } }
       walk(taxonomy.results, '')
-      named = { at: Date.now(), sections: Object.fromEntries((sections.results ?? []).map((s) => [s.shop_section_id, s.title])), paths }
+      named = { at: Date.now(), sections: Object.fromEntries((sections.results ?? []).map((s) => [s.shop_section_id, s.title])), paths, nodes: taxonomy.results ?? [], sectionList: sections.results ?? [] }
     }
     return named
   }
@@ -118,17 +118,22 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
   }
 
   async function etsyPlan(listing, bySku, live) {
-    let taxonomy = null
-    let section = null
-    if (live || env.ETSY_SHOP_ID) {
-      const nodes = (await etsy.taxonomy()).results
-      taxonomy = taxonomyId(nodes, listing.etsyCategory)
-      section = (await etsy.sections()).results.find((s) => s.title === listing.section)?.shop_section_id ?? null
+    // Asked of Etsy on a check too, whether or not ETSY_SHOP_ID is set (the
+    // shop is otherwise the signed-in seller's). A check that cannot reach
+    // Etsy says so, rather than calling a real category or section missing.
+    let names = null
+    let unreachable = null
+    try { names = await loadNames() } catch (err) {
+      if (live) throw err
+      unreachable = `Etsy could not be asked for its categories and the shop's sections, so neither was checked: ${err.message}`
     }
-    return toEtsy(listing, bySku, {
-      taxonomyId: taxonomy, shopSectionId: section,
+    const plan = toEtsy(listing, bySku, {
+      taxonomyId: names ? taxonomyId(names.nodes, listing.etsyCategory) : null,
+      shopSectionId: names?.sectionList.find((s) => s.title === listing.section)?.shop_section_id ?? null,
       defaults: { shippingProfileId: env.ETSY_SHIPPING_PROFILE_ID, returnPolicyId: env.ETSY_RETURN_POLICY_ID, readinessStateId: env.ETSY_READINESS_STATE_ID },
     })
+    if (unreachable) plan.problems = [...plan.problems.filter((p) => !/^Etsy (category|shop section) "/.test(p)), unreachable]
+    return plan
   }
   // eBay's required item specifics for the category, when eBay can be asked.
   async function requiredAspects(categoryId) {
