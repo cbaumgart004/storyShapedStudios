@@ -142,9 +142,12 @@ and keeps a yes for a minute per token; an unreachable console answers 503, neve
   `utils/stock.js`; no migration tooling yet. `utils/stock.js` also copies the Phase 1
   `inventory_*` tables in once, under an advisory lock, and renames them `phase1_*`.
 - API contracts: `backend/server/routes/` (per-router files).
-- Deployment: what runs, calling what, with which settings, is [DEPLOY-MAP.md](../DEPLOY-MAP.md) (backend on Lambda behind the Amplify app's `/api`, `/auth`, `/oauth` rewrites; `.github/workflows/backend-api.yml`). Before that move: frontend on Vercel (needs `VITE_API_URL` = backend origin, and a SPA rewrite
-  via `frontend/vercel.json`); backend on Railway (needs `DATABASE_URL`). Both auto-deploy
-  from `main` — after merging, confirm Railway picked up the new commit.
+- Deployment: the site is on AWS and Neon. Frontend on Amplify, backend on Lambda
+  (`storyshaped-api-preview` from `preview`, `storyshaped-api` from `production`) behind the Amplify
+  app's `/api`, `/auth`, `/oauth` rewrites, database on Neon. Backend settings are that Lambda's
+  environment variables. What runs, calling what, with which settings, is
+  [DEPLOY-MAP.md](../DEPLOY-MAP.md). Vercel and Railway only still serve `main` on the live domain
+  until the Go-Live cutover; do not treat them as the hosting.
 
 ## Sitemap, Editor Reach and SEO (read before re-auditing)
 
