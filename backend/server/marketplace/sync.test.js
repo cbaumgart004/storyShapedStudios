@@ -138,3 +138,30 @@ test('the import makes a draft Listing per Etsy listing once, mapped field by fi
   // Again: nothing new.
   assert.equal((await sync.importEtsyListings()).created, 0)
 })
+
+test('a check finds the category and section on Etsy without ETSY_SHOP_ID, and says so when Etsy cannot be asked', async () => {
+  const etsy = {
+    sections: async () => ({ results: [{ shop_section_id: 7, title: 'Uranium Gems and Cabs' }] }),
+    taxonomy: async () => ({ results: [{ id: 1, name: 'Craft Supplies & Tools', children: [{ id: 2, name: 'Cabochons', children: [] }] }] }),
+  }
+  const listing = {
+    title: 'Cab', section: 'Uranium Gems and Cabs', etsyCategory: 'Craft Supplies & Tools < Cabochons',
+    variations: [{ sku: 'B6F', price: 14.99 }], photos: [{ src: 'https://example.test/a.jpg' }],
+  }
+  const check = async (etsyStub) => {
+    const { db, stock, sync } = await fresh({}, { etsy: etsyStub })
+    await stock.create({ name: 'Cab', sku: 'B6F', sellable: true, quantity: 7 })
+    await db.query(`CREATE TABLE documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), type text NOT NULL, slug text NOT NULL,
+      status text NOT NULL, version integer NOT NULL, data jsonb NOT NULL, published_data jsonb)`)
+    const { rows: [doc] } = await db.query(`INSERT INTO documents (type, slug, status, version, data) VALUES ('listing', 'cab', 'draft', 1, $1) RETURNING id`, [JSON.stringify(listing)])
+    return (await sync.pushListing(doc.id, { check: true })).etsy
+  }
+
+  const found = await check(etsy)
+  const problems = found.skipped ?? []
+  assert.ok(!problems.some((p) => /category|shop section/.test(p)), problems.join(' | '))
+
+  const down = await check({ ...etsy, sections: async () => { throw new Error('no sign-in') } })
+  assert.ok(down.skipped.some((p) => p.startsWith('Etsy could not be asked') && p.includes('no sign-in')))
+  assert.ok(!down.skipped.some((p) => /matches no Etsy taxonomy node|does not exist in the shop/.test(p)))
+})
