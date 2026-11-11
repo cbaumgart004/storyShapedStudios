@@ -13,8 +13,8 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
  ┌────────────────────────────── Amplify app: StoryShaped frontend ──────────────────────────────┐
  │  /*            the built React site (frontend/, amplify.yml)                                   │
  │  /api/*   ─┐                                                                                   │
- │  /auth/*  ─┼── rewrite (200) ──► Lambda function URL: storyshaped-api-preview  (preview)       │
- │  /oauth/* ─┘                                  or storyshaped-api          (production, main)  │
+ │  /auth/*  ─┼── rewrite (200) ──► Lambda function URL: storyshaped-api, from every branch       │
+ │  /oauth/* ─┘   (the rules are per app, so the preview site uses it too: one API)               │
  │  /_edit/auth/* ── rewrite ──► console API /auth/* (editor sign-in, ADR-0007)                   │
  └────────────────────────────────────────────────────────────────────────────────────────────────┘
         │ loader.js, editor bundle, public documents          │ backend (Express on Lambda)
@@ -52,8 +52,15 @@ What runs, what it calls, and which settings it needs. Decisions: [ADR-0005](doc
 |---|---|---|
 | Lambda function | `storyshaped-api-preview` | `storyshaped-api` |
 | Deployed from | `preview` branch | `production` branch |
-| Frontend in front of it | Amplify branch `preview` | Amplify branch `production` (production domain) |
+| Reached through the site's `/api`, `/auth`, `/oauth` | No | Yes, from every Amplify branch (one API) |
 | Database | Neon branch `preview` of the backend project | Neon main branch |
+
+**One API (decided 2026-11-11).** Preview and production share `storyshaped-api`, its marketplace keys, its
+eBay RuName and deletion endpoint, its Etsy and eBay tokens and its database, so the preview site works against
+real Etsy and eBay data. The cost: a backend change reaches the site only once it is on `production`, which takes
+backend commits by cherry-pick (the branch holds back site work still on `preview`).
+`storyshaped-api-preview` and its Neon `preview` database are reached by nothing; keep them for trying backend
+code by its function URL, or retire them.
 
 Production builds from `production`, not `main`, because `main` is still what Vercel serves on the live
 domain (decided 2026-10-02). The cutover is a DNS change to the Amplify `production` branch; `main` and
@@ -63,7 +70,9 @@ Runtime Node.js 22 or later, handler `lambda.handler`, 512 MB, 20 s timeout, fun
 Amplify rewrite is the way in; the admin routes check the editor token themselves).
 `.github/workflows/backend-api.yml` tests and uploads `backend.zip` on every push that touches `backend/`.
 
-### Settings, by name (on each function)
+### Settings, by name
+
+`DATABASE_PARAM` is on both functions. The Etsy and eBay settings are on `storyshaped-api` only (one API).
 
 | Setting | Used by | Value |
 |---|---|---|
@@ -79,8 +88,8 @@ Amplify rewrite is the way in; the admin routes check the editor token themselve
 | `MAIL_FROM`, `MAIL_REGION` | `utils/mail.js` | Optional; default `StoryShaped Studios <info@storyshapedstudios.com>`, `us-east-1` |
 
 On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=none` with its function URL:
-`preview` → `storyshaped-api-preview` (set 2026-09-30). `production` is added at the Go-Live gate
-(docs/CURRENT_WORK.md).
+`preview` → `same` (set 2026-11-11, one API), `production` → `storyshaped-api`'s function URL. With `same` the
+frontend calls the site's own `/api`, which the rewrites send to `storyshaped-api`.
 
 ### Created (2026-09-30, AWS CLI, us-east-1)
 
@@ -94,8 +103,9 @@ On Amplify (app `di5pjjwi2k9o1`), each branch overrides the app's `VITE_API_URL=
 - Role `storyshaped-backend-deploy` (GitHub OIDC, this repo's `preview` and `production`), and the repo variable
   `AWS_DEPLOY_ROLE_ARN`.
 
-Still to do: Etsy and eBay settings (step 8), the UptimeRobot backend monitors, the rewrites (later), and the
-Amplify `production` branch at the Go-Live gate.
+Done since: the rewrites (to `storyshaped-api`), the Etsy and eBay settings and sign-ins on `storyshaped-api`
+(step 8), and the eBay Marketplace Account Deletion endpoint `https://preview.storyshapedstudios.com/api/ebay/account-deletion`.
+Still to do: the UptimeRobot backend monitors, and the Go-Live DNS cutover to the Amplify `production` branch.
 
 ### One-time setup (AWS, us-east-1, the account running the console)
 
@@ -116,8 +126,7 @@ Amplify `production` branch at the Go-Live gate.
    status 200, each pointing at that branch's function URL: `/api/<*>` → `<function URL>/api/<*>`,
    `/auth/<*>` → `<function URL>/auth/<*>`, `/oauth/<*>` → `<function URL>/oauth/<*>`. Rewrites are per app, not
    per branch: production's function gets its own entries once the production domain is its own app or
-   branch-specific rules are set. **Unverified:** whether Amplify's rewrites can differ per branch; if not, the
-   preview and production frontends need separate Amplify apps.
+   branch-specific rules are set. Verified 2026-11-11: the rules are per app, and all three point at `storyshaped-api` (one API).
 6. **Build setting.** Amplify → Environment variables → `VITE_API_URL` = `same` for the branch, then redeploy.
 7. **Load the stock.** `API_URL=https://<site> EOTM_TOKEN=<token from Manage> node backend/scripts/import-trunk.mjs trunk.json`
    (PowerShell: set `$env:API_URL` and `$env:EOTM_TOKEN` first).
