@@ -14,6 +14,7 @@
 //   POST /snapshots/ebay         every live eBay listing through the Trading API (read only), kept the same way
 //   GET  /snapshots/ebay         the newest snapshot of each eBay listing, cut to a review
 //   POST /import/ebay            a draft Listing for each snapshot no Listing holds or resembles; resemblances come back as suggested pairs
+//   GET  /suggestions/:provider  Marketplace listings no Listing holds but some Listing looks like, best guess first
 //   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, filling what each Listing lacks
 //   POST /listings/number        give every Listing without a Listing number the next one
 //   GET  /etsy/sections         the shop's section titles, for the Listing editor
@@ -75,6 +76,7 @@ router.post('/import/etsy', handle('import etsy listings', (req) => sync.importE
 router.post('/snapshots/ebay', handle('snapshot ebay', (req) => sync.snapshotEbay({ page: req.body?.page ?? 1 })))
 router.get('/snapshots/ebay', handle('read ebay snapshots', () => sync.ebaySnapshots()))
 router.post('/import/ebay', handle('import ebay listings', (req) => sync.importEbayListings(req.editor)))
+router.get('/suggestions/:provider', handle('read suggestions', (req) => sync.suggestions(req.params.provider)))
 router.post('/pair', handle('pair listings', (req) => sync.pairListings(req.body?.pairs, req.editor)))
 router.post('/listings/number', handle('number listings', () => sync.numberListings()))
 

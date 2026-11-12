@@ -21,7 +21,7 @@ import { toEtsy, toEbay, units, sellsOn } from './translate.js'
 import { taxonomyId } from './etsy.js'
 import { fromEtsy, slugify } from './fromEtsy.js'
 import { fromEbay } from './fromEbay.js'
-import { fillListing, idField, marketplaceQuantities, sameTitle } from './pairing.js'
+import { fillListing, idField, marketplaceQuantities, likeness } from './pairing.js'
 import { ensureStockTables } from '../utils/stock.js'
 import { loadToken } from '../utils/tokens.js'
 
@@ -61,6 +61,15 @@ const SCHEMA = `
     since    TIMESTAMPTZ NOT NULL
   )
 `
+
+// The Listings (not yet paired on that Marketplace) a Marketplace listing
+// looks like, surest first, at most five.
+function looksLike(open, data) {
+  return open.flatMap((doc) => {
+    const { by, score } = likeness(doc.data ?? {}, data)
+    return by.length ? [{ number: doc.data.listingNumber ?? null, slug: doc.slug, title: doc.data.title ?? '', by, score }] : []
+  }).sort((a, b) => b.score - a.score).slice(0, 5)
+}
 
 // deps: { db, stock (utils/stock.js), etsy, ebay, env }
 export function createSync({ db, stock, etsy, ebay, env = process.env }) {
@@ -459,12 +468,7 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
         if (!external) continue
         if (held.has(external)) { existing++; continue }
         const skus = data.variations.map((v) => v.sku.trim()).filter(Boolean)
-        const like = open.flatMap((doc) => {
-          const by = []
-          if ((doc.data.variations ?? []).some((v) => skus.includes(v?.sku?.trim()))) by.push('sku')
-          if (sameTitle(doc.data.title, data.title)) by.push('title')
-          return by.length ? [{ number: doc.data.listingNumber ?? null, slug: doc.slug, title: doc.data.title ?? '', by }] : []
-        })
+        const like = looksLike(open, data)
         if (like.length) { suggested.push({ provider, externalId: external, title: data.title, skus, listings: like }); continue }
         const base = slugify(data.title) || 'listing'
         let slug = base
@@ -491,6 +495,30 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       const withoutSku = rows.filter((r) => r.data.variations.some((v) => !v.sku)).length
       console.log(`[marketplace] ${provider} import: ${created} draft Listings made, ${suggested.length} suggested for pairing, ${existing} already held`)
       return { created, existing, suggested, snapshots: snaps.length, withoutSku }
+    },
+    // The pairing review, readable at any time: each Marketplace listing in
+    // the newest snapshots that no Listing holds yet but some Listing looks
+    // like, its Listings best guess first. Changes nothing.
+    suggestions: async (provider) => {
+      if (!idField(provider)) return { error: 'Unknown Marketplace.' }
+      await ensureStockTables(db)
+      const id = idField(provider)
+      const { rows: snaps } = await db.query(
+        `SELECT DISTINCT ON (external_key) external_key, raw FROM import_snapshots
+         WHERE source = $1 ORDER BY external_key, imported_at DESC`, [provider])
+      const { rows: have } = await db.query(`SELECT id, slug, data FROM documents WHERE type = 'listing'`)
+      const held = new Set(have.map((r) => r.data?.[id]).filter(Boolean).map(String))
+      const open = have.filter((r) => !r.data?.[id])
+      const suggested = []
+      for (const { raw } of snaps) {
+        const data = provider === 'etsy' ? fromEtsy(raw, { sections: {}, paths: {} }) : fromEbay(raw)
+        const external = String(data[id] ?? '')
+        if (!external || held.has(external)) continue
+        const like = looksLike(open, data)
+        if (like.length) suggested.push({ provider, externalId: external, title: data.title, skus: data.variations.map((v) => v.sku.trim()).filter(Boolean), listings: like })
+      }
+      suggested.sort((a, b) => b.listings[0].score - a.listings[0].score)
+      return { provider, suggested }
     },
     importEtsyListings: async function (user = null) { return this.importListings('etsy', user) },
     importEbayListings: async function (user = null) { return this.importListings('ebay', user) },
