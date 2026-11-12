@@ -42,6 +42,10 @@ export default function Marketplaces({ apiFetch, listings }) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [source, setSource] = useState('etsy')
+  const [suggested, setSuggested] = useState([])
+  const [pick, setPick] = useState({}) // provider:externalId:number -> pair
+  const [manual, setManual] = useState({ provider: 'etsy', externalId: '', listing: '' })
+  const [paired, setPaired] = useState(null)
 
   const loadStatus = useCallback(() => apiFetch(`${API}/status`).then(setStatus).catch((e) => setError(e.message)), [apiFetch])
   useEffect(() => { loadStatus() }, [loadStatus])
@@ -56,6 +60,16 @@ export default function Marketplaces({ apiFetch, listings }) {
     if (push) loadStatus()
   })
   const linked = (doc, provider) => status?.links.find((l) => l.provider === provider && l.listing_doc_id === String(doc.id))
+
+  // Changes Listing drafts; the editor's list shows them after a reload.
+  const pair = (pairs) => run('pair', async () => {
+    const r = await apiFetch(`${API}/pair`, { method: 'POST', body: { pairs } })
+    setPaired(r.results)
+    const done = new Set(r.results.filter((p) => !p.error).map((p) => `${p.provider}:${p.externalId}`))
+    setSuggested((list) => list.filter((s) => !done.has(`${s.provider}:${s.externalId}`)))
+    setPick({})
+    setNote(`${r.paired} paired. Reload to see the Listings' new fields.`)
+  })
 
   const importCsv = (file) => run('csv', async () => {
     const rows = parseCsv(await file.text())
@@ -82,11 +96,12 @@ export default function Marketplaces({ apiFetch, listings }) {
       </div>
 
       <table className="ai-table">
-        <thead><tr><th>Listing</th><th>Status</th><th>Sell on</th><th>Linked</th><th /></tr></thead>
+        <thead><tr><th>No.</th><th>Listing</th><th>Status</th><th>Sell on</th><th>Linked</th><th /></tr></thead>
         <tbody>
           {(listings ?? []).map((doc) => (
             <React.Fragment key={doc.id}>
               <tr>
+                <td>{doc.data?.listingNumber ?? ''}</td>
                 <td>{doc.data?.title || doc.slug}</td>
                 <td>{STATUS[doc.status] ?? doc.status}</td>
                 <td>{CHANNELS.filter(([k]) => doc.data?.channels?.[k] !== false).map(([, l]) => l).join(', ')}</td>
@@ -102,7 +117,7 @@ export default function Marketplaces({ apiFetch, listings }) {
                 </td>
               </tr>
               {results[doc.id] && (
-                <tr className="ai-bom-row"><td colSpan={5}>
+                <tr className="ai-bom-row"><td colSpan={6}>
                   {results[doc.id].error ? <p className="ai-error">{results[doc.id].error}</p> : (
                     <>
                       <Outcome name="Etsy" r={results[doc.id].etsy} />
@@ -113,8 +128,8 @@ export default function Marketplaces({ apiFetch, listings }) {
               )}
             </React.Fragment>
           ))}
-          {listings && listings.length === 0 && <tr><td colSpan={5}>No Listings yet. Open the editor to write the first.</td></tr>}
-          {!listings && <tr><td colSpan={5}>…</td></tr>}
+          {listings && listings.length === 0 && <tr><td colSpan={6}>No Listings yet. Open the editor to write the first.</td></tr>}
+          {!listings && <tr><td colSpan={6}>…</td></tr>}
         </tbody>
       </table>
 
@@ -144,7 +159,74 @@ export default function Marketplaces({ apiFetch, listings }) {
           const r = await apiFetch(`${API}/snapshots/etsy`, { method: 'POST' })
           setNote(`${r.kept} Etsy listings kept as a snapshot through the API.`)
         })}>Snapshot Etsy through the API</button>
+        <button type="button" disabled={busy === 'ebay-api' || !status?.ebay.signedIn} onClick={() => run('ebay-api', async () => {
+          const r = await apiFetch(`${API}/snapshots/ebay`, { method: 'POST' })
+          setNote(`${r.kept} eBay listings kept as a snapshot through the API (read only).`)
+        })}>Snapshot eBay through the API</button>
+        <button type="button" disabled={busy === 'ebay-import'} onClick={() => run('ebay-import', async () => {
+          const r = await apiFetch(`${API}/import/ebay`, { method: 'POST' })
+          setSuggested(r.suggested ?? [])
+          setPick({})
+          setNote(`eBay: ${r.created} draft Listings made, ${r.existing} already paired, ${r.suggested?.length ?? 0} look like a Listing already made (below).`)
+        })}>Import eBay snapshots as Listings</button>
       </div>
+
+      <h3>Pair a Listing with its Etsy or eBay listing</h3>
+      <p className="ai-hint">
+        Pairing fills only what the Listing lacks. A title or description that differs is kept as that Marketplace&apos;s own;
+        photos the Listing has stay; quantity is never changed, only shown where it differs from stock.
+      </p>
+      {suggested.length > 0 && (
+        <table className="ai-table">
+          <thead><tr><th /><th>Marketplace listing</th><th>Looks like</th></tr></thead>
+          <tbody>
+            {suggested.flatMap((s) => s.listings.map((l) => {
+              const key = `${s.provider}:${s.externalId}:${l.number}`
+              return (
+                <tr key={key}>
+                  <td><input type="checkbox" aria-label={`Pair ${s.externalId} with Listing ${l.number}`} checked={!!pick[key]}
+                    onChange={(e) => setPick((m) => ({ ...m, [key]: e.target.checked ? { provider: s.provider, externalId: s.externalId, listing: l.number } : undefined }))} /></td>
+                  <td>{s.provider === 'etsy' ? 'Etsy' : 'eBay'} {s.externalId}: {s.title}{s.skus.length ? ` (${s.skus.join(', ')})` : ''}</td>
+                  <td>Listing {l.number}: {l.title || l.slug} <span className="ai-muted">(same {l.by.join(' and ')})</span></td>
+                </tr>
+              )
+            }))}
+          </tbody>
+        </table>
+      )}
+      <div className="ai-inline-form">
+        {suggested.length > 0 && (
+          <button type="button" disabled={busy === 'pair' || !Object.values(pick).some(Boolean)}
+            onClick={() => pair(Object.values(pick).filter(Boolean))}>Pair selected</button>
+        )}
+        <select value={manual.provider} onChange={(e) => setManual((m) => ({ ...m, provider: e.target.value }))} aria-label="Marketplace to pair">
+          <option value="etsy">Etsy</option>
+          <option value="ebay">eBay</option>
+        </select>
+        <input value={manual.externalId} onChange={(e) => setManual((m) => ({ ...m, externalId: e.target.value }))}
+          placeholder={manual.provider === 'etsy' ? 'Etsy listing ID' : 'eBay item ID'} aria-label="Marketplace listing ID" />
+        <input type="number" min="1" value={manual.listing} onChange={(e) => setManual((m) => ({ ...m, listing: e.target.value }))}
+          placeholder="Listing No." aria-label="Listing number" />
+        <button type="button" disabled={busy === 'pair' || !manual.externalId.trim() || !manual.listing}
+          onClick={() => pair([{ ...manual, listing: Number(manual.listing) }])}>Pair</button>
+      </div>
+      {paired && (
+        <ul className="ai-bom-list">
+          {paired.map((p) => (
+            <li key={`${p.provider}:${p.externalId}:${p.listing}`}>
+              {p.error ? <span className="ai-error">{p.error}</span> : (
+                <>
+                  <strong>Listing {p.listing} paired with {p.provider === 'etsy' ? 'Etsy' : 'eBay'} {p.externalId}.</strong>
+                  {' '}Filled: {p.filled.length ? p.filled.join(', ') : 'nothing'}.
+                  {p.kept.length > 0 && <> Kept the Listing&apos;s own: {p.kept.join(', ')}.</>}
+                  {p.variationsNotMatched.length > 0 && <> Variations with no match: {p.variationsNotMatched.join(', ')}.</>}
+                  {p.quantities.map((q) => <div key={q.sku} className="ai-hint">{q.sku}: {q[p.provider]} on {p.provider === 'etsy' ? 'Etsy' : 'eBay'}, {q.stock ?? 'no stock item'} in stock.</div>)}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

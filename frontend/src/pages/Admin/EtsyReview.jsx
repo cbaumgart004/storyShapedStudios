@@ -201,7 +201,7 @@ export default function EtsyReview() {
         .catch(() => { throw new Error('The request did not finish. Try again; a second run only adds what is still missing.') })
       const out = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(out.error || `Request failed: ${res.status}`)
-      setNote(`Draft Listings made: ${out.created}. Already in the editor: ${out.existing}.${out.withoutSku ? ` ${out.withoutSku} of the new ones have a variation with no SKU.` : ''}`)
+      setNote(`Draft Listings made: ${out.created}. Already in the editor: ${out.existing}.${out.withoutSku ? ` ${out.withoutSku} of the new ones have a variation with no SKU.` : ''}${out.suggested?.length ? ` ${out.suggested.length} look like a Listing already made and were not imported: ${out.suggested.map((s) => `Etsy ${s.externalId} like Listing ${s.listings.map((l) => l.number).join(' or ')}`).join('; ')}. Pair them under Marketplaces.` : ''}`)
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   // The token decides; the login only re-renders the page when it changes.
