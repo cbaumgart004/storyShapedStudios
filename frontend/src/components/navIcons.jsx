@@ -30,6 +30,14 @@ export const FormsIcon = () => (
   </svg>
 )
 
+// The manager's Manage link: opens the site editor (a pencil on a page).
+export const ManageIcon = () => (
+  <svg {...base}>
+    <path d="M5 4.5h9M5 8.5h6M5 12.5h4" />
+    <path d="M16.6 9.4a1.9 1.9 0 0 1 2.7 2.7L12 19.4l-3.5.9.9-3.5z" />
+  </svg>
+)
+
 const SearchIcon = () => (
   <svg {...base}>
     <circle cx="11" cy="11" r="6.5" />

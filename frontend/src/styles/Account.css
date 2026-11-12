@@ -173,19 +173,3 @@ dialog.sss-modal::backdrop {
   text-align: center;
 }
 
-/* Like the loader's Edit site pill on the preview address. */
-.edit-site {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 2147483000;
-  padding: 10px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: #1f2328;
-  color: #fff;
-  font: 600 14px/1.2 system-ui, sans-serif;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
-  cursor: pointer;
-}
-.edit-site:disabled { opacity: 0.7; cursor: wait; }

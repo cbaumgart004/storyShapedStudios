@@ -23,10 +23,10 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
-import { utilityIcons, FormsIcon } from '@/components/navIcons'
+import { utilityIcons, FormsIcon, ManageIcon } from '@/components/navIcons'
 import { useOwner, useCustomerView, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
-import { openAccount } from '@/lib/account'
-import { Welcome } from '@/components/SignedIn'
+import { openAccount, isLive, openEditorFromLogin } from '@/lib/account'
+import { Welcome, useLogin } from '@/components/SignedIn'
 import { SocialMark, lookFor } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
 
@@ -61,6 +61,19 @@ export default function SiteHeader({ featured = false }) {
   // Customer view hides it, so the owner sees the header a visitor gets.
   const customer = useCustomerView()
   const owner = useOwner() && !customer
+  // Manage: a manager or owner signed in. On the live address it hands them
+  // to the preview address with the editor open (openEditorFromLogin); on
+  // preview it opens the editor in place. The loader's own floating Edit site
+  // button is off (index.html, data-edit-button="off"), so this is the way in.
+  const login = useLogin()
+  const manager = (owner || Boolean(login?.editor)) && !customer
+  const [opening, setOpening] = React.useState(false)
+  const manage = async () => {
+    if (isLive()) {
+      setOpening(true)
+      if (!(await openEditorFromLogin())) setOpening(false)
+    } else window.EOTM?.open?.()
+  }
   // Name, menu and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
   const schema = useSchema()
@@ -180,6 +193,12 @@ export default function SiteHeader({ featured = false }) {
                     <Link to="/admin/forms" className="sss-nav-util is-live" aria-label="Forms" title="Forms">
                       <FormsIcon />
                     </Link>
+                  )}
+                  {manager && (
+                    <button type="button" className="sss-nav-util is-live" aria-label="Manage site content" title="Manage"
+                      disabled={opening} onClick={manage}>
+                      <ManageIcon />
+                    </button>
                   )}
                 </React.Fragment>
               ) : (

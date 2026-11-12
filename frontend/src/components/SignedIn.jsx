@@ -1,11 +1,9 @@
 /* eslint-disable react/prop-types */
 // src/components/SignedIn.jsx
 // The signed-in login for any component (useLogin), the header's Welcome line
-// (Welcome, in SiteHeader.jsx), and on the live address, for the site's owner,
-// an Edit site button that hands her to the preview address (the loader shows
-// its own there).
+// (Welcome, in SiteHeader.jsx), and the sign-in restore on load.
 import React, { useEffect, useState } from 'react'
-import { LOGIN_EVENT, firstName, getLogin, isLive, openEditorFromLogin, restoreLogin } from '@/lib/account'
+import { LOGIN_EVENT, firstName, getLogin, restoreLogin } from '@/lib/account'
 import '@/styles/Account.css'
 
 export function useLogin() {
@@ -18,21 +16,11 @@ export function useLogin() {
   return who
 }
 
+// Restores a kept sign-in on load. The way into the editor is the header's
+// Manage icon (SiteHeader.jsx), on every address.
 export default function SignedIn() {
-  const who = useLogin()
-  const [busy, setBusy] = useState(false)
   useEffect(() => { restoreLogin() }, [])
-  if (!who) return null
-  return (
-    <>
-      {isLive() && who.editor && (
-        <button type="button" className="edit-site" disabled={busy}
-          onClick={async () => { setBusy(true); if (!(await openEditorFromLogin())) setBusy(false) }}>
-          {busy ? 'Opening…' : 'Edit site'}
-        </button>
-      )}
-    </>
-  )
+  return null
 }
 
 export function Welcome({ className = '' }) {
