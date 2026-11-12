@@ -11,6 +11,11 @@
 //   GET  /snapshots/etsy         the newest snapshot of each Etsy listing, cut to what the review shows
 //   GET  /snapshots/etsy/:key    one listing's newest snapshot as Etsy sent it
 //   POST /import/etsy            a draft Listing for each snapshot no Listing holds yet
+//   POST /snapshots/ebay         every live eBay listing through the Trading API (read only), kept the same way
+//   GET  /snapshots/ebay         the newest snapshot of each eBay listing, cut to a review
+//   POST /import/ebay            a draft Listing for each snapshot no Listing holds or resembles; resemblances come back as suggested pairs
+//   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, filling what each Listing lacks
+//   POST /listings/number        give every Listing without a Listing number the next one
 //   GET  /etsy/sections         the shop's section titles, for the Listing editor
 //   GET  /etsy/categories        every Etsy category as its path, the same way
 //
@@ -63,5 +68,10 @@ router.post('/snapshots/etsy', handle('snapshot etsy', () => sync.snapshotEtsy()
 router.get('/snapshots/etsy', handle('read etsy snapshots', () => sync.etsySnapshots()))
 router.get('/snapshots/etsy/:key', handle('read etsy snapshot', (req) => sync.etsySnapshot(req.params.key)))
 router.post('/import/etsy', handle('import etsy listings', (req) => sync.importEtsyListings(req.editor)))
+router.post('/snapshots/ebay', handle('snapshot ebay', () => sync.snapshotEbay()))
+router.get('/snapshots/ebay', handle('read ebay snapshots', () => sync.ebaySnapshots()))
+router.post('/import/ebay', handle('import ebay listings', (req) => sync.importEbayListings(req.editor)))
+router.post('/pair', handle('pair listings', (req) => sync.pairListings(req.body?.pairs, req.editor)))
+router.post('/listings/number', handle('number listings', () => sync.numberListings()))
 
 export default router

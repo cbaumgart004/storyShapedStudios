@@ -69,8 +69,8 @@ export function toEtsy(listing, stockBySku, opts = {}) {
   const p = listing.package ?? {}
   const body = {
     type: 'physical',
-    title: listing.title,
-    description: listing.description,
+    title: listing.etsy?.title?.trim() || listing.title,
+    description: listing.etsy?.description?.trim() || listing.description,
     quantity: total,
     price: Math.min(...variations.map((v) => dollars(v.price))),
     who_made: listing.whoMade,
@@ -156,6 +156,7 @@ export function toEbay(listing, stockBySku, opts = {}) {
   if (problems.length) return { problems }
 
   const title = (b.title?.trim() || listing.title).slice(0, 80)
+  const ebayDescription = b.description?.trim() || listing.description
   const warnings = !b.title?.trim() && listing.title.length > 80 ? [`eBay titles stop at 80 characters; "${title}" is used. Set an eBay title to choose the words.`] : []
   const p = listing.package ?? {}
   const pkg = {}
@@ -173,7 +174,7 @@ export function toEbay(listing, stockBySku, opts = {}) {
       ...(Object.keys(pkg).length ? { packageWeightAndSize: pkg } : {}),
       product: {
         title,
-        description: listing.description,
+        description: ebayDescription,
         imageUrls: imageUrls.slice(0, 24),
         aspects: several ? { ...aspects, [name]: [v.option.trim()] } : aspects,
       },
@@ -187,7 +188,7 @@ export function toEbay(listing, stockBySku, opts = {}) {
       format: 'FIXED_PRICE',
       availableQuantity: units(stockBySku.get(v.sku)?.quantity),
       categoryId: listing.ebayCategoryId,
-      listingDescription: listing.description,
+      listingDescription: ebayDescription,
       listingPolicies: { ...policies, ...(b.bestOffer ? { bestOfferTerms: { bestOfferEnabled: true } } : {}) },
       merchantLocationKey: opts.merchantLocationKey,
       pricingSummary: { price: money(v.ebayPrice?.amount != null ? v.ebayPrice : v.price) },
@@ -198,7 +199,7 @@ export function toEbay(listing, stockBySku, opts = {}) {
         key: opts.groupKey,
         body: {
           title,
-          description: listing.description,
+          description: ebayDescription,
           imageUrls: imageUrls.slice(0, 24),
           aspects,
           variantSKUs: variations.map((v) => v.sku),
