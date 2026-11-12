@@ -223,6 +223,19 @@ function tokenLogin() {
     return { email: null, name: '', jwt: null }
   }
 }
+// The Manage icon on the preview address. With no editor token here (never
+// handed one, run out, or refused by the console) the live sign-in hands a
+// fresh one back with the editor open. Before the loader has arrived, the
+// page reloads with the editor asked for (the loader's ?edit).
+export async function openEditorHere() {
+  if (!hasEditor()) return toLive('eotm-renew')
+  if (!window.EOTM?.open) {
+    try { sessionStorage.setItem('eotm:edit', '1') } catch { /* private mode */ }
+    return location.replace(`${location.pathname}?edit`)
+  }
+  try { await window.EOTM.open() } catch (err) { console.error('[Manage]', err) }
+  if (!window.EOTM.editing && !hasEditor()) toLive('eotm-renew')
+}
 export const openEditorFromLogin = () => (login?.jwt ? claimEditor(login.jwt) : Promise.resolve(false))
 
 // The loader shows its Edit site button while this browser holds an editor

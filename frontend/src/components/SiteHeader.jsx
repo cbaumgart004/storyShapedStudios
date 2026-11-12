@@ -25,7 +25,7 @@ import { useUvMode } from '@/context/UvMode'
 import { socialsFrom } from '@/components/socials'
 import { utilityIcons, FormsIcon, ManageIcon } from '@/components/navIcons'
 import { useOwner, useCustomerView, useSiteSettings, useMenu, useSchema } from '@/lib/siteConsole'
-import { openAccount, isLive, openEditorFromLogin } from '@/lib/account'
+import { openAccount, isLive, openEditorFromLogin, openEditorHere } from '@/lib/account'
 import { Welcome, useLogin } from '@/components/SignedIn'
 import { SocialMark, lookFor } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
@@ -63,8 +63,8 @@ export default function SiteHeader({ featured = false }) {
   const owner = useOwner() && !customer
   // Manage: a manager or owner signed in. On the live address it hands them
   // to the preview address with the editor open (openEditorFromLogin); on
-  // preview it opens the editor in place. The loader's own floating Edit site
-  // button is off (index.html, data-edit-button="off"), so this is the way in.
+  // preview it opens the editor in place (openEditorHere). The loader's own
+  // floating Edit site button stays on as a second way in.
   const login = useLogin()
   const manager = (owner || Boolean(login?.editor)) && !customer
   const [opening, setOpening] = React.useState(false)
@@ -72,7 +72,7 @@ export default function SiteHeader({ featured = false }) {
     if (isLive()) {
       setOpening(true)
       if (!(await openEditorFromLogin())) setOpening(false)
-    } else window.EOTM?.open?.()
+    } else openEditorHere()
   }
   // Name, menu and links from the console's Site header and footer, when there is one.
   const settings = useSiteSettings()
