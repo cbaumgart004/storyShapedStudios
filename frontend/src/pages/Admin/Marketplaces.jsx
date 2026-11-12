@@ -54,11 +54,15 @@ export default function Marketplaces({ apiFetch, listings }) {
     setBusy(key); setError(''); setNote('')
     try { await fn() } catch (e) { setError(e.message) } finally { setBusy('') }
   }
-  const check = (doc, push = false) => run(doc.id, async () => {
-    const r = await apiFetch(`${API}/listings/${doc.id}/${push ? 'push' : 'check'}`, { method: 'POST' })
+  const check = (doc, push = false, only) => run(doc.id, async () => {
+    const r = await apiFetch(`${API}/listings/${doc.id}/${push ? 'push' : 'check'}`, { method: 'POST', body: { only, ...(push ? { confirm: true } : {}) } })
     setResults((m) => ({ ...m, [doc.id]: r }))
-    if (push) loadStatus()
+    if (push) { setGate(null); loadStatus() }
   })
+  // The push gate: which Marketplaces, then test (sends nothing) or send (live, confirmed).
+  const [gate, setGate] = useState(null) // { id, etsy, ebay, sure }
+  const openGate = (doc) => setGate({ id: doc.id, etsy: doc.data?.channels?.etsy !== false, ebay: doc.data?.channels?.ebay !== false, sure: false })
+  const gateOnly = () => ['etsy', 'ebay'].filter((p) => gate?.[p])
   const linked = (doc, provider) => status?.links.find((l) => l.provider === provider && l.listing_doc_id === String(doc.id))
 
   // Changes Listing drafts; the editor's list shows them after a reload.
@@ -111,11 +115,31 @@ export default function Marketplaces({ apiFetch, listings }) {
                 <td>
                   <button type="button" disabled={busy === doc.id} onClick={() => check(doc)}>{busy === doc.id ? 'Checking…' : 'Check'}</button>
                   {' '}
-                  <button type="button" disabled={busy === doc.id || doc.status === 'draft' || !status?.live}
-                    title={doc.status === 'draft' ? 'Publish it in the editor first' : !status?.live ? 'Pushing is off (dry run)' : ''}
-                    onClick={() => check(doc, true)}>Push</button>
+                  <button type="button" disabled={busy === doc.id} onClick={() => (gate?.id === doc.id ? setGate(null) : openGate(doc))}>Push…</button>
                 </td>
               </tr>
+              {gate?.id === doc.id && (
+                <tr className="ai-bom-row"><td colSpan={6}>
+                  <div className="ai-inline-form">
+                    <strong>Push to</strong>
+                    {[['etsy', 'Etsy'], ['ebay', 'eBay']].map(([p, l]) => (
+                      <label key={p}><input type="checkbox" checked={gate[p]} onChange={(e) => setGate((g) => ({ ...g, [p]: e.target.checked, sure: false }))} /> {l}</label>
+                    ))}
+                    <button type="button" disabled={busy === doc.id || !gateOnly().length} onClick={() => check(doc, false, gateOnly())}>Test the update</button>
+                    <span className="ai-hint">Tests the saved draft: what would be sent and anything that would be refused. Nothing is sent.</span>
+                  </div>
+                  <div className="ai-inline-form">
+                    <label><input type="checkbox" checked={gate.sure} disabled={!status?.live || doc.status === 'draft'}
+                      onChange={(e) => setGate((g) => ({ ...g, sure: e.target.checked }))} /> Change the live listing on {gateOnly().map((p) => (p === 'etsy' ? 'Etsy' : 'eBay')).join(' and ') || '…'} now</label>
+                    <button type="button" disabled={busy === doc.id || !gate.sure || !gateOnly().length || !status?.live || doc.status === 'draft'}
+                      onClick={() => check(doc, true, gateOnly())}>Send now</button>
+                    <span className="ai-hint">
+                      {doc.status === 'draft' ? 'Publish it in the editor first; the published version is what is sent.'
+                        : !status?.live ? 'Sending is off (MARKETPLACE_SYNC): only a test is possible.' : 'Sends the published version. Test it first.'}
+                    </span>
+                  </div>
+                </td></tr>
+              )}
               {results[doc.id] && (
                 <tr className="ai-bom-row"><td colSpan={6}>
                   {results[doc.id].error ? <p className="ai-error">{results[doc.id].error}</p> : (
