@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etsy to eBay Field Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --case: #0A0F0B; --case-2: #111912; --line: #1C2A1E; --bone: #D9F2D9; --muted: #8FA392;
+  --uranium: #00FB00; --uranium-dim: #2FAE37; --vaseline: #D9FF6B; --draft: #E0A33A; --warn: #FF6B5E;
+  --ebay: #6FA8FF; --etsy: #F59A5B; --code: #0E150F;
+  --font-display: 'Poiret One', 'Century Gothic', sans-serif;
+  --font-body: 'Jost', 'Futura', 'Century Gothic', 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --case: #FCFDF9; --case-2: #F2F7EE; --line: #D7E0D5; --bone: #141A15; --muted: #5E6B60;
+  --uranium: #1C8F25; --uranium-dim: #2FAE37; --vaseline: #6B7F00; --draft: #B7791F; --warn: #B3261E;
+  --ebay: #1F5FC4; --etsy: #C0561A; --code: #EEF4EA; color-scheme: light;
+} }
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(120% 60% at 50% -10%, rgba(0,251,0,.10), transparent 55%), var(--case); color: var(--bone); font: 15px/1.5 var(--font-body); }
+main { max-width: 1120px; margin: 0 auto; padding: 0 16px 64px; }
+header.band { display: flex; gap: 16px; align-items: center; padding: 22px 16px; border-bottom: 1px solid var(--line); max-width: 1120px; margin: 0 auto; }
+header.band img { height: 54px; width: auto; filter: drop-shadow(0 0 6px rgba(0,251,0,.35)); }
+h1, h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: .02em; margin: 0; }
+h1 { font-size: clamp(26px, 5vw, 38px); color: var(--uranium); text-shadow: 0 0 10px rgba(0,251,0,.35); }
+h2 { font-size: 24px; margin: 36px 0 10px; color: var(--vaseline); }
+.sub { color: var(--muted); font-size: 14px; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 22px 0; }
+.fig { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--case-2); }
+.fig b { display: block; font: 400 30px var(--font-display); color: var(--uranium); }
+.fig span { color: var(--muted); font-size: 13px; }
+.note { border-left: 3px solid var(--warn); background: var(--case-2); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+.note.ok { border-color: var(--uranium-dim); }
+.example { display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: start; border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--case-2); }
+.example img { width: 140px; height: 140px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.example dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 8px 0 0; font-size: 14px; }
+.example dt { color: var(--muted); }
+.example dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.s-match { color: var(--uranium); } .s-transform { color: var(--vaseline); } .s-etsy { color: var(--etsy); }
+.s-ebay { color: var(--ebay); } .s-gap { color: var(--warn); }
+.req { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 4px; }
+.opt { font-size: 11px; color: var(--muted); margin-left: 4px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; min-width: 860px; }
+th { text-align: left; font: 600 13px var(--font-body); color: var(--case); background: linear-gradient(135deg, var(--uranium-dim), var(--uranium)); padding: 8px 10px; }
+td { padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+td code, .k { font: 12.5px ui-monospace, Consolas, monospace; color: var(--bone); background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+td .why { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+td.val { max-width: 220px; overflow-wrap: anywhere; color: var(--muted); }
+select { font: inherit; font-size: 13px; color: var(--bone); background: var(--case); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+select:focus-visible, button:focus-visible { outline: 2px solid var(--uranium); outline-offset: 1px; }
+tr.repointed td:first-child { box-shadow: inset 3px 0 var(--vaseline); }
+.panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.pane { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--code); }
+.pane h3 { margin: 0; padding: 8px 12px; font: 600 13px var(--font-body); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+.pane h3 .etsy { color: var(--etsy); } .pane h3 .ebay { color: var(--ebay); }
+pre { margin: 0; padding: 12px; font: 12.5px/1.45 ui-monospace, Consolas, monospace; overflow: auto; max-height: 520px; }
+button { font: inherit; font-size: 13px; color: var(--bone); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+ol.next li { margin: 6px 0; }
+footer { color: var(--muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 560px) { .example { grid-template-columns: 1fr; } .example img { width: 100%; height: 220px; } }
+</style>
+</head>
+<body>
+<header class="band">
+  <img src="logo.png" alt="StoryShaped Studios">
+  <div>
+    <h1>Etsy to eBay Field Map</h1>
+    <div class="sub">Tentative map, drafted 2026-11-10, smoke tests 2026-11-11 · one Listing feeds both marketplaces</div>
+  </div>
+</header>
+<main>
+
+<div class="figs">
+  <div class="fig"><b id="f-both">0</b><span>fields both marketplaces require</span></div>
+  <div class="fig"><b id="f-etsy">0</b><span>required by Etsy only</span></div>
+  <div class="fig"><b id="f-ebay">0</b><span>required by eBay only</span></div>
+  <div class="fig"><b id="f-gap">0</b><span>required fields this example is missing</span></div>
+</div>
+
+<div class="note"><b>Still blocking this example on eBay:</b> all 30 sizes have an empty SKU, and the listing has no condition, eBay category or item specifics. Etsy is not blocked by any of these, because it never required them. eBay requires every one. Every <b>Gap</b> row below needs a value or a default before the first eBay push.</div>
+<div class="note"><b>Import bug found while drafting:</b> imported titles keep Etsy's HTML escapes. One reads <code>Men&amp;#39;s Sterling Vaseline…</code> instead of <code>Men's</code>, because <code>fromEtsy.js</code> copies <code>raw.title</code> as sent. Fixing it means decoding entities on import. Not fixed yet.</div>
+
+<h2>The example</h2>
+<div class="example">
+  <img src="https://i.etsystatic.com/13660431/r/il/3fd6dc/4282002149/il_fullxfull.4282002149_2agn.jpg" alt="Leafy green vine ring, first listing photo">
+  <div>
+    <strong>Sterling Uranium Glass Ring Leafy Green Vine 925 Silver</strong>
+    <dl>
+      <dt>Source</dt><dd>Draft Listing from the Etsy import (608 imported)</dd>
+      <dt>Variations</dt><dd>30 ring sizes (2 to 13.5), $149.00 each, SKU empty on all</dd>
+      <dt>Photos</dt><dd>9, all marked Light</dd>
+      <dt>Etsy category</dt><dd>Jewelry &lt; Rings &lt; Statement Rings</dd>
+      <dt>Sells on</dt><dd>Etsy (eBay unticked)</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>Field map</h2>
+<p class="sub">Each row: the Listing value, then the field each marketplace reads it into. The dropdown in the eBay column is the planned function: point an eBay field at a different Listing value, and the eBay JSON below rebuilds. Etsy is the reference side, because Whitney's data already lives there.</p>
+<div class="legend">
+  <span class="chip s-match">Match</span><span class="sub">same value, same meaning</span>
+  <span class="chip s-transform">Transform</span><span class="sub">same value, reshaped (length, units, structure)</span>
+  <span class="chip s-etsy">Etsy only</span>
+  <span class="chip s-ebay">eBay only</span>
+  <span class="chip s-gap">Gap</span><span class="sub">required, and this example has no value</span>
+</div>
+<div class="table-wrap"><table>
+  <thead><tr><th>Listing field</th><th>Etsy field</th><th>eBay field (points to)</th><th>Status</th><th>Example value</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<p><button id="reset" type="button">Reset to the tentative map</button></p>
+
+<h2>What each marketplace would receive</h2>
+<p class="sub">Built from the example with the map above. Variations are shortened to the first 3 of 30. Neither payload is sent anywhere.</p>
+<div class="panes">
+  <div class="pane"><h3><span class="etsy">Etsy</span><span>createDraftListing + inventory</span></h3><pre id="etsy-json"></pre></div>
+  <div class="pane"><h3><span class="ebay">eBay</span><span>inventory item + offer (first SKU)</span></h3><pre id="ebay-json"></pre></div>
+</div>
+
+<h2>Smoke tests, 2026-11-11</h2>
+<p class="sub">Run on preview against stock item 325 (SKU <code>B6F</code>, 7 on hand) and its Listing, "Large 36x28mm Uranium Glass Cabochon Vintage Green Floral Pressed Glass 1930s Czech". Every change was restored, and the count reads 7 again. No real Etsy quantity was changed: marketplace sync is off (<code>live: false</code>) and no stock item is linked to an Etsy listing yet, so every push is a dry run.</p>
+<div class="note"><b>Fixed locally, not deployed: the listing check reported false failures.</b> It says the category "Craft Supplies &amp; Tools &lt; Beads, Gems &amp; Cabochons &lt; Cabochons" matches no Etsy node and that the section "Uranium Gems and Cabs" does not exist. Both names came from Etsy, and both are stored as clean text. The cause is in <code>marketplace/sync.js</code> <code>etsyPlan</code>, which asks Etsy for its categories and sections only <code>if (live || env.ETSY_SHOP_ID)</code>. With sync off and no shop id set, both stay empty, so every check fails these two lines. The fix asks Etsy on every check, through the same ten-minute cache the import uses, and when Etsy cannot be reached it says so instead of calling a real category or section missing. A test covers both cases. It is uncommitted and not yet on preview. That preview has no <code>ETSY_SHOP_ID</code> is inferred from this result and was not read from the environment.</div>
+
+<h3>Test 1: inventory changes on the site, Etsy is asked</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Step</th><th>Call</th><th>Status</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Count B6F to 8 (<code>POST /api/inventory/stock/325/movements</code>)</td><td>201</td><td>Stock 8. Marketplace push ran as a dry run: <code>{live:false, etsy:[], ebay:[]}</code>.</td></tr>
+    <tr><td>2</td><td>Read the item back (<code>GET /api/inventory/stock/325</code>)</td><td>200</td><td>8, so the site reflects the change.</td></tr>
+    <tr><td>3</td><td>Check the Listing (<code>POST /api/marketplace/listings/:id/check</code>)</td><td>200</td><td>Etsy skipped on the two false failures above, so the quantity Etsy would receive could not be shown.</td></tr>
+    <tr><td>4</td><td>Push quantities (<code>POST /api/marketplace/quantities/push</code>)</td><td>200</td><td><code>{live:false, etsy:[], ebay:[]}</code>. Nothing sent, because nothing is linked.</td></tr>
+    <tr><td>5</td><td>Etsy token check (<code>GET /api/etsy/validate-token</code>, Etsy's read-only ping)</td><td>200</td><td>"Etsy token is valid." The site reaches Etsy.</td></tr>
+    <tr><td>6</td><td>Restore B6F to 7, read back</td><td>201, 200</td><td>7.</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Test 2: a sale on Etsy reduces stock</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Step</th><th>Call</th><th>Status</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Record a sale of 1, as a live Etsy sale would (<code>kind: sale</code> movement)</td><td>201</td><td>Stock 6.</td></tr>
+    <tr><td>2</td><td>Read the item back</td><td>200</td><td>6. Inventory and the Quick edit Qty column (same endpoint) both show the sale.</td></tr>
+    <tr><td>3</td><td>Refresh the Etsy snapshot (<code>POST /api/marketplace/snapshots/etsy</code>)</td><td>502</td><td>Timed out after 20 s at the gateway. Reading the existing snapshot (GET) returned 200 with 607 listings.</td></tr>
+    <tr><td>4</td><td>Restore B6F to 7, read back</td><td>201, 200</td><td>7.</td></tr>
+  </tbody>
+</table></div>
+<p class="sub">Not exercised: pulling real sales from Etsy (<code>/api/marketplace/sales/pull</code>). With sync off, it permanently records each order it cannot match as "no stock item", so it was left alone. A Listing reads its quantity from stock by SKU at push time and stores no copy, so the Listing side follows stock without a separate write. That is verified from <code>translate.js</code>, not observed on Etsy. An earlier run of the script misread the starting count and set B6F to 0; it was repaired to 7 and the run repeated. The item's movement log keeps those entries, each noted "Smoke test".</p>
+
+<h2>To settle before this becomes the function</h2>
+<ol class="next">
+  <li><b>SKUs.</b> eBay keys every item and offer by SKU, and none of the 608 imports has one. Recommend generating them from the Listing plus option (for example <code>VINE-R-7.5</code>) and linking them to Stock Items in one pass.</li>
+  <li><b>Category map.</b> Etsy's taxonomy and eBay's category tree differ. Recommend one table from Etsy path to eBay category id, so a whole Etsy section maps at once rather than listing by listing.</li>
+  <li><b>Condition default.</b> Handmade new work is <code>NEW</code>. Recommend a shop default, with a per-listing override for vintage pieces.</li>
+  <li><b>Item specifics from Etsy values.</b> Etsy materials and the variation name can fill eBay aspects (Metal, Ring Size). These are the rows where pointing one value at another pays off most.</li>
+  <li><b>eBay title.</b> eBay stops at 80 characters, Etsy at 140. This example fits (55), but long titles need the eBay title override.</li>
+</ol>
+
+<footer>
+  <b>Verified:</b> the Listing fields and example values were read from the draft Listing in the editor's document store on 2026-11-10. Etsy and eBay field names were read from <code>backend/server/marketplace/translate.js</code> (<code>toEtsy</code>, <code>toEbay</code>), which was checked against Etsy's OpenAPI spec and eBay's Sell Inventory documentation. Neither has been sent to a live marketplace.<br>
+  <b>Unverified:</b> the eBay category, condition id and aspect names for rings (Metal, Main Stone, Ring Size, Style, Handmade) are suggestions. The real required aspects come from eBay's taxonomy API for the chosen category. Whether Etsy now requires <code>return_policy_id</code> is also unchecked.
+</footer>
+</main>
+
+<script>
+// The example: the "Leafy Green Vine" draft Listing, trimmed (3 of 30 variations, 2 of 9 photos, description shortened).
+const listing = {
+  title: 'Sterling Uranium Glass Ring Leafy Green Vine 925 Silver',
+  description: '925 sterling silver leafy vine ring featuring uranium glass gems. Glows bright green under a blacklight indicating the presence of uranium in the glass. The gems in the ring are vintage from the 1970s. The leaves go all the way around the band…',
+  photos: [
+    { src: 'https://i.etsystatic.com/13660431/r/il/3fd6dc/4282002149/il_fullxfull.4282002149_2agn.jpg', index: 'Light' },
+    { src: 'https://i.etsystatic.com/13660431/r/il/f5785d/4282002065/il_fullxfull.4282002065_t0cy.jpg', index: 'Light' },
+  ],
+  section: 'Uranium Glass Rings',
+  etsyCategory: 'Jewelry < Rings < Statement Rings',
+  ebayCategoryId: '',
+  condition: '',
+  tags: ['Vaseline jewelry','uranium jewelry','vintage uranium','Vaseline glass','uranium glass','uranium glass ring','Vaseline ring','vine ring','nature ring','leaf ring','leaves ring','botanical ring','plant ring'],
+  materials: ['Uranium Glass', 'Sterling silver'],
+  whoMade: 'i_did', whenMade: 'made_to_order', isSupply: false,
+  package: { weight: null, weightUnit: '', length: null, width: null, height: null, dimensionUnit: '' },
+  variationName: 'Ring size',
+  variations: [
+    { option: '2', sku: '', price: { amount: 14900, currency: 'USD' } },
+    { option: '2.5', sku: '', price: { amount: 14900, currency: 'USD' } },
+    { option: '2.75', sku: '', price: { amount: 14900, currency: 'USD' } },
+  ],
+  stockQty: null,
+  etsy: { shippingProfileId: '114846665531', processingProfileId: '1402628742538', returnPolicyId: '1074421721996', styles: [], customizable: false, autoRenew: true },
+  ebay: { title: '', itemSpecifics: [], fulfillmentPolicyId: '', paymentPolicyId: '', returnPolicyId: '', bestOffer: false, merchantLocationKey: '' },
+}
+
+// The Listing values a field can point to, by path.
+const SOURCES = {
+  '': '(nothing)',
+  'title': 'Title',
+  'ebay.title': 'eBay title (override)',
+  'description': 'Description',
+  'photos': 'Photos',
+  'variations.price': 'Variation price',
+  'variations.sku': 'Variation SKU',
+  'variations.option': 'Variation option',
+  'variationName': 'Variation name',
+  'stockQty': 'Quantity (Stock Item, by SKU)',
+  'etsyCategory': 'Etsy category',
+  'ebayCategoryId': 'eBay category id',
+  'condition': 'Condition',
+  'section': 'Shop section',
+  'tags': 'Tags',
+  'materials': 'Materials',
+  'materials.metal': 'Materials: the metal',
+  'materials.stone': 'Materials: the glass',
+  'whoMade': 'Who made it',
+  'whenMade': 'When made',
+  'isSupply': 'Is a supply',
+  'package': 'Package size and weight',
+  'etsy.styles': 'Etsy styles',
+  'etsy.shippingProfileId': 'Etsy shipping profile',
+  'etsy.processingProfileId': 'Etsy processing profile',
+  'etsy.returnPolicyId': 'Etsy return policy',
+  'ebay.fulfillmentPolicyId': 'eBay fulfillment policy',
+  'ebay.paymentPolicyId': 'eBay payment policy',
+  'ebay.returnPolicyId': 'eBay return policy',
+  'ebay.merchantLocationKey': 'eBay inventory location',
+  'ebay.itemSpecifics': 'eBay item specifics',
+}
+
+// status: match | transform | etsy | ebay | gap. ebaySrc is what the dropdown starts on.
+const MAP = [
+  { label: 'Title', src: 'title', etsy: 'title', etsyReq: true, etsyWhy: 'up to 140 characters', ebay: 'product.title', ebayReq: true, ebaySrc: 'title', ebayWhy: 'up to 80; the eBay title override wins when set', status: 'transform' },
+  { label: 'Description', src: 'description', etsy: 'description', etsyReq: true, etsyWhy: 'plain text', ebay: 'product.description + offer.listingDescription', ebayReq: true, ebaySrc: 'description', ebayWhy: 'HTML allowed', status: 'match' },
+  { label: 'Photos', src: 'photos', etsy: 'images (uploaded after the draft)', etsyReq: true, etsyWhy: 'at least 1 to go active; 10 sent today', ebay: 'product.imageUrls', ebayReq: true, ebaySrc: 'photos', ebayWhy: 'https addresses, up to 24', status: 'match' },
+  { label: 'Price', src: 'variations.price', etsy: 'price, offerings[].price', etsyReq: true, etsyWhy: 'dollars', ebay: 'offer.pricingSummary.price', ebayReq: true, ebaySrc: 'variations.price', ebayWhy: 'an eBay price per variation overrides it', status: 'match' },
+  { label: 'Quantity', src: 'stockQty', etsy: 'quantity, offerings[].quantity', etsyReq: true, etsyWhy: 'at least 1 across the listing', ebay: 'availability…quantity + offer.availableQuantity', ebayReq: true, ebaySrc: 'stockQty', ebayWhy: 'per SKU', status: 'match' },
+  { label: 'SKU', src: 'variations.sku', etsy: 'products[].sku', etsyReq: false, etsyWhy: 'optional on Etsy', ebay: 'sku (the key of item and offer)', ebayReq: true, ebaySrc: 'variations.sku', ebayWhy: 'nothing exists on eBay without one', status: 'gap' },
+  { label: 'Variation', src: 'variations.option', etsy: 'property_values (custom property 513)', etsyReq: false, etsyWhy: 'name + option per product', ebay: 'group variesBy + aspect per item', ebayReq: false, ebaySrc: 'variations.option', ebayWhy: 'required once there are several', status: 'transform' },
+  { label: 'Category', src: 'etsyCategory', etsy: 'taxonomy_id', etsyReq: true, etsyWhy: 'looked up from the path', ebay: 'offer.categoryId', ebayReq: true, ebaySrc: 'ebayCategoryId', ebayWhy: 'a different tree; needs the category map', status: 'gap' },
+  { label: 'Condition', src: 'condition', etsy: '(none)', etsyReq: false, etsyWhy: 'Etsy has no condition field', ebay: 'condition', ebayReq: true, ebaySrc: 'condition', ebayWhy: 'NEW for handmade work (proposed default)', status: 'gap' },
+  { label: 'Item specifics', src: 'ebay.itemSpecifics', etsy: '(none)', etsyReq: false, etsyWhy: '', ebay: 'product.aspects', ebayReq: true, ebaySrc: 'ebay.itemSpecifics', ebayWhy: 'which ones depends on the category', status: 'gap' },
+  { label: 'Aspect: Ring Size', src: 'variationName', etsy: '(the variation name)', etsyReq: false, etsyWhy: '', ebay: 'aspects["Ring Size"]', ebayReq: true, ebaySrc: 'variations.option', ebayWhy: 'unverified name; rings normally require it', status: 'transform' },
+  { label: 'Aspect: Metal', src: 'materials', etsy: 'materials', etsyReq: false, etsyWhy: 'list of words', ebay: 'aspects["Metal"]', ebayReq: false, ebaySrc: 'materials.metal', ebayWhy: 'unverified name; from "Sterling silver"', status: 'transform' },
+  { label: 'Aspect: Main Stone', src: 'materials', etsy: 'materials', etsyReq: false, etsyWhy: '', ebay: 'aspects["Main Stone"]', ebayReq: false, ebaySrc: 'materials.stone', ebayWhy: 'unverified name; from "Uranium Glass"', status: 'transform' },
+  { label: 'Who made it', src: 'whoMade', etsy: 'who_made', etsyReq: true, etsyWhy: '', ebay: 'aspects["Handmade"]?', ebayReq: false, ebaySrc: '', ebayWhy: 'unverified; could become "Yes" when i_did', status: 'etsy' },
+  { label: 'When made', src: 'whenMade', etsy: 'when_made', etsyReq: true, etsyWhy: '', ebay: '(none)', ebayReq: false, ebaySrc: '', ebayWhy: '', status: 'etsy' },
+  { label: 'Is a supply', src: 'isSupply', etsy: 'is_supply', etsyReq: false, etsyWhy: '', ebay: '(none)', ebayReq: false, ebaySrc: '', ebayWhy: '', status: 'etsy' },
+  { label: 'Tags', src: 'tags', etsy: 'tags', etsyReq: false, etsyWhy: 'up to 13', ebay: '(none)', ebayReq: false, ebaySrc: '', ebayWhy: 'eBay searches title and aspects instead', status: 'etsy' },
+  { label: 'Styles', src: 'etsy.styles', etsy: 'styles', etsyReq: false, etsyWhy: 'up to 2', ebay: 'aspects["Style"]', ebayReq: false, ebaySrc: '', ebayWhy: 'unverified name', status: 'etsy' },
+  { label: 'Shop section', src: 'section', etsy: 'shop_section_id', etsyReq: false, etsyWhy: '', ebay: '(store category, not modeled)', ebayReq: false, ebaySrc: '', ebayWhy: '', status: 'etsy' },
+  { label: 'Shipping', src: 'etsy.shippingProfileId', etsy: 'shipping_profile_id', etsyReq: true, etsyWhy: 'physical listings', ebay: 'listingPolicies.fulfillmentPolicyId', ebayReq: true, ebaySrc: 'ebay.fulfillmentPolicyId', ebayWhy: 'same idea, different ids; shop default', status: 'transform' },
+  { label: 'Processing time', src: 'etsy.processingProfileId', etsy: 'readiness_state_id', etsyReq: true, etsyWhy: 'physical listings', ebay: '(handling time, inside the fulfillment policy)', ebayReq: false, ebaySrc: '', ebayWhy: '', status: 'etsy' },
+  { label: 'Returns', src: 'etsy.returnPolicyId', etsy: 'return_policy_id', etsyReq: false, etsyWhy: 'unverified whether now required', ebay: 'listingPolicies.returnPolicyId', ebayReq: true, ebaySrc: 'ebay.returnPolicyId', ebayWhy: 'shop default', status: 'transform' },
+  { label: 'Payment', src: 'ebay.paymentPolicyId', etsy: '(none: Etsy Payments)', etsyReq: false, etsyWhy: '', ebay: 'listingPolicies.paymentPolicyId', ebayReq: true, ebaySrc: 'ebay.paymentPolicyId', ebayWhy: 'shop default', status: 'ebay' },
+  { label: 'Inventory location', src: 'ebay.merchantLocationKey', etsy: '(none)', etsyReq: false, etsyWhy: '', ebay: 'offer.merchantLocationKey', ebayReq: true, ebaySrc: 'ebay.merchantLocationKey', ebayWhy: 'EBAY_LOCATION_KEY setting', status: 'ebay' },
+  { label: 'Package', src: 'package', etsy: 'item_weight, item_length…', etsyReq: false, etsyWhy: 'empty on this example', ebay: 'packageWeightAndSize', ebayReq: false, ebaySrc: 'package', ebayWhy: 'needed for calculated shipping', status: 'transform' },
+]
+const START = MAP.map((r) => r.ebaySrc)
+
+const dollars = (m) => (m?.amount == null ? null : m.amount / 100)
+function read(path, v) {
+  const L = listing
+  switch (path) {
+    case '': return undefined
+    case 'variations.price': return v ? dollars(v.price) : dollars(L.variations[0].price)
+    case 'variations.sku': return v ? v.sku : L.variations[0].sku
+    case 'variations.option': return v ? v.option : L.variations[0].option
+    case 'materials.metal': return L.materials.filter((m) => /silver|gold|metal|brass|copper/i.test(m))
+    case 'materials.stone': return L.materials.filter((m) => /glass|stone|gem/i.test(m))
+    case 'photos': return L.photos.map((p) => p.src)
+    case 'tags': return L.tags
+    case 'etsy.styles': return L.etsy.styles
+    default: return path.split('.').reduce((o, k) => (o == null ? o : o[k]), L)
+  }
+}
+const shown = (x) => {
+  if (x == null || x === '') return '(empty)'
+  if (Array.isArray(x)) return x.length ? `${x.slice(0, 3).join(', ')}${x.length > 3 ? ` +${x.length - 3}` : ''}` : '(empty)'
+  if (typeof x === 'object') return Object.values(x).every((y) => y == null || y === '') ? '(empty)' : JSON.stringify(x)
+  return String(x)
+}
+
+const STATUS = { match: 'Match', transform: 'Transform', etsy: 'Etsy only', ebay: 'eBay only', gap: 'Gap' }
+const tbody = document.getElementById('rows')
+function draw() {
+  tbody.innerHTML = ''
+  MAP.forEach((r, i) => {
+    const tr = document.createElement('tr')
+    if (r.ebaySrc !== START[i]) tr.className = 'repointed'
+    const opts = Object.entries(SOURCES).map(([k, n]) => `<option value="${k}"${k === r.ebaySrc ? ' selected' : ''}>${n}</option>`).join('')
+    const val = r.ebaySrc ? read(r.ebaySrc) : read(r.src)
+    tr.innerHTML = `
+      <td><b>${r.label}</b><span class="why"><code>${r.src}</code></span></td>
+      <td><code>${r.etsy}</code>${r.etsyReq ? '<span class="req">required</span>' : '<span class="opt">optional</span>'}${r.etsyWhy ? `<span class="why">${r.etsyWhy}</span>` : ''}</td>
+      <td><code>${r.ebay}</code>${r.ebayReq ? '<span class="req">required</span>' : '<span class="opt">optional</span>'}
+        <div style="margin-top:4px"><select aria-label="${r.label}: eBay reads from">${opts}</select></div>${r.ebayWhy ? `<span class="why">${r.ebayWhy}</span>` : ''}</td>
+      <td><span class="chip s-${r.status}">${STATUS[r.status]}</span></td>
+      <td class="val">${shown(val)}</td>`
+    tr.querySelector('select').addEventListener('change', (e) => { r.ebaySrc = e.target.value; draw() })
+    tbody.appendChild(tr)
+  })
+  document.getElementById('f-both').textContent = MAP.filter((r) => r.etsyReq && r.ebayReq).length
+  document.getElementById('f-etsy').textContent = MAP.filter((r) => r.etsyReq && !r.ebayReq).length
+  document.getElementById('f-ebay').textContent = MAP.filter((r) => r.ebayReq && !r.etsyReq).length
+  document.getElementById('f-gap').textContent = MAP.filter((r) => r.status === 'gap').length
+  build()
+}
+
+const src = (label, v) => { const r = MAP.find((x) => x.label === label); return r.ebaySrc ? read(r.ebaySrc, v) : undefined }
+function build() {
+  const L = listing
+  const etsy = {
+    listing: {
+      type: 'physical', title: L.title, description: L.description, quantity: L.stockQty ?? '(sum of Stock Items)',
+      price: Math.min(...L.variations.map((v) => dollars(v.price))), who_made: L.whoMade, when_made: L.whenMade,
+      is_supply: L.isSupply, taxonomy_id: `(looked up: ${L.etsyCategory})`, shop_section_id: `(looked up: ${L.section})`,
+      shipping_profile_id: Number(L.etsy.shippingProfileId), readiness_state_id: Number(L.etsy.processingProfileId),
+      return_policy_id: Number(L.etsy.returnPolicyId), tags: L.tags, materials: L.materials, should_auto_renew: L.etsy.autoRenew,
+    },
+    inventory: {
+      products: L.variations.map((v) => ({ sku: v.sku, property_values: [{ property_id: 513, property_name: L.variationName, values: [v.option] }], offerings: [{ price: dollars(v.price), quantity: '(Stock Item)' }] })),
+      price_on_property: [513], quantity_on_property: [513], sku_on_property: [513],
+    },
+  }
+  const v = L.variations[0]
+  const title = String(src('Title') ?? '').slice(0, 80)
+  const aspects = {}
+  for (const [label, name] of [['Aspect: Ring Size', 'Ring Size'], ['Aspect: Metal', 'Metal'], ['Aspect: Main Stone', 'Main Stone'], ['Who made it', 'Handmade'], ['Styles', 'Style']]) {
+    const x = src(label, v)
+    const list = (Array.isArray(x) ? x : x == null || x === '' ? [] : [String(x)]).filter(Boolean)
+    if (list.length) aspects[name] = name === 'Handmade' ? [x === 'i_did' ? 'Yes' : String(x)] : list
+  }
+  const miss = (x) => (x == null || x === '' || (Array.isArray(x) && !x.length) ? 'MISSING' : x)
+  const ebay = {
+    inventoryItem: {
+      sku: miss(src('SKU', v)),
+      condition: miss(src('Condition')),
+      availability: { shipToLocationAvailability: { quantity: src('Quantity') ?? '(Stock Item)' } },
+      product: { title: miss(title), description: miss(src('Description')), imageUrls: miss(src('Photos')), aspects: Object.keys(aspects).length ? aspects : 'MISSING' },
+    },
+    offer: {
+      sku: miss(src('SKU', v)), marketplaceId: 'EBAY_US', format: 'FIXED_PRICE',
+      categoryId: miss(src('Category')),
+      pricingSummary: { price: { value: (src('Price', v) ?? 0).toFixed ? src('Price', v).toFixed(2) : 'MISSING', currency: 'USD' } },
+      listingPolicies: { fulfillmentPolicyId: miss(src('Shipping')), paymentPolicyId: miss(src('Payment')), returnPolicyId: miss(src('Returns')) },
+      merchantLocationKey: miss(src('Inventory location')),
+    },
+  }
+  const paint = (id, o) => {
+    const html = JSON.stringify(o, null, 2).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+      .replace(/"MISSING"/g, '<span style="color:var(--warn);font-weight:700">MISSING</span>')
+    document.getElementById(id).innerHTML = html
+  }
+  paint('etsy-json', etsy)
+  paint('ebay-json', ebay)
+}
+document.getElementById('reset').addEventListener('click', () => { MAP.forEach((r, i) => { r.ebaySrc = START[i] }); draw() })
+draw()
+</script>
+</body>
+</html>
