@@ -160,8 +160,15 @@ export default function Marketplaces({ apiFetch, listings }) {
           setNote(`${r.kept} Etsy listings kept as a snapshot through the API.`)
         })}>Snapshot Etsy through the API</button>
         <button type="button" disabled={busy === 'ebay-api' || !status?.ebay.signedIn} onClick={() => run('ebay-api', async () => {
-          const r = await apiFetch(`${API}/snapshots/ebay`, { method: 'POST' })
-          setNote(`${r.kept} eBay listings kept as a snapshot through the API (read only).`)
+          // A page per request: the whole shop in one ran past the API's time limit.
+          let kept = 0
+          for (let page = 1, pages = 1; page <= pages; page++) {
+            setNote(`Reading eBay, page ${page}${pages > 1 ? ` of ${pages}` : ''}…`)
+            const r = await apiFetch(`${API}/snapshots/ebay`, { method: 'POST', body: { page } })
+            kept += r.kept
+            pages = r.pages
+          }
+          setNote(`${kept} eBay listings kept as a snapshot through the API (read only).`)
         })}>Snapshot eBay through the API</button>
         <button type="button" disabled={busy === 'ebay-import'} onClick={() => run('ebay-import', async () => {
           const r = await apiFetch(`${API}/import/ebay`, { method: 'POST' })

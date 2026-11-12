@@ -94,11 +94,12 @@ export function createEbay({ fetch: http = fetch, env = process.env, tokens = { 
     // One page of the seller's listings ending in the next 119 days (eBay's
     // window is 120), which takes in every live Good 'Til Cancelled listing,
     // with variations, photos and description. { items, pages }.
-    sellerList: async (page = 1) => {
+    // 25 a page keeps each call well inside the Lambda's limit, descriptions included.
+    sellerList: async (page = 1, perPage = 25) => {
       const now = Date.now()
       const out = await trading('GetSellerList', `<DetailLevel>ReturnAll</DetailLevel><IncludeVariations>true</IncludeVariations>`
         + `<EndTimeFrom>${new Date(now).toISOString()}</EndTimeFrom><EndTimeTo>${new Date(now + 119 * 86400e3).toISOString()}</EndTimeTo>`
-        + `<Pagination><EntriesPerPage>100</EntriesPerPage><PageNumber>${page}</PageNumber></Pagination>`)
+        + `<Pagination><EntriesPerPage>${perPage}</EntriesPerPage><PageNumber>${page}</PageNumber></Pagination>`)
       return { items: out.ItemArray?.Item ?? [], pages: Number(out.PaginationResult?.TotalNumberOfPages ?? 1) }
     },
     putItem: (sku, body) => call('PUT', `${inv}/inventory_item/${encodeURIComponent(sku)}`, body),
