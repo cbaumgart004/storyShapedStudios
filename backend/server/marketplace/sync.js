@@ -536,18 +536,24 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
     // Every live eBay listing, through the Trading API (read only), into the
     // same snapshots. Listings made on eBay's website are invisible to the
     // Inventory API until migrated, and migrating is not done here.
-    snapshotEbay: async function () {
+    // One page per call: all pages in one request ran past the Lambda's
+    // 20-second limit on the live shop, so the caller asks for page 1, then
+    // each next page until `pages`. Without a page, every page (tests, scripts).
+    snapshotEbay: async function ({ page } = {}) {
+      const one = page != null
       const rows = []
       const started = Date.now()
-      for (let page = 1; ; page++) {
-        const { items, pages } = await ebay.sellerList(page)
-        rows.push(...items.filter((i) => (i.SellingStatus?.ListingStatus ?? 'Active') === 'Active'))
-        if (page >= pages || !items.length) break
+      let pages = 1
+      for (let p = one ? Number(page) : 1; ; p++) {
+        const got = await ebay.sellerList(p)
+        pages = got.pages
+        rows.push(...got.items.filter((i) => (i.SellingStatus?.ListingStatus ?? 'Active') === 'Active'))
+        if (one || p >= pages || !got.items.length) break
       }
       const read = Date.now()
       const out = await this.snapshot('ebay', rows)
-      console.log(`[marketplace] ebay snapshot: ${rows.length} listings, ${out.kept} new or changed, eBay ${read - started} ms, kept ${Date.now() - read} ms`)
-      return out
+      console.log(`[marketplace] ebay snapshot${one ? ` page ${page} of ${pages}` : ''}: ${rows.length} listings, ${out.kept} new or changed, eBay ${read - started} ms, kept ${Date.now() - read} ms`)
+      return { ...out, page: one ? Number(page) : pages, pages }
     },
 
     // The newest snapshot of each eBay listing, cut to what a review needs.
