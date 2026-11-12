@@ -1,0 +1,164 @@
+<title>Etsy, eBay and Stripe Rates</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poiret+One&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: brand band, a live calculator first, then the rate structure side by side, then the fine print. */
+:root {
+  --case: #FCFDF9; --case-2: #F2F7EE; --line: #D7E0D5; --bone: #141A15; --muted: #5E6B60;
+  --uranium: #1C8F25; --uranium-dim: #2FAE37; --vaseline: #6B7F00; --warn: #B3261E;
+  --ebay: #1F5FC4; --etsy: #C0561A; --stripe: #5B4FD6; --code: #EEF4EA; --glow: rgba(28,143,37,.08);
+  --font-display: 'Poiret One', 'Century Gothic', sans-serif;
+  --font-body: 'Jost', 'Futura', 'Century Gothic', 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --case: #0A0F0B; --case-2: #111912; --line: #1C2A1E; --bone: #D9F2D9; --muted: #8FA392;
+  --uranium: #00FB00; --uranium-dim: #2FAE37; --vaseline: #D9FF6B; --warn: #FF6B5E;
+  --ebay: #6FA8FF; --etsy: #F59A5B; --stripe: #A79CFF; --code: #0E150F; --glow: rgba(0,251,0,.10); color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --case: #0A0F0B; --case-2: #111912; --line: #1C2A1E; --bone: #D9F2D9; --muted: #8FA392;
+  --uranium: #00FB00; --uranium-dim: #2FAE37; --vaseline: #D9FF6B; --warn: #FF6B5E;
+  --ebay: #6FA8FF; --etsy: #F59A5B; --stripe: #A79CFF; --code: #0E150F; --glow: rgba(0,251,0,.10); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: radial-gradient(120% 60% at 50% -10%, var(--glow), transparent 55%), var(--case); color: var(--bone); font: 15px/1.5 var(--font-body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { border-bottom: 1px solid var(--line); }
+header .wrap { display: flex; gap: 16px; align-items: center; padding-block: 20px; }
+header img { height: 52px; width: auto; }
+h1, h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(26px, 5vw, 36px); color: var(--uranium); }
+h2 { font-size: 24px; margin: 34px 0 10px; color: var(--vaseline); }
+.sub { color: var(--muted); font-size: 14px; }
+main { padding-block: 8px 56px; }
+.note { border-left: 3px solid var(--warn); background: var(--case-2); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; font-size: 14px; }
+.calc { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; background: var(--case-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.calc label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.calc input, .calc select { font: inherit; font-size: 15px; color: var(--bone); background: var(--case); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; font-variant-numeric: tabular-nums; }
+input:focus-visible, select:focus-visible { outline: 2px solid var(--uranium); outline-offset: 1px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--case); min-width: 0; }
+.card h3 { margin: 0 0 6px; font: 600 15px var(--font-body); display: flex; justify-content: space-between; align-items: baseline; }
+.card.etsy h3 { color: var(--etsy); } .card.ebay h3 { color: var(--ebay); } .card.stripe h3 { color: var(--stripe); }
+.keep { font: 400 34px var(--font-display); color: var(--uranium); font-variant-numeric: tabular-nums; }
+.eff { font-size: 13px; color: var(--muted); }
+.card dl { display: grid; grid-template-columns: 1fr max-content; gap: 2px 10px; margin: 10px 0 0; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.card dt { color: var(--muted); } .card dd { margin: 0; text-align: right; }
+.card dd.total { font-weight: 600; border-top: 1px solid var(--line); padding-top: 2px; } .card dt.total { border-top: 1px solid var(--line); padding-top: 2px; }
+.best { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--uranium); color: var(--uranium); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; min-width: 720px; }
+th { text-align: left; font: 600 13px var(--font-body); padding: 8px 10px; background: var(--case-2); border-bottom: 1px solid var(--line); }
+th.etsy { color: var(--etsy); } th.ebay { color: var(--ebay); } th.stripe { color: var(--stripe); }
+td { padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+td:first-child { color: var(--muted); width: 170px; }
+.u { font-size: 11px; font-weight: 600; color: var(--warn); margin-left: 4px; white-space: nowrap; }
+ul.fine { font-size: 14px; padding-left: 18px; } ul.fine li { margin: 4px 0; }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); margin-top: 36px; padding-top: 12px; }
+footer a { color: inherit; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header><div class="wrap">
+  <img src="logo.png" alt="StoryShaped Studios">
+  <div><h1>Etsy, eBay and Stripe Rates</h1>
+  <div class="sub">What each channel takes from one sale · US seller, US buyer · rates as of November 2026</div></div>
+</div></header>
+
+<main class="wrap">
+  <div class="note"><b>Unverified against the official fee pages.</b> These rates come from third-party fee guides (sources at the bottom), which agree on the core numbers. Before pricing on them, confirm on Etsy's, eBay's and Stripe's own fee pages. eBay's jewelry rate is the one guides disagree on: a flat 15%, or 15% up to $5,000 and lower above it. That makes no difference at our prices.</div>
+
+  <h2>One sale, three ways</h2>
+  <form class="calc" id="calc" onsubmit="event.preventDefault()">
+    <label for="price">Item price ($)<input id="price" type="number" min="0" step="0.01" value="45"></label>
+    <label for="ship">Shipping charged ($)<input id="ship" type="number" min="0" step="0.01" value="5"></label>
+    <label for="tax">Sales tax rate (%)<input id="tax" type="number" min="0" step="0.1" value="8"></label>
+    <label for="cost">Your cost to make ($)<input id="cost" type="number" min="0" step="0.01" value="12"></label>
+    <label for="ads">Etsy sale came from<select id="ads">
+      <option value="0">Etsy itself (no ad fee)</option>
+      <option value="0.15">An Offsite Ad (15%)</option>
+      <option value="0.12">An Offsite Ad, shop over $10k/yr (12%)</option>
+    </select></label>
+    <label for="intl">Card used on the site<select id="intl">
+      <option value="0">US card</option>
+      <option value="0.015">Non-US card (+1.5%)</option>
+      <option value="0.025">Non-US card, converted (+2.5%)</option>
+    </select></label>
+  </form>
+  <div class="cards" id="cards"></div>
+  <p class="sub">Example figures: a $45 piece with $5 shipping. Change any number above. "You keep" is what reaches you after fees and before your making cost; "profit" subtracts the making cost too. Sales tax is collected and paid by Etsy and eBay, and by you on the site; it is not counted as yours.</p>
+
+  <h2>How each one charges</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th></th><th class="etsy">Etsy</th><th class="ebay">eBay (Jewelry &amp; Watches)</th><th class="stripe">Stripe (our own site)</th></tr></thead>
+    <tbody>
+      <tr><td>To list an item</td><td>$0.20 per listing, renewing every 4 months (about $0.60 a year while active), plus $0.20 again for each one sold</td><td>Free for the first 250 listings a month, then $0.35 each<span class="u">unverified</span></td><td>Nothing</td></tr>
+      <tr><td>When it sells</td><td>6.5% transaction fee on the item price plus the shipping charged</td><td>15% final value fee on the whole order, shipping and sales tax included</td><td>Nothing; no marketplace takes a cut</td></tr>
+      <tr><td>Per order</td><td>Payment processing 3% + $0.25 of the order total, tax included</td><td>$0.40 (orders over $10) or $0.30 ($10 or less)</td><td>2.9% + $0.30 of the charge, tax included</td></tr>
+      <tr><td>Card processing</td><td>Separate fee (row above)</td><td>Included in the final value fee</td><td>Is the fee; +1.5% for a non-US card, +1% more when the currency is converted</td></tr>
+      <tr><td>Advertising</td><td>Offsite Ads: 15% of an ad-driven sale (12% for shops over $10k a year, where it is required), capped at $100 an order</td><td>Promoted Listings, optional, a rate you choose</td><td>Whatever you spend yourself</td></tr>
+      <tr><td>Monthly</td><td>None required (Etsy Plus optional)</td><td>None required (Store plans optional, lower the final value fee)</td><td>None; the site's hosting is a separate cost</td></tr>
+      <tr><td>Who finds the buyer</td><td>Etsy's search and audience</td><td>eBay's search and audience</td><td>You do: the site, social media, markets</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>What this means for us</h2>
+  <ul class="fine">
+    <li>Per sale, on the example above the site through Stripe costs the least (about 3.7%), Etsy next (about 10.6%), eBay the most (about 17%). An Etsy sale through an Offsite Ad costs more than eBay.</li>
+    <li>Etsy and eBay charge for finding the buyer. The site's lower fee only pays off on sales the site brings in itself.</li>
+    <li>eBay's 15% includes the sales tax, so its effective cut of what you keep is higher than 15%.</li>
+    <li>At low prices the flat fees ($0.25, $0.30, $0.40) matter most: on a $10 piece they add 3 to 4 percentage points.</li>
+  </ul>
+
+  <footer>
+    Sources (third party, not the official fee pages):
+    <a href="https://craftybase.com/blog/the-complete-guide-to-etsy-fees">Craftybase, Etsy fees</a> ·
+    <a href="https://www.voolist.com/blog/etsy-fees-explained-2026">Voolist, Etsy fees 2026</a> ·
+    <a href="https://marketplacebeta.com/fees/ebay/jewelry-watches">Marketplacebeta, eBay Jewelry &amp; Watches</a> ·
+    <a href="https://www.resalemargin.com/ebay-fees-by-category">Resale Margin, eBay fees by category</a> ·
+    <a href="https://fees.simpleonion.com/ebay-fee-calculator/">Simpleonion, eBay fee base</a> ·
+    <a href="https://transferfees.io/guides/stripe-fees-explained/">Transferfees, Stripe fees</a> ·
+    <a href="https://paymentcloudinc.com/blog/stripe-fees/">PaymentCloud, Stripe fees</a>.
+    Kept in the repo at docs/rates/marketplace-rates.html.
+  </footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const n = (id) => Math.max(0, parseFloat($(id).value) || 0)
+const usd = (v) => (v < 0 ? '-' : '') + '$' + Math.abs(v).toFixed(2)
+function render() {
+  const price = n('price'), ship = n('ship'), taxRate = n('tax') / 100, cost = n('cost')
+  const tax = (price + ship) * taxRate, sale = price + ship, total = sale + tax
+  const ads = parseFloat($('ads').value), intl = parseFloat($('intl').value)
+  const rows = [
+    { key: 'etsy', name: 'Etsy', fees: [
+      ['Listing (renews on sale)', 0.20],
+      ['Transaction 6.5%', sale * 0.065],
+      ['Processing 3% + $0.25', total * 0.03 + 0.25],
+      ...(ads ? [[`Offsite Ad ${Math.round(ads * 100)}%`, Math.min(100, sale * ads)]] : []),
+    ] },
+    { key: 'ebay', name: 'eBay', fees: [
+      ['Final value 15% (incl. tax)', total * 0.15],
+      [`Per order $${total > 10 ? '0.40' : '0.30'}`, total > 10 ? 0.40 : 0.30],
+    ] },
+    { key: 'stripe', name: 'Site + Stripe', fees: [
+      ['Card 2.9% + $0.30', total * 0.029 + 0.30],
+      ...(intl ? [[`Non-US card +${(intl * 100).toFixed(1)}%`, total * intl]] : []),
+    ] },
+  ].map((r) => { const fee = r.fees.reduce((a, [, v]) => a + v, 0); return { ...r, fee, keep: sale - fee } })
+  const best = Math.max(...rows.map((r) => r.keep))
+  $('cards').innerHTML = rows.map((r) => `
+    <div class="card ${r.key}">
+      <h3>${r.name}${r.keep === best ? ' <span class="best">Keeps the most</span>' : ''}</h3>
+      <div class="keep">${usd(r.keep)}</div>
+      <div class="eff">you keep of ${usd(sale)} · fees ${sale ? ((r.fee / sale) * 100).toFixed(1) : '0.0'}%</div>
+      <dl>${r.fees.map(([k, v]) => `<dt>${k}</dt><dd>${usd(v)}</dd>`).join('')}
+        <dt class="total">Total fees</dt><dd class="total">${usd(r.fee)}</dd>
+        <dt>Profit after making cost</dt><dd>${usd(r.keep - cost)}</dd></dl>
+    </div>`).join('')
+}
+document.querySelectorAll('#calc input, #calc select').forEach((el) => el.addEventListener('input', render))
+render()
+</script>
