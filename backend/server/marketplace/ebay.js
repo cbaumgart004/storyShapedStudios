@@ -10,7 +10,16 @@
 //
 // Settings, by name: EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_ENVIRONMENT.
 
+import { XMLParser } from 'fast-xml-parser'
 import { loadToken, saveToken } from '../utils/tokens.js'
+
+// Trading API elements that repeat; the parser makes them lists even when one
+// comes back. Values stay text: a SKU of "007" must not become 7.
+const LISTS = new Set(['Item', 'Variation', 'NameValueList', 'Value', 'PictureURL', 'Errors'])
+const xml = new XMLParser({
+  ignoreAttributes: false, attributeNamePrefix: '@', textNodeName: '#text',
+  parseTagValue: false, parseAttributeValue: false, isArray: (name) => LISTS.has(name),
+})
 
 export const EBAY_SCOPES = [
   'https://api.ebay.com/oauth/api_scope',
@@ -19,12 +28,12 @@ export const EBAY_SCOPES = [
   'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
 ]
 
-export function createEbay({ fetch: http = fetch, env = process.env } = {}) {
+export function createEbay({ fetch: http = fetch, env = process.env, tokens = { loadToken, saveToken } } = {}) {
   // Read when called: locally, dotenv loads after this module is imported.
   const host = () => ((env.EBAY_ENVIRONMENT || 'sandbox') === 'sandbox' ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com')
 
   async function token() {
-    let t = await loadToken('ebay')
+    let t = await tokens.loadToken('ebay')
     if (!t?.access_token) throw new Error('No eBay token: sign in at /auth/ebay.')
     if (t.obtained_at && Date.now() > t.obtained_at + (t.expires_in - 60) * 1000) {
       const res = await http(`${host()}/identity/v1/oauth2/token`, {
@@ -38,7 +47,7 @@ export function createEbay({ fetch: http = fetch, env = process.env } = {}) {
       if (!res.ok) throw new Error(`eBay token refresh: ${res.status} ${await res.text()}`)
       // A refresh does not return a new refresh token; keep the old one.
       t = { ...t, ...(await res.json()), obtained_at: Date.now() }
-      await saveToken('ebay', t)
+      await tokens.saveToken('ebay', t)
     }
     return t.access_token
   }
@@ -55,9 +64,43 @@ export function createEbay({ fetch: http = fetch, env = process.env } = {}) {
   }
   const inv = '/sell/inventory/v1'
 
+  // The Trading API (XML), for listings made on eBay's website, which the
+  // Inventory API cannot see until migrated. Read calls only. The OAuth token
+  // goes in X-EBAY-API-IAF-TOKEN. A Warning Ack still carries the answer.
+  async function trading(callName, inner) {
+    const res = await http(`${host()}/ws/api.dll`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'text/xml',
+        'x-ebay-api-call-name': callName,
+        'x-ebay-api-siteid': '0',
+        'x-ebay-api-compatibility-level': '1193',
+        'x-ebay-api-iaf-token': await token(),
+      },
+      body: `<?xml version="1.0" encoding="utf-8"?><${callName}Request xmlns="urn:ebay:apis:eBLBaseComponents">${inner}</${callName}Request>`,
+    })
+    const body = await res.text()
+    const out = res.ok ? xml.parse(body)[`${callName}Response`] : null
+    if (!out || out.Ack === 'Failure' || out.Ack === 'PartialFailure') {
+      const why = (out?.Errors ?? []).filter((e) => e.SeverityCode === 'Error').map((e) => e.LongMessage ?? e.ShortMessage).join('; ')
+      throw new Error(`eBay ${callName}: ${res.status} ${why || body.slice(0, 300)}`)
+    }
+    return out
+  }
+
   return {
     // The seller's account standing; the cheapest call that proves the token works.
     privileges: () => call('GET', '/sell/account/v1/privilege'),
+    // One page of the seller's listings ending in the next 119 days (eBay's
+    // window is 120), which takes in every live Good 'Til Cancelled listing,
+    // with variations, photos and description. { items, pages }.
+    sellerList: async (page = 1) => {
+      const now = Date.now()
+      const out = await trading('GetSellerList', `<DetailLevel>ReturnAll</DetailLevel><IncludeVariations>true</IncludeVariations>`
+        + `<EndTimeFrom>${new Date(now).toISOString()}</EndTimeFrom><EndTimeTo>${new Date(now + 119 * 86400e3).toISOString()}</EndTimeTo>`
+        + `<Pagination><EntriesPerPage>100</EntriesPerPage><PageNumber>${page}</PageNumber></Pagination>`)
+      return { items: out.ItemArray?.Item ?? [], pages: Number(out.PaginationResult?.TotalNumberOfPages ?? 1) }
+    },
     putItem: (sku, body) => call('PUT', `${inv}/inventory_item/${encodeURIComponent(sku)}`, body),
     putGroup: (key, body) => call('PUT', `${inv}/inventory_item_group/${encodeURIComponent(key)}`, body),
     offers: (sku) => call('GET', `${inv}/offer?sku=${encodeURIComponent(sku)}`),

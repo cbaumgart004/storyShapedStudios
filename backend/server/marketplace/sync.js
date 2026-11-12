@@ -20,13 +20,16 @@
 import { toEtsy, toEbay, units, sellsOn } from './translate.js'
 import { taxonomyId } from './etsy.js'
 import { fromEtsy, slugify } from './fromEtsy.js'
+import { fromEbay } from './fromEbay.js'
+import { fillListing, idField, marketplaceQuantities, sameTitle } from './pairing.js'
 import { ensureStockTables } from '../utils/stock.js'
 import { loadToken } from '../utils/tokens.js'
 
 // Fields of a Marketplace listing that move without the shop changing it
 // (shoppers' counters, Etsy's own clocks); a snapshot differing only in these
 // is not kept.
-const VOLATILE = ['views', 'num_favorers', 'featured_rank', 'state_timestamp', 'updated_timestamp', 'last_modified_timestamp']
+const VOLATILE = ['views', 'num_favorers', 'featured_rank', 'state_timestamp', 'updated_timestamp', 'last_modified_timestamp',
+  'TimeLeft', 'HitCount', 'WatchCount', 'SellingStatus', 'ListingDetails']
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS marketplace_links (
@@ -47,6 +50,11 @@ const SCHEMA = `
     outcome      TEXT NOT NULL,
     received_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (provider, line_id)
+  );
+  CREATE TABLE IF NOT EXISTS listing_numbers (
+    number      INTEGER PRIMARY KEY,
+    doc_id      TEXT NOT NULL UNIQUE,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE TABLE IF NOT EXISTS marketplace_cursors (
     provider TEXT PRIMARY KEY CHECK (provider IN ('etsy', 'ebay')),
@@ -387,47 +395,175 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       return row ? { raw: row.raw } : { error: 'No snapshot of that listing.' }
     },
 
-    // A draft Listing (console documents, type listing) for every Etsy listing
-    // in the newest snapshots that no Listing holds yet (data.etsyListingId).
-    // A Listing already made, here or in the editor, is left as it is, so this
-    // can run again after a refresh and only adds. Nothing is published and
-    // nothing is sent to Etsy. One statement, with its revision rows: several
-    // hundred listings in one round trip.
-    importEtsyListings: async (user = null) => {
+    // Every Listing gets the next Listing number the first time it is seen,
+    // and keeps it: listing_numbers holds it, so an editor save that drops the
+    // copy in data.listingNumber gets it back on the next run. The copy is
+    // written into the draft and the published data without a new version,
+    // since it names the Listing rather than changing it.
+    numberListings: async () => {
+      await ensure()
+      const { rowCount: added } = await db.query(
+        `INSERT INTO listing_numbers (number, doc_id)
+         SELECT (SELECT coalesce(max(number), 0) FROM listing_numbers) + row_number() OVER (ORDER BY coalesce(r.first, d.updated_at), d.slug), d.id::text
+         FROM documents d
+         LEFT JOIN (SELECT document_id, min(created_at) AS first FROM document_revisions GROUP BY document_id) r ON r.document_id = d.id
+         WHERE d.type = 'listing' AND NOT EXISTS (SELECT 1 FROM listing_numbers n WHERE n.doc_id = d.id::text)
+         ON CONFLICT DO NOTHING`)
+      await db.query(
+        `UPDATE documents d SET
+           data = jsonb_set(d.data, '{listingNumber}', to_jsonb(n.number)),
+           published_data = CASE WHEN d.published_data IS NULL THEN NULL ELSE jsonb_set(d.published_data, '{listingNumber}', to_jsonb(n.number)) END
+         FROM listing_numbers n
+         WHERE n.doc_id = d.id::text AND d.type = 'listing'
+           AND ((d.data->'listingNumber') IS DISTINCT FROM to_jsonb(n.number)
+             OR (d.published_data IS NOT NULL AND (d.published_data->'listingNumber') IS DISTINCT FROM to_jsonb(n.number)))`)
+      return { added }
+    },
+
+    // A draft Listing for each Marketplace listing in the newest snapshots that
+    // no Listing holds yet and that looks like no Listing either. One that
+    // shares a SKU or a title with a Listing not yet paired on that
+    // Marketplace is suggested for pairing (pairListings) instead, so a piece
+    // sold on both is one Listing. Nothing is published and nothing is sent to
+    // the Marketplace. Reruns only add.
+    importListings: async function (provider, user = null) {
       await ensureStockTables(db)
+      // Numbered first, so each suggestion names the number to pair with.
+      await this.numberListings()
+      const id = idField(provider)
       const { rows: snaps } = await db.query(
         `SELECT DISTINCT ON (external_key) external_key, raw FROM import_snapshots
-         WHERE source = 'etsy' ORDER BY external_key, imported_at DESC`)
-      const { rows: have } = await db.query(`SELECT slug, data->>'etsyListingId' AS etsy FROM documents WHERE type = 'listing'`)
-      const held = new Set(have.map((r) => r.etsy).filter(Boolean))
+         WHERE source = $1 ORDER BY external_key, imported_at DESC`, [provider])
+      const { rows: have } = await db.query(`SELECT id, slug, data FROM documents WHERE type = 'listing'`)
+      const held = new Set(have.map((r) => r.data?.[id]).filter(Boolean).map(String))
+      const open = have.filter((r) => !r.data?.[id])
       const slugs = new Set(have.map((r) => r.slug))
       let names = { sections: {}, paths: {} }
-      try { names = await loadNames() } catch (err) { console.warn(`[marketplace] import without section and category names: ${err.message}`) }
-      const rows = []
+      if (provider === 'etsy') {
+        try { names = await loadNames() } catch (err) { console.warn(`[marketplace] import without section and category names: ${err.message}`) }
+      }
+      const rows = [], suggested = []
+      let existing = 0
       for (const { raw } of snaps) {
-        if (held.has(String(raw.listing_id))) continue
-        const data = fromEtsy(raw, names)
+        const data = provider === 'etsy' ? fromEtsy(raw, names) : fromEbay(raw)
+        const external = String(data[id] ?? '')
+        if (!external) continue
+        if (held.has(external)) { existing++; continue }
+        const skus = data.variations.map((v) => v.sku.trim()).filter(Boolean)
+        const like = open.flatMap((doc) => {
+          const by = []
+          if ((doc.data.variations ?? []).some((v) => skus.includes(v?.sku?.trim()))) by.push('sku')
+          if (sameTitle(doc.data.title, data.title)) by.push('title')
+          return by.length ? [{ number: doc.data.listingNumber ?? null, slug: doc.slug, title: doc.data.title ?? '', by }] : []
+        })
+        if (like.length) { suggested.push({ provider, externalId: external, title: data.title, skus, listings: like }); continue }
         const base = slugify(data.title) || 'listing'
         let slug = base
         for (let n = 2; slugs.has(slug); n++) slug = `${base}-${n}`
         slugs.add(slug)
         rows.push({ slug, data })
       }
-      if (!rows.length) return { created: 0, existing: held.size, snapshots: snaps.length }
-      const author = user?.id ?? null
-      const { rows: made } = await db.query(
-        `WITH input AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(slug text, data jsonb)),
-         ins AS (
-           INSERT INTO documents (type, slug, status, version, data, updated_at, updated_by)
-           SELECT 'listing', slug, 'draft', 1, data, now(), $2 FROM input
-           ON CONFLICT (type, slug) DO NOTHING
-           RETURNING id, version, data)
-         INSERT INTO document_revisions (document_id, version, data, author)
-         SELECT id, version, data, $2 FROM ins RETURNING document_id`,
-        [JSON.stringify(rows), author])
-      const noSku = rows.filter((r) => r.data.variations.some((v) => !v.sku)).length
-      console.log(`[marketplace] etsy import: ${made.length} draft Listings made, ${held.size} already held`)
-      return { created: made.length, existing: held.size, snapshots: snaps.length, withoutSku: noSku }
+      let created = 0
+      if (rows.length) {
+        const author = user?.id ?? null
+        const { rows: made } = await db.query(
+          `WITH input AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(slug text, data jsonb)),
+           ins AS (
+             INSERT INTO documents (type, slug, status, version, data, updated_at, updated_by)
+             SELECT 'listing', slug, 'draft', 1, data, now(), $2 FROM input
+             ON CONFLICT (type, slug) DO NOTHING
+             RETURNING id, version, data)
+           INSERT INTO document_revisions (document_id, version, data, author)
+           SELECT id, version, data, $2 FROM ins RETURNING document_id`,
+          [JSON.stringify(rows), author])
+        created = made.length
+      }
+      await this.numberListings()
+      const withoutSku = rows.filter((r) => r.data.variations.some((v) => !v.sku)).length
+      console.log(`[marketplace] ${provider} import: ${created} draft Listings made, ${suggested.length} suggested for pairing, ${existing} already held`)
+      return { created, existing, suggested, snapshots: snaps.length, withoutSku }
+    },
+    importEtsyListings: async function (user = null) { return this.importListings('etsy', user) },
+    importEbayListings: async function (user = null) { return this.importListings('ebay', user) },
+
+    // pairs: [{ provider, externalId, listing (its Listing number) }]. Each
+    // fills its Listing's draft from the newest snapshot (pairing.js), with a
+    // revision. A Listing already paired with another listing on that
+    // Marketplace, or a listing another Listing holds, is refused.
+    pairListings: async function (pairs, user = null) {
+      if (!Array.isArray(pairs) || !pairs.length) throw new Error('pairs is a list of { provider, externalId, listing }')
+      await ensureStockTables(db)
+      await this.numberListings()
+      const out = []
+      for (const { provider, externalId, listing } of pairs) {
+        const id = idField(provider)
+        const external = String(externalId ?? '').trim()
+        const fail = (error) => out.push({ provider, externalId: external, listing, error })
+        if (!id) { fail('provider is etsy or ebay'); continue }
+        const { rows: [doc] } = await db.query(
+          `SELECT d.id, d.slug, d.version, d.data FROM documents d JOIN listing_numbers n ON n.doc_id = d.id::text
+           WHERE n.number = $1 AND d.type = 'listing'`, [Number(listing)])
+        if (!doc) { fail(`No Listing number ${listing}.`); continue }
+        if (doc.data[id] && String(doc.data[id]) !== external) { fail(`Listing ${listing} is already paired with ${provider} ${doc.data[id]}.`); continue }
+        const { rows: [other] } = await db.query(
+          `SELECT n.number FROM documents d JOIN listing_numbers n ON n.doc_id = d.id::text
+           WHERE d.type = 'listing' AND d.data->>$1 = $2 AND d.id <> $3`, [id, external, doc.id])
+        if (other) { fail(`${provider} ${external} is already paired with Listing ${other.number}.`); continue }
+        const { rows: [snap] } = await db.query(
+          `SELECT raw FROM import_snapshots WHERE source = $1 AND external_key = $2 ORDER BY imported_at DESC, id DESC LIMIT 1`, [provider, external])
+        if (!snap) { fail(`No ${provider} snapshot of ${external}; take a snapshot first.`); continue }
+        let names = { sections: {}, paths: {} }
+        if (provider === 'etsy') { try { names = await loadNames() } catch { /* ids stand alone */ } }
+        const incoming = provider === 'etsy' ? fromEtsy(snap.raw, names) : fromEbay(snap.raw)
+        const { data, filled, kept, variationsNotMatched } = fillListing(doc.data, incoming, provider)
+        // Only if nobody saved the Listing since it was read.
+        const { rows: saved } = await db.query(
+          `WITH upd AS (
+             UPDATE documents SET data = $2, version = version + 1, updated_at = now(), updated_by = $3
+             WHERE id = $1 AND version = $4 RETURNING id, version, data)
+           INSERT INTO document_revisions (document_id, version, data, author) SELECT id, version, data, $3 FROM upd RETURNING document_id`,
+          [doc.id, JSON.stringify(data), user?.id ?? null, doc.version])
+        if (!saved.length) { fail(`Listing ${listing} changed while pairing; try again.`); continue }
+        const theirs = marketplaceQuantities(provider, snap.raw).filter((q) => q.sku)
+        const stocked = await stockBySku(theirs.map((q) => q.sku))
+        const quantities = theirs.map((q) => ({ sku: q.sku, [provider]: q.quantity, stock: stocked.get(q.sku)?.quantity ?? null }))
+          .filter((q) => q.stock !== q[provider])
+        out.push({ provider, externalId: external, listing: Number(listing), slug: doc.slug, filled, kept, variationsNotMatched, quantities })
+      }
+      return { paired: out.filter((p) => !p.error).length, results: out }
+    },
+
+    // Every live eBay listing, through the Trading API (read only), into the
+    // same snapshots. Listings made on eBay's website are invisible to the
+    // Inventory API until migrated, and migrating is not done here.
+    snapshotEbay: async function () {
+      const rows = []
+      const started = Date.now()
+      for (let page = 1; ; page++) {
+        const { items, pages } = await ebay.sellerList(page)
+        rows.push(...items.filter((i) => (i.SellingStatus?.ListingStatus ?? 'Active') === 'Active'))
+        if (page >= pages || !items.length) break
+      }
+      const read = Date.now()
+      const out = await this.snapshot('ebay', rows)
+      console.log(`[marketplace] ebay snapshot: ${rows.length} listings, ${out.kept} new or changed, eBay ${read - started} ms, kept ${Date.now() - read} ms`)
+      return out
+    },
+
+    // The newest snapshot of each eBay listing, cut to what a review needs.
+    ebaySnapshots: async () => {
+      await ensureStockTables(db)
+      const { rows } = await db.query(
+        `SELECT DISTINCT ON (external_key) external_key, raw, imported_at FROM import_snapshots
+         WHERE source = 'ebay' ORDER BY external_key, imported_at DESC`)
+      const listings = rows.map(({ external_key, raw: r, imported_at }) => {
+        const d = fromEbay(r)
+        return {
+          external_key, imported_at, title: d.title, url: r.ListingDetails?.ViewItemURL ?? null, quantity: r.Quantity ?? null,
+          photo: d.photos[0]?.src ?? null, variations: d.variations.map(({ option, sku, price }) => ({ option, sku, price })),
+        }
+      })
+      return { count: listings.length, listings }
     },
 
     // One Marketplace sale line into stock, at most once. Exported for the
