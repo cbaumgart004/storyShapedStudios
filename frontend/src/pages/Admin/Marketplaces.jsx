@@ -43,7 +43,7 @@ export default function Marketplaces({ apiFetch, listings }) {
   const [error, setError] = useState('')
   const [source, setSource] = useState('etsy')
   const [suggested, setSuggested] = useState([])
-  const [pick, setPick] = useState({}) // provider:externalId:number -> pair
+  const [pick, setPick] = useState({}) // externalId -> approved pair
   const [manual, setManual] = useState({ provider: 'etsy', externalId: '', listing: '' })
   const [paired, setPaired] = useState(null)
 
@@ -66,13 +66,23 @@ export default function Marketplaces({ apiFetch, listings }) {
   const linked = (doc, provider) => status?.links.find((l) => l.provider === provider && l.listing_doc_id === String(doc.id))
 
   // Changes Listing drafts; the editor's list shows them after a reload.
+  // The review list comes from the server each time, so what was saved is
+  // what drops off it.
+  const [reviewFrom, setReviewFrom] = useState('ebay')
+  const [choice, setChoice] = useState({}) // externalId -> Listing number, when not the best guess
+  const loadSuggestions = useCallback((provider) => {
+    setReviewFrom(provider); setBusy('suggest')
+    return apiFetch(`${API}/suggestions/${provider}`)
+      .then((r) => { setSuggested(r.suggested ?? []); setPick({}); setChoice({}) })
+      .catch((e) => setError(e.message)).finally(() => setBusy(''))
+  }, [apiFetch])
+  useEffect(() => { loadSuggestions('ebay') }, [loadSuggestions])
   const pair = (pairs) => run('pair', async () => {
     const r = await apiFetch(`${API}/pair`, { method: 'POST', body: { pairs } })
     setPaired(r.results)
-    const done = new Set(r.results.filter((p) => !p.error).map((p) => `${p.provider}:${p.externalId}`))
-    setSuggested((list) => list.filter((s) => !done.has(`${s.provider}:${s.externalId}`)))
-    setPick({})
-    setNote(`${r.paired} paired. Reload to see the Listings' new fields.`)
+    await loadSuggestions(reviewFrom)
+    const failed = r.results.filter((p) => p.error).length
+    setNote(`${r.paired} paired and saved${failed ? `, ${failed} not (below)` : ''}. The list above is read back from the server.`)
   })
 
   const importCsv = (file) => run('csv', async () => {
@@ -196,7 +206,7 @@ export default function Marketplaces({ apiFetch, listings }) {
         })}>Snapshot eBay through the API</button>
         <button type="button" disabled={busy === 'ebay-import'} onClick={() => run('ebay-import', async () => {
           const r = await apiFetch(`${API}/import/ebay`, { method: 'POST' })
-          setSuggested(r.suggested ?? [])
+          setReviewFrom('ebay'); setChoice({}); setSuggested(r.suggested ?? [])
           setPick({})
           setNote(`eBay: ${r.created} draft Listings made, ${r.existing} already paired, ${r.suggested?.length ?? 0} look like a Listing already made (below).`)
         })}>Import eBay snapshots as Listings</button>
@@ -207,29 +217,52 @@ export default function Marketplaces({ apiFetch, listings }) {
         Pairing fills only what the Listing lacks. A title or description that differs is kept as that Marketplace&apos;s own;
         photos the Listing has stay; quantity is never changed, only shown where it differs from stock.
       </p>
+      <div className="ai-inline-form mk-review-bar">
+        <label>Review matches from{' '}
+          <select value={reviewFrom} onChange={(e) => loadSuggestions(e.target.value)} aria-label="Marketplace to review">
+            <option value="ebay">eBay</option>
+            <option value="etsy">Etsy</option>
+          </select>
+        </label>
+        <button type="button" disabled={busy === 'suggest'} onClick={() => loadSuggestions(reviewFrom)}>Reload</button>
+        <button type="button" disabled={!suggested.length} onClick={() => setPick(Object.fromEntries(suggested
+          .filter((s) => s.listings[0].score >= 0.9).map((s) => [s.externalId, { provider: s.provider, externalId: s.externalId, listing: (choice[s.externalId] ?? s.listings[0].number) }])))}>Approve every sure match</button>
+        <button type="button" className="mk-save" disabled={busy === 'pair' || !Object.values(pick).some(Boolean)}
+          onClick={() => pair(Object.values(pick).filter(Boolean))}>Save {Object.values(pick).filter(Boolean).length || ''} approved</button>
+        <span className="ai-hint">{suggested.length} to review, best guess first. Saving pairs each approved one; it then drops off this list, read back from the server.</span>
+      </div>
       {suggested.length > 0 && (
         <table className="ai-table">
-          <thead><tr><th /><th>Marketplace listing</th><th>Looks like</th></tr></thead>
+          <thead><tr><th>Approve</th><th>{reviewFrom === 'etsy' ? 'Etsy' : 'eBay'} listing</th><th>Pair with Listing</th></tr></thead>
           <tbody>
-            {suggested.flatMap((s) => s.listings.map((l) => {
-              const key = `${s.provider}:${s.externalId}:${l.number}`
+            {suggested.map((s) => {
+              const number = choice[s.externalId] ?? s.listings[0].number
+              const l = s.listings.find((x) => x.number === number) ?? s.listings[0]
               return (
-                <tr key={key}>
-                  <td><input type="checkbox" aria-label={`Pair ${s.externalId} with Listing ${l.number}`} checked={!!pick[key]}
-                    onChange={(e) => setPick((m) => ({ ...m, [key]: e.target.checked ? { provider: s.provider, externalId: s.externalId, listing: l.number } : undefined }))} /></td>
-                  <td>{s.provider === 'etsy' ? 'Etsy' : 'eBay'} {s.externalId}: {s.title}{s.skus.length ? ` (${s.skus.join(', ')})` : ''}</td>
-                  <td>Listing {l.number}: {l.title || l.slug} <span className="ai-muted">(same {l.by.join(' and ')})</span></td>
+                <tr key={`${s.provider}:${s.externalId}`}>
+                  <td><input type="checkbox" aria-label={`Approve ${s.externalId} with Listing ${l.number}`} checked={!!pick[s.externalId]}
+                    onChange={(e) => setPick((m) => ({ ...m, [s.externalId]: e.target.checked ? { provider: s.provider, externalId: s.externalId, listing: l.number } : undefined }))} /></td>
+                  <td>{s.externalId}: {s.title}{s.skus.length ? ` (${s.skus.join(', ')})` : ''}</td>
+                  <td>
+                    {s.listings.length > 1 ? (
+                      <select value={l.number ?? ''} aria-label={`Listing for ${s.externalId}`} onChange={(e) => {
+                        const n = Number(e.target.value)
+                        setChoice((m) => ({ ...m, [s.externalId]: n }))
+                        setPick((m) => (m[s.externalId] ? { ...m, [s.externalId]: { ...m[s.externalId], listing: n } } : m))
+                      }}>
+                        {s.listings.map((x) => <option key={x.number} value={x.number ?? ''}>{x.number}: {x.title || x.slug}</option>)}
+                      </select>
+                    ) : <>Listing {l.number}: {l.title || l.slug}</>}
+                    {' '}{l === s.listings[0] && <span className="mk-badge">Suggested</span>}
+                    {' '}<span className="ai-muted">{Math.round(l.score * 100)}% · same {l.by.map((b) => (b === 'words' ? 'wording' : b)).join(' and ')}</span>
+                  </td>
                 </tr>
               )
-            }))}
+            })}
           </tbody>
         </table>
       )}
       <div className="ai-inline-form">
-        {suggested.length > 0 && (
-          <button type="button" disabled={busy === 'pair' || !Object.values(pick).some(Boolean)}
-            onClick={() => pair(Object.values(pick).filter(Boolean))}>Pair selected</button>
-        )}
         <select value={manual.provider} onChange={(e) => setManual((m) => ({ ...m, provider: e.target.value }))} aria-label="Marketplace to pair">
           <option value="etsy">Etsy</option>
           <option value="ebay">eBay</option>

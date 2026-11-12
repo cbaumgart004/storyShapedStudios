@@ -184,3 +184,8 @@
   font-size: 0.8rem;
   white-space: pre;
 }
+
+/* Pairing review: Save stays in reach at the top while the list scrolls. */
+.mk-review-bar { position: sticky; top: 0; z-index: 2; background: var(--ai-bg, #fff); padding-block: 8px; border-bottom: 1px solid var(--ai-line, #ddd); }
+.mk-save { font-weight: 600; }
+.mk-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; color: #1c8f25; white-space: nowrap; }

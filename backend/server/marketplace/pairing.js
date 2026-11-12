@@ -23,6 +23,38 @@ const blank = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const norm = (t) => String(t ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 export const sameTitle = (a, b) => !!norm(a) && norm(a) === norm(b)
 
+// How alike two titles read, 0 to 1: the share of meaningful words they have
+// in common (Dice). Words of two letters or fewer, and words every glass
+// listing shares, say nothing about which piece it is.
+const COMMON = new Set(['the', 'and', 'with', 'for', 'vintage', 'glass', 'uranium', 'vaseline', 'handmade', 'jewelry', 'glows', 'glow', 'under', 'light', 'black'])
+const seen = new Map() // title -> its words; a scrub compares every pair
+const words = (t) => {
+  const key = String(t ?? '')
+  if (!seen.has(key)) { if (seen.size > 5000) seen.clear(); seen.set(key, new Set(norm(key).split(' ').filter((w) => w.length > 2 && !COMMON.has(w)))) }
+  return seen.get(key)
+}
+export function titleLikeness(a, b) {
+  const x = words(a), y = words(b)
+  if (!x.size || !y.size) return 0
+  let both = 0
+  for (const w of x) if (y.has(w)) both++
+  return (2 * both) / (x.size + y.size)
+}
+
+// A Marketplace listing beside a Listing: why they look alike and how sure,
+// 0 to 1. A shared SKU is near certain; an equal title nearly so; otherwise
+// the title likeness, counted only from 0.5 up.
+export function likeness(listingData, data) {
+  const skus = (data.variations ?? []).map((v) => String(v?.sku ?? '').trim()).filter(Boolean)
+  const by = []
+  if ((listingData.variations ?? []).some((v) => skus.includes(String(v?.sku ?? '').trim()))) by.push('sku')
+  if (sameTitle(listingData.title, data.title)) by.push('title')
+  const alike = titleLikeness(listingData.title, data.title)
+  if (!by.length && alike >= 0.5) by.push('words')
+  const score = Math.min(1, (by.includes('sku') ? 0.6 : 0) + (by.includes('title') ? 0.5 : 0) + alike * 0.4)
+  return { by, score: Math.round(score * 100) / 100 }
+}
+
 // Fill only what `into` lacks, from `from`, one level of groups deep.
 function fillEmpty(into, from, path, filled) {
   const out = { ...(into ?? {}) }
