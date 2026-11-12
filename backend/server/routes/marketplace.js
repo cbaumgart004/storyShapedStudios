@@ -2,8 +2,8 @@
 // The Marketplace sync (marketplace/sync.js), mounted at /api/marketplace.
 //
 //   GET  /status                 live or dry run, each Marketplace signed in, every link
-//   POST /listings/:docId/check  the Listing as saved (draft included) against both; sends nothing
-//   POST /listings/:docId/push   a published Listing to Etsy and eBay
+//   POST /listings/:docId/check  { only } the Listing as saved (draft included) against both, or those named; sends nothing
+//   POST /listings/:docId/push   { confirm: true, only } a published Listing to Etsy and eBay, or those named
 //   POST /quantities/push        { skus: [...] } each count to every Marketplace it is linked on
 //   POST /sales/pull             paid Etsy receipts and eBay orders since the last pull, into stock
 //   POST /snapshots              { source: etsy|ebay, rows: [...] } a CSV export, kept unmodified
@@ -59,8 +59,12 @@ const handle = (label, fn) => async (req, res) => {
 }
 
 router.get('/status', handle('status', () => sync.status()))
-router.post('/listings/:docId/check', handle('check listing', (req) => sync.pushListing(req.params.docId, { check: true })))
-router.post('/listings/:docId/push', handle('push listing', (req) => sync.pushListing(req.params.docId)))
+const only = (req) => (Array.isArray(req.body?.only) && req.body.only.length ? req.body.only.filter((p) => p === 'etsy' || p === 'ebay') : ['etsy', 'ebay'])
+router.post('/listings/:docId/check', handle('check listing', (req) => sync.pushListing(req.params.docId, { check: true, only: only(req) })))
+// The gate: a push changes the live shop, so it is sent only with confirm: true.
+router.post('/listings/:docId/push', handle('push listing', (req) => (req.body?.confirm === true
+  ? sync.pushListing(req.params.docId, { only: only(req) })
+  : { error: 'Not sent: a push needs confirm: true. Test the update first.' })))
 router.post('/quantities/push', handle('push quantities', (req) => sync.pushQuantities(Array.isArray(req.body?.skus) ? req.body.skus : [])))
 router.post('/sales/pull', handle('pull sales', () => sync.pullSales()))
 router.post('/snapshots', handle('snapshot', (req) => sync.snapshot(req.body?.source, req.body?.rows)))

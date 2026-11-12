@@ -167,7 +167,8 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
     },
 
     // check: read the draft and send nothing, whatever MARKETPLACE_SYNC says.
-    pushListing: async (docId, { check = false } = {}) => {
+    // only: the Marketplaces to act on (default both); the other is skipped.
+    pushListing: async (docId, { check = false, only = ['etsy', 'ebay'] } = {}) => {
       await ensure()
       const live = isLive() && !check
       const doc = await listingDoc(docId, { draft: check })
@@ -178,13 +179,15 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       const out = { listing: doc.slug, live, etsy: null, ebay: null }
 
       // Etsy: one listing per Listing; every Variation is a product in its inventory.
-      if (!sellsOn(listing, 'etsy')) out.etsy = { skipped: ['Not offered on Etsy (Sell on).'] }
+      if (!only.includes('etsy')) out.etsy = { skipped: ['Not chosen for this push.'] }
+      else if (!sellsOn(listing, 'etsy')) out.etsy = { skipped: ['Not offered on Etsy (Sell on).'] }
       else try {
         const plan = await etsyPlan(listing, bySku, live)
         if (plan.problems.length) out.etsy = { skipped: plan.problems }
         else if (!live) out.etsy = { wouldSend: { listing: plan.listing, inventory: plan.inventory } }
         else {
-          const known = [...(await links('etsy', skus)).values()].find((l) => l.external_id)?.external_id
+          // The paired listing first, so a paired Listing updates it rather than making a second.
+          const known = String(listing.etsyListingId ?? '').trim() || [...(await links('etsy', skus)).values()].find((l) => l.external_id)?.external_id
           const id = known ?? String((await etsy.createDraft(plan.listing)).listing_id)
           if (known) await etsy.update(id, plan.listing)
           else for (const [i, p] of (listing.photos ?? []).entries()) await etsy.uploadImage(id, absolute(p.src), i + 1)
@@ -195,8 +198,14 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
       } catch (err) { out.etsy = { error: err.message } }
 
       // eBay: an inventory item per Variation, one offer each, grouped when several.
-      if (!sellsOn(listing, 'ebay')) out.ebay = { skipped: ['Not offered on eBay (Sell on).'] }
-      else try {
+      const ebayPaired = String(listing.ebayItemId ?? '').trim()
+      if (!only.includes('ebay')) out.ebay = { skipped: ['Not chosen for this push.'] }
+      else if (!sellsOn(listing, 'ebay')) out.ebay = { skipped: ['Not offered on eBay (Sell on).'] }
+      // A listing made on eBay's website is invisible to the Inventory API
+      // until migrated; pushing would publish a second listing beside it.
+      else if (ebayPaired && ![...(await links('ebay', skus)).values()].some((l) => l.external_id)) {
+        out.ebay = { skipped: [`Paired with eBay item ${ebayPaired}, which was made on eBay's website. The site cannot update it until it is migrated to eBay's Inventory API; a push now would make a second listing, so nothing is sent.`] }
+      } else try {
         const required = await requiredAspects(listing.ebayCategoryId)
         const plan = toEbay(listing, bySku, {
           imageUrls: (listing.photos ?? []).map((p) => absolute(p.src)),

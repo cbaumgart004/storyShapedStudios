@@ -275,3 +275,15 @@ test('pairing with Etsy makes its price the shared one and keeps the other as th
   assert.deepEqual([data.etsyListingId, data.tags[0].tag, data.etsy.title, data.channels.etsy], ['11', 'glow', 'Old Etsy title', true])
   assert.ok(filled.includes('tags') && kept.includes('etsy.title'))
 })
+
+test('a push names its Marketplaces, and an eBay pairing made on eBay\'s website is refused rather than listed twice', async () => {
+  const { db, stock, sync } = await fresh({}, {})
+  await stock.create({ name: 'Ring', sku: 'R', sellable: true, quantity: 2 })
+  await db.query(`CREATE TABLE documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), type text NOT NULL, slug text NOT NULL,
+    status text NOT NULL, version integer NOT NULL, data jsonb NOT NULL, published_data jsonb)`)
+  const listing = { title: 'Ring', ebayItemId: '201', channels: { site: true, etsy: true, ebay: true }, variations: [{ sku: 'R' }] }
+  const { rows: [doc] } = await db.query(`INSERT INTO documents (type, slug, status, version, data) VALUES ('listing', 'ring', 'draft', 1, $1) RETURNING id`, [JSON.stringify(listing)])
+  const both = await sync.pushListing(doc.id, { check: true, only: ['ebay'] })
+  assert.deepEqual(both.etsy.skipped, ['Not chosen for this push.'])
+  assert.match(both.ebay.skipped[0], /Paired with eBay item 201.*second listing/)
+})
