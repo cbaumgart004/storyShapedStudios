@@ -102,6 +102,12 @@ export function createEbay({ fetch: http = fetch, env = process.env, tokens = { 
         + `<Pagination><EntriesPerPage>${perPage}</EntriesPerPage><PageNumber>${page}</PageNumber></Pagination>`)
       return { items: out.ItemArray?.Item ?? [], pages: Number(out.PaginationResult?.TotalNumberOfPages ?? 1) }
     },
+    // Read only: the combined-shipping rules the seller set on eBay (shipping
+    // discount profiles, including combined-shipping and promotional rules) and
+    // the business shipping policies, so the site and the sync keep the same
+    // behavior (board: combined shipping). Changes nothing on eBay.
+    shippingDiscounts: () => trading('GetShippingDiscountProfiles', ''),
+    fulfillmentPolicies: () => call('GET', '/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US'),
     putItem: (sku, body) => call('PUT', `${inv}/inventory_item/${encodeURIComponent(sku)}`, body),
     putGroup: (key, body) => call('PUT', `${inv}/inventory_item_group/${encodeURIComponent(key)}`, body),
     offers: (sku) => call('GET', `${inv}/offer?sku=${encodeURIComponent(sku)}`),
