@@ -16,6 +16,7 @@ import { fetchPublished, useLiveDocuments, useSchema } from '@/lib/siteConsole'
 import { toCard } from '@/lib/cards'
 import { Extras, FieldParts, LinkTo, money, lookFor, photoLook } from '@/components/Extras'
 import { frameOf } from '@/components/Frame'
+import ListingEdit from '@/components/ListingEdit'
 import '@/styles/MeetTheArtist.css'
 
 // The rect neon lockup is the logo variant without "Uranium Glass Jewelry"
@@ -217,13 +218,14 @@ function ProductCard({ block, marks, extras }) {
   const price = prices.length ? money({ amount: Math.min(...prices), currency: l.variations[0].price.currency }) : null
   return (
     <section className="section" {...marks}>
-      <figure className="piece-card deco-corners product-card" {...frame.part('listing', lookFor(schema, 'types.listing', l))}>
+      <figure className="piece-card deco-corners product-card" data-eotm-edit={`listing:${listing.id}`} {...frame.part('listing', lookFor(schema, 'types.listing', l))}>
         {photo && <div className="frame"><img src={photo.src} alt={photo.alt ?? l.title ?? ''} /></div>}
         <figcaption>
-          <strong>{l.title}</strong>
+          <strong data-eotm-text="title">{l.title}</strong>
           {price && <span>{prices.length > 1 ? `from ${price}` : price}</span>}
           {block.note && <em>{block.note}</em>}
           <Extras at="types.listing" data={l} />
+          <ListingEdit data={l} />
         </figcaption>
       </figure>
       {extras}

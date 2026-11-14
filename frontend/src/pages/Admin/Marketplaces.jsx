@@ -46,9 +46,11 @@ export default function Marketplaces({ apiFetch, listings }) {
   const [pick, setPick] = useState({}) // externalId -> approved pair
   const [manual, setManual] = useState({ provider: 'etsy', externalId: '', listing: '' })
   const [paired, setPaired] = useState(null)
+  const [square, setSquare] = useState(null)
 
   const loadStatus = useCallback(() => apiFetch(`${API}/status`).then(setStatus).catch((e) => setError(e.message)), [apiFetch])
   useEffect(() => { loadStatus() }, [loadStatus])
+  useEffect(() => { apiFetch(`${API}/square`).then(setSquare).catch(() => setSquare(null)) }, [apiFetch])
 
   const run = async (key, fn) => {
     setBusy(key); setError(''); setNote('')
@@ -99,6 +101,14 @@ export default function Marketplaces({ apiFetch, listings }) {
           {status.live ? 'Live: pushes and sales reach Etsy and eBay.' : 'Dry run: nothing is sent to Etsy or eBay until MARKETPLACE_SYNC is on.'}
           {' '}Etsy {status.etsy.configured ? (status.etsy.signedIn ? 'connected' : 'not signed in') : 'not set up'};
           {' '}eBay {status.ebay.configured ? (status.ebay.signedIn ? `connected (${status.ebay.environment})` : 'not signed in') : 'not set up'}.
+        </p>
+      )}
+      {square && (
+        <p className="ai-hint">
+          Square {!square.configured ? 'not set up: it waits for SQUARE_ACCESS_TOKEN on the API.'
+            : square.error ? `set up (${square.environment}) but not answering: ${square.error}`
+            : `connected (${square.environment})${square.location ? `, location ${square.location.name}` : ', no active location'}${square.problem ? `. ${square.problem}` : ''}.`}
+          {' '}Read only for now.
         </p>
       )}
       {error && <p className="ai-error">{error}</p>}

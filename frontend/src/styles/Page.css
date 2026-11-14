@@ -100,6 +100,21 @@
   font-size: 0.85rem;
 }
 
+/* Editing a listing on the page (ListingEdit.jsx): shown only while the editor
+   is open in Edit, so it is the editor's own chrome, not something visitors see. */
+.product-card .listing-edit { display: grid; gap: 0.5rem; margin-top: 0.5rem; text-align: left; }
+.product-card .listing-edit-description { white-space: pre-line; color: var(--muted); font-size: 0.9rem; margin: 0; }
+.product-card .listing-edit-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
+.product-card .listing-edit-tags span { color: var(--bone); text-shadow: none; border: 1px solid var(--muted); border-radius: 999px; padding: 0 0.5rem; font-size: 0.8rem; }
+.product-card .listing-counts { display: grid; gap: 0.35rem; }
+.product-card .listing-count { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0; color: var(--bone); font-size: 0.9rem; }
+.product-card .listing-count span { color: inherit; text-shadow: none; }
+.product-card .listing-count-name { flex: 1; }
+.product-card .listing-count button { min-width: 44px; min-height: 44px; font-size: 1.2rem; }
+.product-card .listing-count input { width: 4.5rem; min-height: 44px; text-align: center; font-size: 1rem; }
+.product-card .listing-count-said { flex-basis: 100%; font-size: 0.75rem; color: var(--muted) !important; }
+.product-card .listing-count:has(.listing-count-said:empty) .listing-count-said { display: none; }
+
 /* A button's icon (the console's buttons "Icon"), before its text. */
 .btn-icon {
   width: 1.2em;
