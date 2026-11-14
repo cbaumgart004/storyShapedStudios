@@ -39,7 +39,7 @@ async function loadListings() {
     for (const v of doc.data?.variations ?? []) {
       const sku = String(v.sku ?? '').trim()
       if (!sku) continue
-      bySku.set(sku, [...(bySku.get(sku) ?? []), { title: doc.data?.title || doc.slug, status: doc.status, option: v.option }])
+      bySku.set(sku, [...(bySku.get(sku) ?? []), { id: String(doc.id), number: doc.data?.listingNumber, title: doc.data?.title || doc.slug, status: doc.status, option: v.option }])
     }
   }
   return { docs, bySku }
@@ -182,6 +182,8 @@ export default function AdminInventory() {
   const [listings, setListings] = useState(null) // Map sku -> [{ title, status, option }]
   const [listingDocs, setListingDocs] = useState(null)
   const [listingError, setListingError] = useState('')
+  // Listing doc id -> its Etsy and eBay listing IDs, from the Marketplace links.
+  const [marketIds, setMarketIds] = useState(null)
   onSignedOut = () => setSignedIn(false)
 
   const load = useCallback(async () => {
@@ -194,6 +196,17 @@ export default function AdminInventory() {
   useEffect(() => { if (signedIn && HAS_BACKEND) load() }, [load, signedIn])
   useEffect(() => {
     if (signedIn) loadListings().then((l) => { setListings(l.bySku); setListingDocs(l.docs) }).catch((err) => setListingError(err.message))
+  }, [signedIn])
+  useEffect(() => {
+    if (!signedIn || !HAS_BACKEND) return
+    apiFetch('/api/marketplace/status').then((st) => {
+      const m = new Map()
+      for (const l of st.links ?? []) {
+        const k = String(l.listing_doc_id)
+        m.set(k, { ...(m.get(k) ?? {}), [l.provider]: l.external_id })
+      }
+      setMarketIds(m)
+    }).catch(() => setMarketIds(new Map()))
   }, [signedIn])
   const known = new Set(stock.map((s) => s.sku).filter(Boolean))
   const orphans = listings ? [...listings.keys()].filter((sku) => !known.has(sku)) : []
@@ -272,6 +285,8 @@ export default function AdminInventory() {
               <th>Low at</th>
               <th>Sellable</th>
               <th>Listing</th>
+              <th>Etsy ID</th>
+              <th>eBay ID</th>
               <th />
             </tr>
           </thead>
@@ -290,6 +305,11 @@ export default function AdminInventory() {
                     ))}
                     {listings && s.sellable && !listings.has(s.sku) && <span className="ai-muted">No listing</span>}
                   </td>
+                  {['etsy', 'ebay'].map((p) => (
+                    <td key={p} className="ai-ids">
+                      {[...new Set((listings?.get(s.sku) ?? []).map((l) => marketIds?.get(l.id)?.[p]).filter(Boolean))].map((id) => <div key={id}>{id}</div>)}
+                    </td>
+                  ))}
                   <td>
                     <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)}>
                       {open === s.id ? 'Hide' : 'Manage'}
@@ -298,14 +318,14 @@ export default function AdminInventory() {
                 </tr>
                 {open === s.id && (
                   <tr className="ai-bom-row">
-                    <td colSpan={7}>
+                    <td colSpan={9}>
                       <Detail id={s.id} all={stock} onChanged={load} setError={setError} />
                     </td>
                   </tr>
                 )}
               </React.Fragment>
             ))}
-            {shown.length === 0 && <tr><td colSpan={7}>No stock items here yet.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={9}>No stock items here yet.</td></tr>}
           </tbody>
         </table>
 

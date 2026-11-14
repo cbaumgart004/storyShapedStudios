@@ -6,8 +6,35 @@
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
   font-family: system-ui, sans-serif;
+  /* Its own light ground: the site's page is dark, and this tool's text and
+     borders are dark, so without one it read as dark on black. */
+  max-width: none;
+  min-height: 100vh;
+  background: #fafafa;
   color: #1a1a1a;
+  color-scheme: light;
 }
+
+.admin-inventory > * {
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-inventory input,
+.admin-inventory select,
+.admin-inventory button,
+.admin-inventory textarea {
+  color: #1a1a1a;
+  background: #fff;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+
+.admin-inventory button { cursor: pointer; padding: 0.25rem 0.6rem; }
+.admin-inventory button:disabled { opacity: 0.55; cursor: default; }
+
+.ai-ids { font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: nowrap; }
 
 .ai-header {
   display: flex;
