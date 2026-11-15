@@ -1,218 +1,125 @@
 /* src/styles/AdminInventory.css
-   Minimal internal admin tool — deliberately plain, not a branded page. */
+   The Stock page in the studio's own look: the dark case ground, bone text and
+   uranium accents of the admin pages (AdminForms.css), so nothing glares. */
+@import url('https://fonts.googleapis.com/css2?family=Poiret+One&family=Jost:wght@400;500;600&display=swap');
 
 .admin-inventory {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
-  font-family: system-ui, sans-serif;
-  /* Its own light ground: the site's page is dark, and this tool's text and
-     borders are dark, so without one it read as dark on black. */
-  max-width: none;
+  --case: #0A0F0B;
+  --case-raised: #111A13;
+  --case-line: #1C2A1E;
+  --bone: #D9F2D9;
+  --bone-muted: #8FA894;
+  --uranium: #00FB00;
+  --uranium-dim: #2FAE37;
+  --on-uranium: #04140A;
+  --draft: #B7791F;
+  --warn: #E0645C;
+  --font-display: 'Poiret One', 'Century Gothic', sans-serif;
+  --font-body: 'Jost', 'Futura', 'Century Gothic', 'Segoe UI', sans-serif;
   min-height: 100vh;
-  background: #fafafa;
-  color: #1a1a1a;
-  color-scheme: light;
+  padding: 2rem 1.5rem 4rem;
+  background: var(--case);
+  color: var(--bone);
+  font-family: var(--font-body);
+  color-scheme: dark;
 }
 
-.admin-inventory > * {
-  max-width: 1000px;
-  margin-left: auto;
-  margin-right: auto;
-}
+.admin-inventory > * { max-width: 1100px; margin-left: auto; margin-right: auto; }
+.admin-inventory * { box-sizing: border-box; }
+.admin-inventory a { color: var(--uranium-dim); }
 
 .admin-inventory input,
 .admin-inventory select,
 .admin-inventory button,
 .admin-inventory textarea {
-  color: #1a1a1a;
-  background: #fff;
-  border: 1px solid #bbb;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--bone);
+  background: var(--case-raised);
+  border: 1px solid var(--case-line);
   border-radius: 4px;
+  padding: 0.35rem 0.6rem;
 }
-
-.admin-inventory button { cursor: pointer; padding: 0.25rem 0.6rem; }
-.admin-inventory button:disabled { opacity: 0.55; cursor: default; }
+.admin-inventory input[type='checkbox'] { accent-color: var(--uranium-dim); padding: 0; }
+.admin-inventory button { cursor: pointer; }
+.admin-inventory button:hover:not(:disabled) { border-color: var(--uranium-dim); }
+.admin-inventory button:disabled { opacity: 0.5; cursor: default; }
+.admin-inventory :is(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--uranium); outline-offset: 2px; }
 
 .ai-ids { font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: nowrap; }
 
-.ai-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-}
-
-.ai-header .eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.75rem;
-  color: #777;
-  margin: 0 0 0.25rem;
-}
-
-.ai-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-.ai-back-link {
-  font-size: 0.9rem;
-  color: #555;
-  text-decoration: none;
-}
-
-.ai-back-link:hover {
-  text-decoration: underline;
-}
+.ai-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.5rem; }
+.ai-header .eyebrow { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; color: var(--bone-muted); margin: 0 0 0.25rem; }
+.ai-header h1 { margin: 0; font-family: var(--font-display); font-size: 2.2rem; font-weight: 400; color: var(--uranium); text-shadow: 0 0 12px rgba(0, 251, 0, 0.35); }
+.ai-back-link { font-size: 0.9rem; color: var(--bone-muted); text-decoration: none; }
+.ai-back-link:hover { color: var(--bone); text-decoration: underline; }
 
 .ai-error {
-  background: #fdecea;
-  border: 1px solid #f5c2c0;
-  color: #7a1f1f;
+  background: rgba(224, 100, 92, 0.12);
+  border: 1px solid var(--warn);
+  color: #F3B5B0;
   padding: 0.6rem 0.9rem;
   border-radius: 6px;
   margin-bottom: 1.5rem;
 }
 
-.ai-section {
-  margin-bottom: 3rem;
-}
+.ai-section { margin-bottom: 3rem; }
+.ai-section h2,
+.ai-section h3 { font-family: var(--font-display); font-weight: 400; color: var(--uranium-dim); }
+.ai-section h2 { font-size: 1.6rem; margin: 0 0 0.75rem; }
+.ai-section h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; }
 
-.ai-section h2 {
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-}
-
-.ai-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 1rem;
-}
-
+.ai-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
 .ai-table th,
-.ai-table td {
-  text-align: left;
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid #e5e5e5;
-  font-size: 0.9rem;
-}
+.ai-table td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--case-line); font-size: 0.9rem; }
+.ai-table th { color: var(--bone-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem; }
+.ai-table tbody tr:hover { background: var(--case-raised); }
+.ai-table input[type='number'] { width: 80px; }
+.ai-delta-input { width: 70px; margin-right: 0.4rem; }
 
-.ai-table input[type='number'] {
-  width: 80px;
-}
-
-.ai-delta-input {
-  width: 70px;
-  margin-right: 0.4rem;
-}
-
-.ai-low-stock {
-  background: #fff6e5;
-}
-
+.ai-low-stock { background: rgba(183, 121, 31, 0.12); }
 .ai-low-badge {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  background: #e08a00;
-  color: #fff;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  display: inline-block; margin-left: 0.5rem; padding: 0.1rem 0.4rem; border-radius: 4px;
+  background: var(--draft); color: var(--case); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
 }
+.ai-bom-row td { background: var(--case-raised); }
 
-.ai-bom-row td {
-  background: #fafafa;
-}
+.ai-bom-list { list-style: none; margin: 0 0 0.75rem; padding: 0; font-size: 0.9rem; }
+.ai-bom-list li { padding: 0.2rem 0; }
 
-.ai-bom-list {
-  list-style: none;
-  margin: 0 0 0.75rem;
-  padding: 0;
-  font-size: 0.9rem;
-}
+.admin-inventory .ai-remove-link { margin-left: 0.6rem; background: none; border: none; color: var(--warn); font-size: 0.85rem; padding: 0; }
 
-.ai-bom-list li {
-  padding: 0.2rem 0;
-}
+.ai-inline-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
 
-.ai-remove-link {
-  margin-left: 0.6rem;
-  background: none;
-  border: none;
-  color: #a33;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
-}
-
-.ai-inline-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.ai-inline-form input,
-.ai-inline-form select {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.ai-inline-form button,
-.ai-table button {
-  padding: 0.35rem 0.7rem;
-  border: 1px solid #333;
-  background: #1a1a1a;
-  color: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.ai-inline-form button:hover,
-.ai-table button:hover {
-  background: #333;
-}
-
-/* Stock Item detail (one item's actions, Bill of Materials and history). */
-.ai-detail h3 {
-  margin: 1.25rem 0 0.5rem;
-  font-size: 1rem;
-}
-.ai-detail h3:first-child {
-  margin-top: 0;
-}
+.ai-detail h3 { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
+.ai-detail h3:first-child { margin-top: 0; }
 .ai-hint,
-.ai-muted {
-  color: #666;
-  font-size: 0.85rem;
-}
-.ai-hint {
-  margin: 0.25rem 0 0.5rem;
-}
-.ai-history {
-  font-size: 0.85rem;
-}
-.ai-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
+.ai-muted { color: var(--bone-muted); font-size: 0.85rem; }
+.ai-hint { margin: 0.25rem 0 0.5rem; }
+.ai-history { font-size: 0.85rem; }
+.ai-check { display: inline-flex; align-items: center; gap: 0.35rem; }
 
 /* Marketplaces: what a check would send, scrollable rather than page-wide. */
-.ai-pre {
-  max-height: 20rem;
-  overflow: auto;
-  font-size: 0.8rem;
-  white-space: pre;
-}
+.ai-pre { max-height: 20rem; overflow: auto; font-size: 0.8rem; white-space: pre; background: var(--case-raised); padding: 0.5rem; border-radius: 4px; }
 
-/* Pairing review: Save stays in reach at the top while the list scrolls. */
-.mk-review-bar { position: sticky; top: 0; z-index: 2; background: var(--ai-bg, #fff); padding-block: 8px; border-bottom: 1px solid var(--ai-line, #ddd); }
-.mk-save { font-weight: 600; }
-.mk-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; color: #1c8f25; white-space: nowrap; }
+/* Page views and the match review's filters: one row of toggles. */
+.mk-tabs { display: inline-flex; flex-wrap: wrap; gap: 0; }
+.admin-inventory .mk-tabs button { border-radius: 0; margin-left: -1px; }
+.admin-inventory .mk-tabs button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.admin-inventory .mk-tabs button:last-child { border-radius: 0 4px 4px 0; }
+.admin-inventory .mk-tabs button.is-on { background: var(--uranium-dim); color: var(--on-uranium); border-color: var(--uranium-dim); font-weight: 600; }
+.ai-views { display: flex; margin-bottom: 1.5rem; }
+
+/* Match review: the bar stays in reach while the list scrolls. */
+.mk-review-bar { position: sticky; top: 0; z-index: 2; background: var(--case); padding-block: 8px; border-bottom: 1px solid var(--case-line); }
+.admin-inventory .mk-save,
+.admin-inventory .mk-go { background: var(--uranium-dim); color: var(--on-uranium); border-color: var(--uranium-dim); font-weight: 600; }
+.mk-id { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--uranium-dim); display: block; }
+.mk-match td:first-child { width: 2rem; }
+.mk-match td:nth-child(2),
+.mk-match td:nth-child(3) { width: 34%; }
+.mk-match select { max-width: 100%; }
+.mk-score { font-weight: 600; }
+.mk-flagged { box-shadow: inset 3px 0 0 var(--draft); }
+.mk-flag { color: var(--draft); font-size: 0.8rem; margin-top: 2px; }
+.mk-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; color: var(--uranium-dim); white-space: nowrap; }

@@ -182,8 +182,7 @@ export default function AdminInventory() {
   const [listings, setListings] = useState(null) // Map sku -> [{ title, status, option }]
   const [listingDocs, setListingDocs] = useState(null)
   const [listingError, setListingError] = useState('')
-  // Listing doc id -> its Etsy and eBay listing IDs, from the Marketplace links.
-  const [marketIds, setMarketIds] = useState(null)
+  const [view, setView] = useState('match') // match | stock | shops
   onSignedOut = () => setSignedIn(false)
 
   const load = useCallback(async () => {
@@ -197,17 +196,8 @@ export default function AdminInventory() {
   useEffect(() => {
     if (signedIn) loadListings().then((l) => { setListings(l.bySku); setListingDocs(l.docs) }).catch((err) => setListingError(err.message))
   }, [signedIn])
-  useEffect(() => {
-    if (!signedIn || !HAS_BACKEND) return
-    apiFetch('/api/marketplace/status').then((st) => {
-      const m = new Map()
-      for (const l of st.links ?? []) {
-        const k = String(l.listing_doc_id)
-        m.set(k, { ...(m.get(k) ?? {}), [l.provider]: l.external_id })
-      }
-      setMarketIds(m)
-    }).catch(() => setMarketIds(new Map()))
-  }, [signedIn])
+  // Listing doc id -> the Etsy and eBay IDs that Listing holds (its own fields).
+  const marketIds = new Map((listingDocs ?? []).map((d) => [String(d.id), { etsy: d.data?.etsyListingId, ebay: d.data?.ebayItemId }]))
   const known = new Set(stock.map((s) => s.sku).filter(Boolean))
   const orphans = listings ? [...listings.keys()].filter((sku) => !known.has(sku)) : []
 
@@ -267,6 +257,15 @@ export default function AdminInventory() {
         <p className="ai-error">Listing SKUs with no stock item (a Marketplace push would refuse these): {orphans.join(', ')}</p>
       )}
 
+      <nav className="mk-tabs ai-views" aria-label="Stock page">
+        {[['match', 'Match Etsy and eBay'], ['stock', 'Stock'], ['shops', 'Etsy and eBay listings']].map(([k, label]) => (
+          <button key={k} type="button" className={view === k ? 'is-on' : ''} aria-pressed={view === k} onClick={() => setView(k)}>{label}</button>
+        ))}
+      </nav>
+
+      {view === 'match' && <Marketplaces apiFetch={apiFetch} listings={listingDocs} part="match" />}
+      {view === 'shops' && <Marketplaces apiFetch={apiFetch} listings={listingDocs} />}
+      {view === 'stock' && (
       <section className="ai-section">
         <div className="ai-inline-form">
           <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Show">
@@ -345,8 +344,7 @@ export default function AdminInventory() {
           <button type="submit">Add</button>
         </form>
       </section>
-
-      <Marketplaces apiFetch={apiFetch} listings={listingDocs} />
+      )}
       </>
       )}
     </div>

@@ -35,7 +35,8 @@ function Outcome({ name, r }) {
   return <p><strong>{name}:</strong> {r.created ? 'created' : 'updated'} as listing {r.listingId}. {r.note}</p>
 }
 
-export default function Marketplaces({ apiFetch, listings }) {
+// part: 'match' (the Etsy and eBay match review) or 'shops' (checks, pushes, sales, snapshots).
+export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
   const [status, setStatus] = useState(null)
   const [results, setResults] = useState({}) // doc id -> answer
   const [busy, setBusy] = useState('')
@@ -44,7 +45,7 @@ export default function Marketplaces({ apiFetch, listings }) {
   const [source, setSource] = useState('etsy')
   const [suggested, setSuggested] = useState([])
   const [pick, setPick] = useState({}) // externalId -> approved pair
-  const [manual, setManual] = useState({ provider: 'etsy', externalId: '', listing: '' })
+  const [manual, setManual] = useState({ provider: 'ebay', externalId: '', listing: '' })
   const [paired, setPaired] = useState(null)
   const [square, setSquare] = useState(null)
 
@@ -65,7 +66,6 @@ export default function Marketplaces({ apiFetch, listings }) {
   const [gate, setGate] = useState(null) // { id, etsy, ebay, sure }
   const openGate = (doc) => setGate({ id: doc.id, etsy: doc.data?.channels?.etsy !== false, ebay: doc.data?.channels?.ebay !== false, sure: false })
   const gateOnly = () => ['etsy', 'ebay'].filter((p) => gate?.[p])
-  const linked = (doc, provider) => status?.links.find((l) => l.provider === provider && l.listing_doc_id === String(doc.id))
 
   // Changes Listing drafts; the editor's list shows them after a reload.
   // The review list comes from the server each time, so what was saved is
@@ -78,13 +78,13 @@ export default function Marketplaces({ apiFetch, listings }) {
       .then((r) => { setSuggested(r.suggested ?? []); setPick({}); setChoice({}) })
       .catch((e) => setError(e.message)).finally(() => setBusy(''))
   }, [apiFetch])
-  useEffect(() => { loadSuggestions('ebay') }, [loadSuggestions])
+  useEffect(() => { if (part === 'match') loadSuggestions('ebay') }, [loadSuggestions, part])
   const pair = (pairs) => run('pair', async () => {
     const r = await apiFetch(`${API}/pair`, { method: 'POST', body: { pairs } })
     setPaired(r.results)
     await loadSuggestions(reviewFrom)
     const failed = r.results.filter((p) => p.error).length
-    setNote(`${r.paired} paired and saved${failed ? `, ${failed} not (below)` : ''}. The list above is read back from the server.`)
+    setNote(`${r.paired} matched and saved${failed ? `, ${failed} not (below)` : ''}. The list is read back from the server.`)
   })
 
   const importCsv = (file) => run('csv', async () => {
@@ -93,9 +93,133 @@ export default function Marketplaces({ apiFetch, listings }) {
     setNote(`${r.kept} ${source === 'etsy' ? 'Etsy' : 'eBay'} rows kept as a snapshot${r.skipped ? `; ${r.skipped} had no listing number, SKU or title` : ''}.`)
   })
 
+  // The match review: each eBay listing beside the Etsy listing it looks like.
+  // Every Etsy listing already is a Listing (the Etsy import made them), so a
+  // match is an eBay listing joining the Listing that holds its Etsy twin;
+  // that Listing then carries both IDs. Rows that deserve a look are flagged.
+  const [show, setShow] = useState('all') // all | look | sure
+  const byNumber = new Map((listings ?? []).map((d) => [d.data?.listingNumber, d]))
+  const aimed = {}
+  for (const s of suggested) { const n = choice[s.externalId] ?? s.listings[0].number; aimed[n] = (aimed[n] ?? 0) + 1 }
+  const flagsOf = (s, l) => [
+    aimed[l.number] > 1 && 'Another eBay item is matched to this Etsy listing too',
+    l.score < 0.9 && 'Weaker match',
+    !l.by.includes('sku') && s.skus.length > 0 && 'Same title, but the eBay SKU is not on this Listing',
+    !l.by.includes('sku') && !l.by.includes('title') && 'Only similar wording',
+  ].filter(Boolean)
+  const rows = suggested.map((s) => {
+    const number = choice[s.externalId] ?? s.listings[0].number
+    const l = s.listings.find((x) => x.number === number) ?? s.listings[0]
+    return { s, l, flags: flagsOf(s, l) }
+  })
+  const shownRows = rows.filter((r) => (show === 'look' ? r.flags.length : show === 'sure' ? !r.flags.length : true))
+  const count = (f) => (listings ?? []).filter((d) => f(Boolean(d.data?.etsyListingId), Boolean(d.data?.ebayItemId))).length
+  const approved = Object.values(pick).filter(Boolean)
+
+  if (part === 'match') return (
+    <section className="ai-section">
+      <h2>Match Etsy and eBay</h2>
+      <p className="ai-hint">
+        {listings ? `${count((e, b) => e && b)} matched (on both), ${count((e, b) => e && !b)} on Etsy only, ${count((e, b) => !e && b)} on eBay only. ` : ''}
+        Each row is an eBay listing beside the Etsy listing it looks like. Match joins them into one Listing that holds both IDs;
+        it fills only what the Listing lacks and never changes a quantity. Nothing is sent to Etsy or eBay.
+      </p>
+      {error && <p className="ai-error">{error}</p>}
+      {note && <p className="ai-hint">{note}</p>}
+      <div className="ai-inline-form mk-review-bar">
+        <div className="mk-tabs" role="group" aria-label="Show">
+          {[['all', `All ${rows.length}`], ['look', `Needs a look ${rows.filter((r) => r.flags.length).length}`], ['sure', `Sure ${rows.filter((r) => !r.flags.length).length}`]].map(([k, label]) => (
+            <button key={k} type="button" className={show === k ? 'is-on' : ''} aria-pressed={show === k} onClick={() => setShow(k)}>{label}</button>
+          ))}
+        </div>
+        <button type="button" disabled={!rows.length} onClick={() => setPick(Object.fromEntries(rows.filter((r) => !r.flags.length)
+          .map(({ s, l }) => [s.externalId, { provider: s.provider, externalId: s.externalId, listing: l.number }])))}>Tick every sure match</button>
+        <button type="button" disabled={!approved.length} onClick={() => setPick({})}>Clear ticks</button>
+        <button type="button" className="mk-save" disabled={busy === 'pair' || !approved.length} onClick={() => pair(approved)}>
+          {busy === 'pair' ? 'Matching…' : `Match ${approved.length || ''} ticked`}
+        </button>
+        <button type="button" disabled={busy === 'suggest'} onClick={() => loadSuggestions('ebay')}>{busy === 'suggest' ? 'Reading…' : 'Reload'}</button>
+      </div>
+      {busy === 'suggest' && !rows.length && <p className="ai-hint">Reading the eBay and Etsy listings…</p>}
+      {busy !== 'suggest' && !rows.length && <p className="ai-hint">Nothing left to match: every eBay listing that looks like an Etsy one is matched.</p>}
+      {shownRows.length > 0 && (
+        <div className="mk-scroll">
+          <table className="ai-table mk-match">
+            <thead><tr><th aria-label="Tick" /><th>Etsy</th><th>eBay</th><th>Why</th><th /></tr></thead>
+            <tbody>
+              {shownRows.map(({ s, l, flags }) => {
+                const doc = byNumber.get(l.number)
+                return (
+                  <tr key={`${s.provider}:${s.externalId}`} className={flags.length ? 'mk-flagged' : ''}>
+                    <td><input type="checkbox" aria-label={`Tick eBay ${s.externalId} with Listing ${l.number}`} checked={!!pick[s.externalId]}
+                      onChange={(e) => setPick((m) => ({ ...m, [s.externalId]: e.target.checked ? { provider: s.provider, externalId: s.externalId, listing: l.number } : undefined }))} /></td>
+                    <td>
+                      <code className="mk-id">{doc?.data?.etsyListingId ?? 'no Etsy ID'}</code>
+                      {s.listings.length > 1 ? (
+                        <select value={l.number ?? ''} aria-label={`Etsy listing for eBay ${s.externalId}`} onChange={(e) => {
+                          const n = Number(e.target.value)
+                          setChoice((m) => ({ ...m, [s.externalId]: n }))
+                          setPick((m) => (m[s.externalId] ? { ...m, [s.externalId]: { ...m[s.externalId], listing: n } } : m))
+                        }}>
+                          {s.listings.map((x) => <option key={x.number} value={x.number ?? ''}>{Math.round(x.score * 100)}%: {x.title || x.slug}</option>)}
+                        </select>
+                      ) : <div>{l.title || l.slug}</div>}
+                      <span className="ai-muted">Listing {l.number}</span>
+                    </td>
+                    <td>
+                      <code className="mk-id">{s.externalId}</code>
+                      <div>{s.title}</div>
+                      {s.skus.length > 0 && <span className="ai-muted">SKU {s.skus.join(', ')}</span>}
+                    </td>
+                    <td>
+                      <span className="mk-score">{Math.round(l.score * 100)}%</span>{' '}
+                      <span className="ai-muted">same {l.by.map((b) => (b === 'words' ? 'wording' : b === 'sku' ? 'SKU' : b)).join(' and ')}</span>
+                      {flags.map((f) => <div key={f} className="mk-flag">{f}</div>)}
+                    </td>
+                    <td><button type="button" className="mk-go" disabled={busy === 'pair'} onClick={() => pair([{ provider: s.provider, externalId: s.externalId, listing: l.number }])}>Match</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <h3>Match by hand</h3>
+      <div className="ai-inline-form">
+        <select value={manual.provider} onChange={(e) => setManual((m) => ({ ...m, provider: e.target.value }))} aria-label="Marketplace to pair">
+          <option value="ebay">eBay</option>
+          <option value="etsy">Etsy</option>
+        </select>
+        <input value={manual.externalId} onChange={(e) => setManual((m) => ({ ...m, externalId: e.target.value }))}
+          placeholder={manual.provider === 'etsy' ? 'Etsy listing ID' : 'eBay item ID'} aria-label="Marketplace listing ID" />
+        <input type="number" min="1" value={manual.listing} onChange={(e) => setManual((m) => ({ ...m, listing: e.target.value }))}
+          placeholder="Listing No." aria-label="Listing number" />
+        <button type="button" disabled={busy === 'pair' || !manual.externalId.trim() || !manual.listing}
+          onClick={() => pair([{ ...manual, listing: Number(manual.listing) }])}>Match</button>
+      </div>
+      {paired && (
+        <ul className="ai-bom-list">
+          {paired.map((p) => (
+            <li key={`${p.provider}:${p.externalId}:${p.listing}`}>
+              {p.error ? <span className="ai-error">{p.error}</span> : (
+                <>
+                  <strong>Listing {p.listing} matched with {p.provider === 'etsy' ? 'Etsy' : 'eBay'} {p.externalId}.</strong>
+                  {' '}Filled: {p.filled.length ? p.filled.join(', ') : 'nothing'}.
+                  {p.kept.length > 0 && <> Kept the Listing&apos;s own: {p.kept.join(', ')}.</>}
+                  {p.variationsNotMatched.length > 0 && <> Variations with no match: {p.variationsNotMatched.join(', ')}.</>}
+                  {p.quantities.map((q) => <div key={q.sku} className="ai-hint">{q.sku}: {q[p.provider]} on {p.provider === 'etsy' ? 'Etsy' : 'eBay'}, {q.stock ?? 'no stock item'} in stock.</div>)}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+
   return (
     <section className="ai-section">
-      <h2>Marketplaces</h2>
+      <h2>Etsy and eBay listings</h2>
       {status && (
         <p className="ai-hint">
           {status.live ? 'Live: pushes and sales reach Etsy and eBay.' : 'Dry run: nothing is sent to Etsy or eBay until MARKETPLACE_SYNC is on.'}
@@ -120,7 +244,7 @@ export default function Marketplaces({ apiFetch, listings }) {
       </div>
 
       <table className="ai-table">
-        <thead><tr><th>No.</th><th>Listing</th><th>Status</th><th>Sell on</th><th>Linked</th><th /></tr></thead>
+        <thead><tr><th>No.</th><th>Listing</th><th>Status</th><th>Sell on</th><th>IDs</th><th /></tr></thead>
         <tbody>
           {(listings ?? []).map((doc) => (
             <React.Fragment key={doc.id}>
@@ -130,7 +254,8 @@ export default function Marketplaces({ apiFetch, listings }) {
                 <td>{STATUS[doc.status] ?? doc.status}</td>
                 <td>{CHANNELS.filter(([k]) => doc.data?.channels?.[k] !== false).map(([, l]) => l).join(', ')}</td>
                 <td>
-                  {['etsy', 'ebay'].map((p) => linked(doc, p) && <div key={p}>{p === 'etsy' ? 'Etsy' : 'eBay'} {linked(doc, p).external_id}</div>)}
+                  {doc.data?.etsyListingId && <div>Etsy <code className="mk-id">{doc.data.etsyListingId}</code></div>}
+                  {doc.data?.ebayItemId && <div>eBay <code className="mk-id">{doc.data.ebayItemId}</code></div>}
                 </td>
                 <td>
                   <button type="button" disabled={busy === doc.id} onClick={() => check(doc)}>{busy === doc.id ? 'Checking…' : 'Check'}</button>
@@ -222,85 +347,6 @@ export default function Marketplaces({ apiFetch, listings }) {
         })}>Import eBay snapshots as Listings</button>
       </div>
 
-      <h3>Pair a Listing with its Etsy or eBay listing</h3>
-      <p className="ai-hint">
-        Pairing fills only what the Listing lacks. A title or description that differs is kept as that Marketplace&apos;s own;
-        photos the Listing has stay; quantity is never changed, only shown where it differs from stock.
-      </p>
-      <div className="ai-inline-form mk-review-bar">
-        <label>Review matches from{' '}
-          <select value={reviewFrom} onChange={(e) => loadSuggestions(e.target.value)} aria-label="Marketplace to review">
-            <option value="ebay">eBay</option>
-            <option value="etsy">Etsy</option>
-          </select>
-        </label>
-        <button type="button" disabled={busy === 'suggest'} onClick={() => loadSuggestions(reviewFrom)}>Reload</button>
-        <button type="button" disabled={!suggested.length} onClick={() => setPick(Object.fromEntries(suggested
-          .filter((s) => s.listings[0].score >= 0.9).map((s) => [s.externalId, { provider: s.provider, externalId: s.externalId, listing: (choice[s.externalId] ?? s.listings[0].number) }])))}>Approve every sure match</button>
-        <button type="button" className="mk-save" disabled={busy === 'pair' || !Object.values(pick).some(Boolean)}
-          onClick={() => pair(Object.values(pick).filter(Boolean))}>Save {Object.values(pick).filter(Boolean).length || ''} approved</button>
-        <span className="ai-hint">{suggested.length} to review, best guess first. Saving pairs each approved one; it then drops off this list, read back from the server.</span>
-      </div>
-      {suggested.length > 0 && (
-        <table className="ai-table">
-          <thead><tr><th>Approve</th><th>{reviewFrom === 'etsy' ? 'Etsy' : 'eBay'} listing</th><th>Pair with Listing</th></tr></thead>
-          <tbody>
-            {suggested.map((s) => {
-              const number = choice[s.externalId] ?? s.listings[0].number
-              const l = s.listings.find((x) => x.number === number) ?? s.listings[0]
-              return (
-                <tr key={`${s.provider}:${s.externalId}`}>
-                  <td><input type="checkbox" aria-label={`Approve ${s.externalId} with Listing ${l.number}`} checked={!!pick[s.externalId]}
-                    onChange={(e) => setPick((m) => ({ ...m, [s.externalId]: e.target.checked ? { provider: s.provider, externalId: s.externalId, listing: l.number } : undefined }))} /></td>
-                  <td>{s.externalId}: {s.title}{s.skus.length ? ` (${s.skus.join(', ')})` : ''}</td>
-                  <td>
-                    {s.listings.length > 1 ? (
-                      <select value={l.number ?? ''} aria-label={`Listing for ${s.externalId}`} onChange={(e) => {
-                        const n = Number(e.target.value)
-                        setChoice((m) => ({ ...m, [s.externalId]: n }))
-                        setPick((m) => (m[s.externalId] ? { ...m, [s.externalId]: { ...m[s.externalId], listing: n } } : m))
-                      }}>
-                        {s.listings.map((x) => <option key={x.number} value={x.number ?? ''}>{x.number}: {x.title || x.slug}</option>)}
-                      </select>
-                    ) : <>Listing {l.number}: {l.title || l.slug}</>}
-                    {' '}{l === s.listings[0] && <span className="mk-badge">Suggested</span>}
-                    {' '}<span className="ai-muted">{Math.round(l.score * 100)}% · same {l.by.map((b) => (b === 'words' ? 'wording' : b)).join(' and ')}</span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-      <div className="ai-inline-form">
-        <select value={manual.provider} onChange={(e) => setManual((m) => ({ ...m, provider: e.target.value }))} aria-label="Marketplace to pair">
-          <option value="etsy">Etsy</option>
-          <option value="ebay">eBay</option>
-        </select>
-        <input value={manual.externalId} onChange={(e) => setManual((m) => ({ ...m, externalId: e.target.value }))}
-          placeholder={manual.provider === 'etsy' ? 'Etsy listing ID' : 'eBay item ID'} aria-label="Marketplace listing ID" />
-        <input type="number" min="1" value={manual.listing} onChange={(e) => setManual((m) => ({ ...m, listing: e.target.value }))}
-          placeholder="Listing No." aria-label="Listing number" />
-        <button type="button" disabled={busy === 'pair' || !manual.externalId.trim() || !manual.listing}
-          onClick={() => pair([{ ...manual, listing: Number(manual.listing) }])}>Pair</button>
-      </div>
-      {paired && (
-        <ul className="ai-bom-list">
-          {paired.map((p) => (
-            <li key={`${p.provider}:${p.externalId}:${p.listing}`}>
-              {p.error ? <span className="ai-error">{p.error}</span> : (
-                <>
-                  <strong>Listing {p.listing} paired with {p.provider === 'etsy' ? 'Etsy' : 'eBay'} {p.externalId}.</strong>
-                  {' '}Filled: {p.filled.length ? p.filled.join(', ') : 'nothing'}.
-                  {p.kept.length > 0 && <> Kept the Listing&apos;s own: {p.kept.join(', ')}.</>}
-                  {p.variationsNotMatched.length > 0 && <> Variations with no match: {p.variationsNotMatched.join(', ')}.</>}
-                  {p.quantities.map((q) => <div key={q.sku} className="ai-hint">{q.sku}: {q[p.provider]} on {p.provider === 'etsy' ? 'Etsy' : 'eBay'}, {q.stock ?? 'no stock item'} in stock.</div>)}
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   )
 }
