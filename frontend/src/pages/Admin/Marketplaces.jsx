@@ -79,6 +79,28 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
       .catch((e) => setError(e.message)).finally(() => setBusy(''))
   }, [apiFetch])
   useEffect(() => { if (part === 'match') loadSuggestions('ebay') }, [loadSuggestions, part])
+
+  // Duplicates: Listings an eBay import made for pieces an Etsy Listing
+  // already is. A merge moves the eBay item id to the Etsy Listing and records
+  // eBay's fields there; the duplicate stays as a draft, its id cleared.
+  const [dups, setDups] = useState([])
+  const [mergePick, setMergePick] = useState({}) // from number -> { from, into }
+  const [mergeChoice, setMergeChoice] = useState({}) // from number -> into number, when not the best guess
+  const [merged, setMerged] = useState(null)
+  const loadDups = useCallback(() => {
+    setBusy('dups')
+    return apiFetch(`${API}/duplicates`)
+      .then((r) => { setDups(r.duplicates ?? []); setMergePick({}); setMergeChoice({}) })
+      .catch((e) => setError(e.message)).finally(() => setBusy(''))
+  }, [apiFetch])
+  useEffect(() => { if (part === 'match') loadDups() }, [loadDups, part])
+  const merge = (merges) => run('merge', async () => {
+    const r = await apiFetch(`${API}/merge`, { method: 'POST', body: { merges } })
+    setMerged(r.results)
+    await loadDups()
+    const failed = r.results.filter((m) => m.error).length
+    setNote(`${r.merged} merged and saved${failed ? `, ${failed} not (below)` : ''}. The list is read back from the server.`)
+  })
   const pair = (pairs) => run('pair', async () => {
     const r = await apiFetch(`${API}/pair`, { method: 'POST', body: { pairs } })
     setPaired(r.results)
@@ -115,14 +137,31 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
   const shownRows = rows.filter((r) => (show === 'look' ? r.flags.length : show === 'sure' ? !r.flags.length : true))
   const count = (f) => (listings ?? []).filter((d) => f(Boolean(d.data?.etsyListingId), Boolean(d.data?.ebayItemId))).length
   const approved = Object.values(pick).filter(Boolean)
+  const intoAimed = {}
+  for (const d of dups) { const n = mergeChoice[d.from.number] ?? d.into[0].number; intoAimed[n] = (intoAimed[n] ?? 0) + 1 }
+  const dupRows = dups.map((d) => {
+    const number = mergeChoice[d.from.number] ?? d.into[0].number
+    const l = d.into.find((x) => x.number === number) ?? d.into[0]
+    const flags = [
+      d.from.status !== 'draft' && 'Published: unpublish it in the editor before merging',
+      intoAimed[l.number] > 1 && 'Another eBay-only Listing is aimed at this Etsy Listing too',
+      aimed[l.number] > 0 && 'An unmatched eBay listing above is aimed at this Etsy Listing too',
+      l.score < 0.9 && 'Weaker match',
+      !l.by.includes('sku') && !l.by.includes('title') && 'Only similar wording',
+    ].filter(Boolean)
+    return { d, l, flags }
+  })
+  const shownDups = dupRows.filter((r) => (show === 'look' ? r.flags.length : show === 'sure' ? !r.flags.length : true))
+  const mergeTicked = Object.values(mergePick).filter(Boolean)
 
   if (part === 'match') return (
     <section className="ai-section">
       <h2>Match Etsy and eBay</h2>
       <p className="ai-hint">
         {listings ? `${count((e, b) => e && b)} matched (on both), ${count((e, b) => e && !b)} on Etsy only, ${count((e, b) => !e && b)} on eBay only. ` : ''}
-        Each row is an eBay listing beside the Etsy listing it looks like. Match joins them into one Listing that holds both IDs;
-        it fills only what the Listing lacks and never changes a quantity. Nothing is sent to Etsy or eBay.
+        Each row is an eBay listing beside the Etsy listing it looks like. Match joins them into one Listing that holds both IDs
+        and records each Marketplace&apos;s fields beside the Listing&apos;s own. Nothing of the Listing&apos;s is filled or overwritten,
+        no quantity changes, and nothing is sent to Etsy or eBay. Choose what the site shows per field in the editor (Site tab, Shown on the site).
       </p>
       {error && <p className="ai-error">{error}</p>}
       {note && <p className="ai-hint">{note}</p>}
@@ -184,6 +223,75 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
           </table>
         </div>
       )}
+      <h3>Merge duplicate Listings</h3>
+      <p className="ai-hint">
+        Each row is a Listing an eBay import made, beside the Etsy Listing it looks like. Merge moves its eBay item ID to the Etsy Listing
+        and records eBay&apos;s fields there; the duplicate stays as a draft with its eBay ID cleared, so nothing is lost. The filter above applies here too.
+      </p>
+      <div className="ai-inline-form">
+        <button type="button" disabled={!dupRows.length} onClick={() => setMergePick(Object.fromEntries(dupRows.filter((r) => !r.flags.length)
+          .map(({ d, l }) => [d.from.number, { from: d.from.number, into: l.number }])))}>Tick every sure merge</button>
+        <button type="button" disabled={!mergeTicked.length} onClick={() => setMergePick({})}>Clear ticks</button>
+        <button type="button" className="mk-save" disabled={busy === 'merge' || !mergeTicked.length} onClick={() => merge(mergeTicked)}>
+          {busy === 'merge' ? 'Merging…' : `Merge ${mergeTicked.length || ''} ticked`}
+        </button>
+        <button type="button" disabled={busy === 'dups'} onClick={loadDups}>{busy === 'dups' ? 'Reading…' : 'Reload'}</button>
+      </div>
+      {busy !== 'dups' && !dupRows.length && <p className="ai-hint">No duplicates: no eBay-only Listing looks like an Etsy-only one.</p>}
+      {shownDups.length > 0 && (
+        <div className="mk-scroll">
+          <table className="ai-table mk-match">
+            <thead><tr><th aria-label="Tick" /><th>Etsy Listing (keeps)</th><th>eBay-only Listing (merges in)</th><th>Why</th><th /></tr></thead>
+            <tbody>
+              {shownDups.map(({ d, l, flags }) => {
+                const blocked = d.from.status !== 'draft'
+                return (
+                  <tr key={d.from.number} className={flags.length ? 'mk-flagged' : ''}>
+                    <td><input type="checkbox" disabled={blocked} aria-label={`Tick Listing ${d.from.number} into Listing ${l.number}`} checked={!!mergePick[d.from.number]}
+                      onChange={(e) => setMergePick((m) => ({ ...m, [d.from.number]: e.target.checked ? { from: d.from.number, into: l.number } : undefined }))} /></td>
+                    <td>
+                      <code className="mk-id">{l.etsyListingId || 'no Etsy ID'}</code>
+                      {d.into.length > 1 ? (
+                        <select value={l.number ?? ''} aria-label={`Etsy Listing for Listing ${d.from.number}`} onChange={(e) => {
+                          const n = Number(e.target.value)
+                          setMergeChoice((m) => ({ ...m, [d.from.number]: n }))
+                          setMergePick((m) => (m[d.from.number] ? { ...m, [d.from.number]: { from: d.from.number, into: n } } : m))
+                        }}>
+                          {d.into.map((x) => <option key={x.number} value={x.number ?? ''}>{Math.round(x.score * 100)}%: {x.title || x.slug}</option>)}
+                        </select>
+                      ) : <div>{l.title || l.slug}</div>}
+                      <span className="ai-muted">Listing {l.number}</span>
+                    </td>
+                    <td>
+                      <code className="mk-id">{d.from.ebayItemId}</code>
+                      <div>{d.from.title || d.from.slug}</div>
+                      <span className="ai-muted">Listing {d.from.number}, {d.from.status}</span>
+                    </td>
+                    <td>
+                      <span className="mk-score">{Math.round(l.score * 100)}%</span>{' '}
+                      <span className="ai-muted">same {l.by.map((b) => (b === 'words' ? 'wording' : b === 'sku' ? 'SKU' : b)).join(' and ')}</span>
+                      {flags.map((f) => <div key={f} className="mk-flag">{f}</div>)}
+                    </td>
+                    <td><button type="button" className="mk-go" disabled={busy === 'merge' || blocked} onClick={() => merge([{ from: d.from.number, into: l.number }])}>Merge</button></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {merged && (
+        <ul className="ai-bom-list">
+          {merged.map((m) => (
+            <li key={`${m.from}:${m.into}`}>
+              {m.error ? <span className="ai-error">{m.error}</span> : (
+                <><strong>Listing {m.from} merged into Listing {m.into}: eBay {m.ebayItemId}.</strong>
+                  {m.differs.length > 0 && <> eBay differs on {m.differs.join(', ')}; pick what the site shows in the editor.</>}</>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       <h3>Match by hand</h3>
       <div className="ai-inline-form">
         <select value={manual.provider} onChange={(e) => setManual((m) => ({ ...m, provider: e.target.value }))} aria-label="Marketplace to pair">
@@ -204,8 +312,8 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
               {p.error ? <span className="ai-error">{p.error}</span> : (
                 <>
                   <strong>Listing {p.listing} matched with {p.provider === 'etsy' ? 'Etsy' : 'eBay'} {p.externalId}.</strong>
-                  {' '}Filled: {p.filled.length ? p.filled.join(', ') : 'nothing'}.
-                  {p.kept.length > 0 && <> Kept the Listing&apos;s own: {p.kept.join(', ')}.</>}
+                  {' '}Recorded {p.provider === 'etsy' ? 'Etsy' : 'eBay'}&apos;s {p.recorded.join(', ') || 'nothing'}.
+                  {p.differs.length > 0 && <> Differs from the Listing on {p.differs.join(', ')}; pick what the site shows in the editor.</>}
                   {p.variationsNotMatched.length > 0 && <> Variations with no match: {p.variationsNotMatched.join(', ')}.</>}
                   {p.quantities.map((q) => <div key={q.sku} className="ai-hint">{q.sku}: {q[p.provider]} on {p.provider === 'etsy' ? 'Etsy' : 'eBay'}, {q.stock ?? 'no stock item'} in stock.</div>)}
                 </>

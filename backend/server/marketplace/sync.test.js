@@ -186,7 +186,7 @@ test('GetSellerList XML is read as text, lists stay lists, and a Failure Ack thr
   await assert.rejects(failed.sellerList(1), /Auth token is invalid/)
 })
 
-test('eBay listings like a Listing are suggested, not made; a pair by Listing number fills what the Listing lacks', async () => {
+test('eBay listings like a Listing are suggested, not made; a pair by Listing number records eBay as a source and fills nothing', async () => {
   const items = [
     { ItemID: '201', Title: 'Blue Uranium Ring', Description: '<p>eBay words.</p>', SKU: 'RING-7', Quantity: '5', StartPrice: { '#text': '159.00', '@currencyID': 'USD' },
       ConditionID: '1000', PrimaryCategory: { CategoryID: '1234' }, PictureDetails: { PictureURL: ['https://i.ebayimg.com/r.jpg'] },
@@ -241,21 +241,25 @@ test('eBay listings like a Listing are suggested, not made; a pair by Listing nu
   assert.match(paired.results[3].error, /No Listing number 99/)
 
   const { rows: [r] } = await db.query(`SELECT version, data, published_data FROM documents WHERE slug = 'blue-ring'`)
-  const d = r.data
+  const d = r.data, e = d.sources.ebay
   assert.equal(r.version, 4)
-  assert.deepEqual([d.ebayItemId, d.title, d.description, d.ebay.title, d.ebay.description], ['201', 'Blue Ring', 'Etsy words.', 'Blue Uranium Ring', '<p>eBay words.</p>'])
-  assert.deepEqual([d.condition, d.ebayCategoryId, d.channels.ebay, d.tags[0].tag, d.photos.length], ['NEW', '1234', true, 'uranium glass', 1])
-  assert.deepEqual(d.ebay.itemSpecifics.map(({ name, value }) => [name, value]), [['Metal', 'Silver']])
-  assert.deepEqual([d.variations[0].price.amount, d.variations[0].ebayPrice.amount], [14900, 15900])
+  // The Listing's own fields are as they were: only the id and eBay's record are new.
+  assert.deepEqual([d.ebayItemId, d.title, d.description, d.ebay.title, d.condition, d.channels.ebay, d.photos.length], ['201', 'Blue Ring', 'Etsy words.', '', '', false, 1])
+  assert.deepEqual([d.variations[0].price.amount, d.variations[0].ebayPrice.amount], [14900, null])
+  assert.deepEqual([e.title, e.description, e.condition, e.ebayCategoryId, e.photos[0].src, e.variations[0].price.amount], ['Blue Uranium Ring', '<p>eBay words.</p>', 'NEW', '1234', 'https://i.ebayimg.com/r.jpg', 15900])
+  assert.deepEqual(e.ebay.itemSpecifics.map(({ name, value }) => [name, value]), [['Metal', 'Silver']])
+  assert.equal(d.sources.etsy, undefined, 'no Etsy snapshot of 11, so no Etsy record')
   assert.equal(r.published_data.ebayItemId, '', 'the published copy waits for Publish')
   assert.deepEqual(paired.results[0].quantities, [{ sku: 'RING-7', ebay: 4, stock: 3 }])
-  assert.ok(paired.results[0].kept.includes('photos (ebay has 1)'))
+  assert.ok(paired.results[0].differs.includes('title') && paired.results[0].differs.includes('photos'))
 
   const { rows: [bowl] } = await db.query(`SELECT data FROM documents WHERE slug = 'vaseline-bowl'`)
-  const b = bowl.data
-  assert.deepEqual([b.title, b.ebay.title, b.description, b.photos[0].src, b.package.weight, b.ebay.fulfillmentPolicyId],
-    ['Vaseline  bowl!', 'Vaseline Bowl', '<p>Glows.</p>', 'https://i.ebayimg.com/b.jpg', 20, '9'])
-  assert.deepEqual(b.variations.map((v) => [v.option, v.sku, v.price.amount]), [['S', 'BOWL-S', 2000], ['L', 'BOWL-L', 3000]])
+  const b = bowl.data, be = b.sources.ebay
+  assert.deepEqual([b.title, b.description, b.photos, b.variations], ['Vaseline  bowl!', undefined, undefined, []])
+  assert.deepEqual([be.title, be.description, be.photos[0].src, be.package.weight, be.ebay.fulfillmentPolicyId],
+    ['Vaseline Bowl', '<p>Glows.</p>', 'https://i.ebayimg.com/b.jpg', 20, '9'])
+  assert.deepEqual(be.variations.map((v) => [v.option, v.sku, v.price.amount]), [['S', 'BOWL-S', 2000], ['L', 'BOWL-L', 3000]])
+  assert.deepEqual(paired.results[1].variationsNotMatched, ['S', 'L'])
 
   // Again: all held, nothing suggested, and a number an editor save dropped comes back.
   await db.query(`UPDATE documents SET data = data - 'listingNumber' WHERE slug = 'blue-ring'`)
@@ -266,14 +270,44 @@ test('eBay listings like a Listing are suggested, not made; a pair by Listing nu
   assert.equal((await db.query(`SELECT data->'listingNumber' AS n FROM documents WHERE slug = 'blue-ring'`)).rows[0].n, 1)
 })
 
-test('pairing with Etsy makes its price the shared one and keeps the other as the eBay price; quantity is never written', async () => {
-  const { fillListing } = await import('./pairing.js')
-  const listing = { title: 'Ring', variations: [{ sku: 'R', price: { amount: 15900 }, ebayPrice: { amount: null }, quantity: 9 }], etsy: { title: 'Old Etsy title' } }
-  const incoming = { title: 'Ring for Etsy', tags: [{ tag: 'glow' }], etsyListingId: '11', etsy: {}, variations: [{ sku: 'R', price: { amount: 14900 } }] }
-  const { data, filled, kept } = fillListing(listing, incoming, 'etsy')
-  assert.deepEqual([data.variations[0].price.amount, data.variations[0].ebayPrice.amount, data.variations[0].quantity], [14900, 15900, 9])
-  assert.deepEqual([data.etsyListingId, data.tags[0].tag, data.etsy.title, data.channels.etsy], ['11', 'glow', 'Old Etsy title', true])
-  assert.ok(filled.includes('tags') && kept.includes('etsy.title'))
+test('pairing with Etsy records Etsy beside the Listing and leaves every Listing field, price and quantity as it was', async () => {
+  const { recordSource } = await import('./pairing.js')
+  const listing = { title: 'Ring', variations: [{ sku: 'R', price: { amount: 15900 }, ebayPrice: { amount: null }, quantity: 9 }], etsy: { title: 'Old Etsy title' },
+    sources: { ebay: { title: 'eBay ring' } } }
+  const incoming = { title: 'Ring for Etsy', tags: [{ tag: 'glow' }], etsyListingId: '11', etsy: { title: 'New' }, variations: [{ sku: 'R', price: { amount: 14900 } }] }
+  const { data, recorded, differs } = recordSource(listing, incoming, 'etsy', 't')
+  assert.deepEqual([data.title, data.tags, data.etsy.title, data.channels, data.variations], ['Ring', undefined, 'Old Etsy title', undefined, listing.variations])
+  assert.deepEqual([data.etsyListingId, data.sources.etsy.title, data.sources.etsy.tags[0].tag, data.sources.etsy.etsy.title, data.sources.ebay.title], ['11', 'Ring for Etsy', 'glow', 'New', 'eBay ring'])
+  assert.deepEqual([recorded, differs], [['title', 'tags', 'variations', 'etsy'], ['title']])
+})
+
+test('an eBay-only duplicate merges into its Etsy Listing: the eBay id moves, eBay is recorded, the duplicate stays a draft', async () => {
+  const { db, sync } = await fresh({}, {})
+  await db.query(`CREATE TABLE documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), type text NOT NULL, slug text NOT NULL,
+    status text NOT NULL, version integer NOT NULL, data jsonb NOT NULL, published_data jsonb, published_at timestamptz,
+    updated_at timestamptz NOT NULL DEFAULT now(), updated_by text, UNIQUE (type, slug))`)
+  await db.query(`CREATE TABLE document_revisions (id bigserial PRIMARY KEY, document_id uuid NOT NULL, version integer NOT NULL,
+    data jsonb NOT NULL, author text, created_at timestamptz NOT NULL DEFAULT now())`)
+  const add = (slug, status, data) => db.query(`INSERT INTO documents (type, slug, status, version, data) VALUES ('listing', $1, $2, 1, $3)`, [slug, status, JSON.stringify(data)])
+  await add('moon-ring', 'published', { title: 'Green Moon Crescent Ring', etsyListingId: '31', ebayItemId: '' })
+  await add('moon-ring-ebay', 'draft', { title: 'Green Moon Crescent Ring Size 7', ebayItemId: '301', description: 'eBay words' })
+  await add('star-ring', 'published', { title: 'Star Cluster Pendant', etsyListingId: '32' })
+  await add('star-ring-ebay', 'published', { title: 'Star Cluster Pendant', ebayItemId: '302' })
+
+  const { duplicates } = await sync.duplicates()
+  assert.deepEqual(duplicates.map((x) => [x.from.number, x.from.status, x.into[0].number, x.into[0].etsyListingId]), [[4, 'published', 3, '32'], [2, 'draft', 1, '31']])
+
+  const out = await sync.mergeListings([{ from: 2, into: 1 }, { from: 4, into: 3 }, { from: 3, into: 1 }], { id: 'u1' })
+  assert.equal(out.merged, 1)
+  assert.match(out.results[1].error, /Listing 4 is published/)
+  assert.match(out.results[2].error, /Listing 3 holds no eBay item id/)
+  const { rows } = await db.query(`SELECT slug, status, version, data FROM documents WHERE slug IN ('moon-ring', 'moon-ring-ebay') ORDER BY slug`)
+  const [parent, dup] = rows
+  assert.deepEqual([parent.data.ebayItemId, parent.data.title, parent.data.sources.ebay.title, parent.data.sources.ebay.description, parent.version],
+    ['301', 'Green Moon Crescent Ring', 'Green Moon Crescent Ring Size 7', 'eBay words', 2])
+  assert.deepEqual([dup.status, dup.data.ebayItemId, dup.data.mergedInto, dup.data.title, dup.version], ['draft', '', 1, 'Green Moon Crescent Ring Size 7', 2])
+  assert.equal((await db.query(`SELECT count(*)::int AS n FROM document_revisions`)).rows[0].n, 2)
+  assert.deepEqual((await sync.duplicates()).duplicates.map((x) => x.from.number), [4])
 })
 
 test('a push names its Marketplaces, and an eBay pairing made on eBay\'s website is refused rather than listed twice', async () => {

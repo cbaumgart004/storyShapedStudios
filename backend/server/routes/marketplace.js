@@ -15,7 +15,9 @@
 //   GET  /snapshots/ebay         the newest snapshot of each eBay listing, cut to a review
 //   POST /import/ebay            a draft Listing for each snapshot no Listing holds or resembles; resemblances come back as suggested pairs
 //   GET  /suggestions/:provider  Marketplace listings no Listing holds but some Listing looks like, best guess first
-//   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, filling what each Listing lacks
+//   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, recording each as the Listing's source
+//   GET  /duplicates             eBay-only Listings that look like an Etsy-only Listing, surest first
+//   POST /merge                  { merges: [{ from, into }] } an eBay-only draft's eBay item id and fields move to the Etsy Listing it duplicates
 //   POST /listings/number        give every Listing without a Listing number the next one
 //   GET  /etsy/sections         the shop's section titles, for the Listing editor
 //   GET  /etsy/categories        every Etsy category as its path, the same way
@@ -99,6 +101,8 @@ router.get('/snapshots/ebay', handle('read ebay snapshots', () => sync.ebaySnaps
 router.post('/import/ebay', handle('import ebay listings', (req) => sync.importEbayListings(req.editor)))
 router.get('/suggestions/:provider', handle('read suggestions', (req) => sync.suggestions(req.params.provider)))
 router.post('/pair', handle('pair listings', (req) => sync.pairListings(req.body?.pairs, req.editor)))
+router.get('/duplicates', handle('read duplicates', () => sync.duplicates()))
+router.post('/merge', handle('merge listings', (req) => sync.mergeListings(req.body?.merges, req.editor)))
 router.post('/listings/number', handle('number listings', () => sync.numberListings()))
 
 export default router

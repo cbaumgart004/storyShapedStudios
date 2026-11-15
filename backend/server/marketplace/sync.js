@@ -21,7 +21,7 @@ import { toEtsy, toEbay, units, sellsOn } from './translate.js'
 import { taxonomyId } from './etsy.js'
 import { fromEtsy, slugify } from './fromEtsy.js'
 import { fromEbay } from './fromEbay.js'
-import { fillListing, idField, marketplaceQuantities, likeness } from './pairing.js'
+import { idField, marketplaceQuantities, likeness, recordSource, sourceOf } from './pairing.js'
 import { ensureStockTables } from '../utils/stock.js'
 import { loadToken } from '../utils/tokens.js'
 
@@ -75,6 +75,27 @@ function looksLike(open, data) {
 export function createSync({ db, stock, etsy, ebay, env = process.env }) {
   // Read on each call: locally, dotenv loads after this module is imported.
   const isLive = () => env.MARKETPLACE_SYNC === 'on'
+
+  // fromEtsy/fromEbay of a raw snapshot; Etsy's section and category names
+  // when they can be read, its ids alone otherwise.
+  async function readSnapshot(provider, raw) {
+    if (provider !== 'etsy') return fromEbay(raw)
+    let names = { sections: {}, paths: {} }
+    try { names = await loadNames() } catch { /* ids stand alone */ }
+    return fromEtsy(raw, names)
+  }
+
+  // A Listing paired on one Marketplace that holds the other's id but no
+  // record of it yet gets that record too, from its newest snapshot. Its own
+  // fields stay as they are.
+  async function addOtherSource(data, provider) {
+    const other = provider === 'etsy' ? 'ebay' : 'etsy'
+    const otherId = String(data[idField(other)] ?? '').trim()
+    if (!otherId || data.sources?.[other]) return
+    const { rows: [snap] } = await db.query(
+      `SELECT raw FROM import_snapshots WHERE source = $1 AND external_key = $2 ORDER BY imported_at DESC, id DESC LIMIT 1`, [other, otherId])
+    if (snap) data.sources = { ...data.sources, [other]: sourceOf(await readSnapshot(other, snap.raw), other) }
+  }
   let ready = null
 
   // Names for the section and category ids the review shows: { sections:
@@ -524,9 +545,12 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
     importEbayListings: async function (user = null) { return this.importListings('ebay', user) },
 
     // pairs: [{ provider, externalId, listing (its Listing number) }]. Each
-    // fills its Listing's draft from the newest snapshot (pairing.js), with a
-    // revision. A Listing already paired with another listing on that
-    // Marketplace, or a listing another Listing holds, is refused.
+    // records the newest snapshot on its Listing's draft as that
+    // Marketplace's source (pairing.js), with a revision, and records the
+    // other Marketplace's too when the Listing holds its id and has none yet.
+    // Nothing of the Listing's own is filled or overwritten. A Listing already
+    // paired with another listing on that Marketplace, or a listing another
+    // Listing holds, is refused.
     pairListings: async function (pairs, user = null) {
       if (!Array.isArray(pairs) || !pairs.length) throw new Error('pairs is a list of { provider, externalId, listing }')
       await ensureStockTables(db)
@@ -549,10 +573,9 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
         const { rows: [snap] } = await db.query(
           `SELECT raw FROM import_snapshots WHERE source = $1 AND external_key = $2 ORDER BY imported_at DESC, id DESC LIMIT 1`, [provider, external])
         if (!snap) { fail(`No ${provider} snapshot of ${external}; take a snapshot first.`); continue }
-        let names = { sections: {}, paths: {} }
-        if (provider === 'etsy') { try { names = await loadNames() } catch { /* ids stand alone */ } }
-        const incoming = provider === 'etsy' ? fromEtsy(snap.raw, names) : fromEbay(snap.raw)
-        const { data, filled, kept, variationsNotMatched } = fillListing(doc.data, incoming, provider)
+        const incoming = await readSnapshot(provider, snap.raw)
+        const { data, recorded, differs, variationsNotMatched } = recordSource(doc.data, incoming, provider)
+        await addOtherSource(data, provider)
         // Only if nobody saved the Listing since it was read.
         const { rows: saved } = await db.query(
           `WITH upd AS (
@@ -565,9 +588,75 @@ export function createSync({ db, stock, etsy, ebay, env = process.env }) {
         const stocked = await stockBySku(theirs.map((q) => q.sku))
         const quantities = theirs.map((q) => ({ sku: q.sku, [provider]: q.quantity, stock: stocked.get(q.sku)?.quantity ?? null }))
           .filter((q) => q.stock !== q[provider])
-        out.push({ provider, externalId: external, listing: Number(listing), slug: doc.slug, filled, kept, variationsNotMatched, quantities })
+        out.push({ provider, externalId: external, listing: Number(listing), slug: doc.slug, recorded, differs, variationsNotMatched, quantities })
       }
       return { paired: out.filter((p) => !p.error).length, results: out }
+    },
+
+    // Listings made from an eBay import that sell the same piece as an Etsy
+    // Listing: each eBay-only Listing with the Etsy-only Listings it looks
+    // like, surest first. Changes nothing.
+    duplicates: async function () {
+      await ensureStockTables(db)
+      await this.numberListings()
+      const { rows } = await db.query(`SELECT id, slug, status, data FROM documents WHERE type = 'listing'`)
+      const has = (r, k) => !!String(r.data?.[k] ?? '').trim()
+      const etsyOnly = rows.filter((r) => has(r, 'etsyListingId') && !has(r, 'ebayItemId'))
+      const found = rows.filter((r) => has(r, 'ebayItemId') && !has(r, 'etsyListingId')).flatMap((r) => {
+        const like = looksLike(etsyOnly, r.data)
+        return like.length ? [{ from: { number: r.data.listingNumber ?? null, slug: r.slug, title: r.data.title ?? '', status: r.status, ebayItemId: String(r.data.ebayItemId) },
+          into: like.map((l) => ({ ...l, etsyListingId: String(etsyOnly.find((e) => e.slug === l.slug)?.data.etsyListingId ?? '') })) }] : []
+      })
+      found.sort((a, b) => b.into[0].score - a.into[0].score)
+      return { duplicates: found }
+    },
+
+    // merges: [{ from, into }] Listing numbers. `from` is an eBay-only draft
+    // that duplicates `into`, an Etsy Listing. Its eBay item id moves to
+    // `into`'s ebayItemId and eBay's fields are recorded as `into`'s eBay
+    // source; `from` keeps its own data as a draft, its ebayItemId cleared and
+    // `mergedInto` naming the Listing it went to. Both change in one statement
+    // or neither does. A published `from` is refused: unpublish it first, in
+    // the editor, so the site's published copy follows.
+    mergeListings: async function (merges, user = null) {
+      if (!Array.isArray(merges) || !merges.length) throw new Error('merges is a list of { from, into }')
+      await ensureStockTables(db)
+      await this.numberListings()
+      const byNumber = async (n) => (await db.query(
+        `SELECT d.id, d.slug, d.status, d.version, d.data FROM documents d JOIN listing_numbers n ON n.doc_id = d.id::text
+         WHERE n.number = $1 AND d.type = 'listing'`, [Number(n)])).rows[0]
+      const out = []
+      for (const { from, into } of merges) {
+        const fail = (error) => out.push({ from, into, error })
+        const [dup, parent] = [await byNumber(from), await byNumber(into)]
+        if (!dup) { fail(`No Listing number ${from}.`); continue }
+        if (!parent) { fail(`No Listing number ${into}.`); continue }
+        if (dup.id === parent.id) { fail('A Listing cannot merge into itself.'); continue }
+        const ebayId = String(dup.data.ebayItemId ?? '').trim()
+        if (!ebayId) { fail(`Listing ${from} holds no eBay item id.`); continue }
+        if (String(dup.data.etsyListingId ?? '').trim()) { fail(`Listing ${from} holds an Etsy id too; pair by hand.`); continue }
+        if (dup.status !== 'draft') { fail(`Listing ${from} is published; unpublish it in the editor first.`); continue }
+        const held = String(parent.data.ebayItemId ?? '').trim()
+        if (held && held !== ebayId) { fail(`Listing ${into} is already paired with ebay ${held}.`); continue }
+        const { rows: [snap] } = await db.query(
+          `SELECT raw FROM import_snapshots WHERE source = 'ebay' AND external_key = $1 ORDER BY imported_at DESC, id DESC LIMIT 1`, [ebayId])
+        const incoming = snap ? fromEbay(snap.raw) : { ...dup.data, ebayItemId: ebayId }
+        const { data, recorded, differs } = recordSource(parent.data, incoming, 'ebay')
+        await addOtherSource(data, 'ebay')
+        const left = { ...dup.data, ebayItemId: '', mergedInto: Number(into) }
+        const { rows: saved } = await db.query(
+          `WITH v AS (SELECT * FROM (VALUES ($1::uuid, $2::jsonb, $3::int), ($4::uuid, $5::jsonb, $6::int)) AS x(id, data, version)),
+           upd AS (
+             UPDATE documents d SET data = v.data, version = d.version + 1, updated_at = now(), updated_by = $7
+             FROM v WHERE d.id = v.id AND d.version = v.version
+               AND (SELECT count(*) FROM documents d2 JOIN v v2 ON d2.id = v2.id AND d2.version = v2.version) = 2
+             RETURNING d.id, d.version, d.data)
+           INSERT INTO document_revisions (document_id, version, data, author) SELECT id, version, data, $7 FROM upd RETURNING document_id`,
+          [parent.id, JSON.stringify(data), parent.version, dup.id, JSON.stringify(left), dup.version, user?.id ?? null])
+        if (saved.length !== 2) { fail(`Listing ${from} or ${into} changed while merging; try again.`); continue }
+        out.push({ from: Number(from), into: Number(into), ebayItemId: ebayId, recorded, differs, fromSnapshot: !!snap })
+      }
+      return { merged: out.filter((m) => !m.error).length, results: out }
     },
 
     // Every live eBay listing, through the Trading API (read only), into the

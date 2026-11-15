@@ -1,18 +1,16 @@
 // server/marketplace/pairing.js
 // Pairing a Listing with the Etsy or eBay listing that sells the same piece.
-// The Listing is the record; a pairing only fills what it lacks, so nothing
-// typed on the site is overwritten by a Marketplace.
+// The Listing is the parent of both and stays one record on the website. A
+// pairing records the correlation and nothing else:
 //
-// - Empty fields take the Marketplace's value (title, description, photos,
-//   tags, materials, categories, condition, package, the Marketplace's own
-//   group, the Variations' name).
-// - Title and description that differ are kept as that Marketplace's own
-//   (etsy.title / ebay.title, etsy.description / ebay.description), which the
-//   push sends there; the shared ones stay what the website shows.
-// - Photos the Listing already has stay; the Marketplace's are counted, not
-//   added, because the same photo has a different address on each.
+// - The Marketplace's id goes in its own field (etsyListingId, ebayItemId).
+// - Its fields and values are recorded whole under `sources.<provider>`, so
+//   the Listing holds what each Marketplace says. No field of the Listing is
+//   filled or overwritten from them.
+// - The owner picks, field by field, which one the website shows
+//   (`display.<field>`: site, etsy or ebay; see frontend lib/shown.js).
 // - Variations join by SKU, or one to one when each side has one. A
-//   Marketplace Variation that joins none is reported, not added.
+//   Marketplace Variation that joins none is reported.
 // - Quantity is never written: it belongs to the stock item of each SKU. The
 //   Marketplace's count is reported beside stock where they differ.
 
@@ -55,65 +53,29 @@ export function likeness(listingData, data) {
   return { by, score: Math.round(score * 100) / 100 }
 }
 
-// Fill only what `into` lacks, from `from`, one level of groups deep.
-function fillEmpty(into, from, path, filled) {
-  const out = { ...(into ?? {}) }
-  for (const [k, v] of Object.entries(from ?? {})) {
-    if (blank(v)) continue
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      const before = JSON.stringify(out[k] ?? {})
-      out[k] = fillEmpty(out[k], v, `${path}${k}.`, filled)
-      if (JSON.stringify(out[k]) === before) continue
-    } else if (blank(out[k]) || (typeof v === 'boolean' && out[k] == null)) {
-      out[k] = v
-      filled.push(`${path}${k}`)
-    }
-  }
-  return out
+// What a source record keeps of fromEtsy/fromEbay: every listing field, plus
+// that Marketplace's own group. Ids live in their own fields, not here.
+const SOURCE_FIELDS = ['title', 'description', 'photos', 'tags', 'materials', 'section', 'etsyCategory', 'ebayCategoryId',
+  'condition', 'conditionNote', 'whoMade', 'whenMade', 'isSupply', 'package', 'variationName', 'variations']
+export const DISPLAY_FIELDS = ['title', 'description', 'photos']
+
+export function sourceOf(incoming, provider, at = new Date().toISOString()) {
+  const source = { recordedAt: at }
+  for (const k of [...SOURCE_FIELDS, provider]) if (!blank(incoming[k])) source[k] = incoming[k]
+  return source
 }
 
 // listing: the Listing's draft data. incoming: fromEtsy/fromEbay of the
-// Marketplace listing. Returns the new data and what happened to it.
-export function fillListing(listing, incoming, provider) {
-  const other = provider === 'etsy' ? 'ebay' : 'etsy'
-  const filled = [], kept = []
-  const { variations: inVars = [], title, description, photos, channels, [provider]: own, [other]: _otherOwn, ...rest } = incoming
-  let data = fillEmpty(listing, { ...rest, [idField(provider)]: incoming[idField(provider)] }, '', filled)
-  data[provider] = fillEmpty(data[provider], own, `${provider}.`, filled)
-  data.channels = { ...(data.channels ?? {}), [provider]: true }
-
-  for (const [field, value] of [['title', title], ['description', description]]) {
-    if (blank(value)) continue
-    if (blank(data[field])) { data[field] = value; filled.push(field) }
-    else if (data[field].trim() !== value.trim()) {
-      if (blank(data[provider][field])) { data[provider] = { ...data[provider], [field]: value }; filled.push(`${provider}.${field}`) }
-      else kept.push(`${provider}.${field}`)
-    }
-  }
-  if (blank(data.photos) && !blank(photos)) { data.photos = photos; filled.push('photos') }
-  else if (!blank(photos)) kept.push(`photos (${provider} has ${photos.length})`)
-
-  // Variations.
-  const vars = (data.variations ?? []).map((v) => ({ ...v }))
-  const unmatched = []
+// Marketplace listing. Returns the new data and what the record shows.
+export function recordSource(listing, incoming, provider, at) {
+  const source = sourceOf(incoming, provider, at)
+  const data = { ...listing, [idField(provider)]: String(incoming[idField(provider)] ?? ''), sources: { ...(listing.sources ?? {}), [provider]: source } }
+  const differs = [...DISPLAY_FIELDS, 'tags'].filter((k) => !blank(source[k]) && !blank(listing[k]) && JSON.stringify(source[k]) !== JSON.stringify(listing[k]))
+  const vars = listing.variations ?? [], inVars = incoming.variations ?? []
   const one = vars.length === 1 && inVars.length === 1
-  for (const iv of inVars) {
-    const v = one ? vars[0] : vars.find((x) => x.sku?.trim() && x.sku.trim() === iv.sku?.trim())
-    if (!v) { unmatched.push(iv.option || iv.sku || '(no option)'); continue }
-    if (blank(v.sku) && !blank(iv.sku)) v.sku = iv.sku
-    if (blank(v.option) && !blank(iv.option)) v.option = iv.option
-    const listingPrice = v.price?.amount, theirs = iv.price?.amount
-    if (listingPrice == null && theirs != null) v.price = iv.price
-    else if (theirs != null && theirs !== listingPrice) {
-      // The shared price is Etsy's and the website's; eBay may differ.
-      if (provider === 'ebay' && v.ebayPrice?.amount == null) v.ebayPrice = iv.price
-      else if (provider === 'etsy' && v.ebayPrice?.amount == null) { v.ebayPrice = v.price; v.price = iv.price }
-      else kept.push(`price of ${v.option || v.sku}`)
-    }
-  }
-  if (!vars.length && inVars.length) { data.variations = inVars; filled.push('variations') }
-  else data.variations = vars
-  return { data, filled, kept, variationsNotMatched: unmatched }
+  const unmatched = inVars.filter((iv) => !one && !vars.some((v) => v.sku?.trim() && v.sku.trim() === iv.sku?.trim()))
+    .map((iv) => iv.option || iv.sku || '(no option)')
+  return { data, recorded: Object.keys(source).filter((k) => k !== 'recordedAt'), differs, variationsNotMatched: unmatched }
 }
 
 // [{ sku, quantity }] available on the Marketplace, from its raw listing.

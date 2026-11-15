@@ -10,6 +10,7 @@
 // drafts come from the owner's own editor on the page.
 
 import React, { useEffect, useState } from 'react'
+import { shown, shownFrom } from '../lib/shown.js'
 import { Link } from 'react-router-dom'
 import UvPhoto from '@/components/UvPhoto'
 import { fetchPublished, useLiveDocuments, useSchema } from '@/lib/siteConsole'
@@ -213,15 +214,18 @@ function ProductCard({ block, marks, extras }) {
   const listing = useListings().find((d) => d.id === block.listing)
   if (!listing) return null
   const l = listing.data ?? {}
-  const photo = (l.photos ?? []).find((p) => p.index === 'Light') ?? l.photos?.[0]
+  const photos = shown(l, 'photos') ?? []
+  const photo = photos.find((p) => p.index === 'Light') ?? photos[0]
+  const title = shown(l, 'title')
   const prices = (l.variations ?? []).map((v) => v.price?.amount).filter((a) => a != null)
   const price = prices.length ? money({ amount: Math.min(...prices), currency: l.variations[0].price.currency }) : null
   return (
     <section className="section" {...marks}>
       <figure className="piece-card deco-corners product-card" data-eotm-edit={`listing:${listing.id}`} {...frame.part('listing', lookFor(schema, 'types.listing', l))}>
-        {photo && <div className="frame"><img src={photo.src} alt={photo.alt ?? l.title ?? ''} /></div>}
+        {photo && <div className="frame"><img src={photo.src} alt={photo.alt ?? title ?? ''} /></div>}
         <figcaption>
-          <strong data-eotm-text="title">{l.title}</strong>
+          {/* Typed in place only when the Listing's own title shows; a Marketplace's is edited in the editor. */}
+          <strong {...(shownFrom(l, 'title') === 'site' ? { 'data-eotm-text': 'title' } : {})}>{title}</strong>
           {price && <span>{prices.length > 1 ? `from ${price}` : price}</span>}
           {block.note && <em>{block.note}</em>}
           <Extras at="types.listing" data={l} />
