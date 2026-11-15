@@ -15,10 +15,14 @@
 //   GET  /snapshots/ebay         the newest snapshot of each eBay listing, cut to a review
 //   POST /import/ebay            a draft Listing for each snapshot no Listing holds or resembles; resemblances come back as suggested pairs
 //   GET  /suggestions/:provider  Marketplace listings no Listing holds but some Listing looks like, best guess first
-//   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, filling what each Listing lacks
+//   POST /pair                   { pairs: [{ provider, externalId, listing }] } pair Listing numbers with Marketplace listings, recording each as the Listing's source
+//   GET  /duplicates             eBay-only Listings that look like an Etsy-only Listing, surest first
+//   POST /merge                  { merges: [{ from, into }] } an eBay-only draft's eBay item id and fields move to the Etsy Listing it duplicates
 //   POST /listings/number        give every Listing without a Listing number the next one
 //   GET  /etsy/sections         the shop's section titles, for the Listing editor
 //   GET  /etsy/categories        every Etsy category as its path, the same way
+//   GET  /ebay/shipping          eBay's combined-shipping rules and shipping policies as eBay holds them (read only)
+//   GET  /square                 Square set up or not, and (read only) its account's locations
 //
 // Each answers what it did, or, while MARKETPLACE_SYNC is not "on", what it
 // would have sent. Every route but the two /etsy/ choice lists needs a console
@@ -31,9 +35,12 @@ import { requireEditor } from '../utils/requireEditor.js'
 import { createSync } from '../marketplace/sync.js'
 import { createEtsy } from '../marketplace/etsy.js'
 import { createEbay } from '../marketplace/ebay.js'
+import { createSquare } from '../marketplace/square.js'
+
+const ebay = createEbay()
 
 const router = express.Router()
-export const sync = hasDb ? createSync({ db: pool, stock: createStock(pool), etsy: createEtsy(), ebay: createEbay() }) : null
+export const sync = hasDb ? createSync({ db: pool, stock: createStock(pool), etsy: createEtsy(), ebay }) : null
 
 // The Listing editor's choices (console schema optionsUrl), [{ value, label }].
 // Open, ahead of the sign-in: the console asks without a token, and a shop's
@@ -60,6 +67,22 @@ const handle = (label, fn) => async (req, res) => {
 }
 
 router.get('/status', handle('status', () => sync.status()))
+router.get('/ebay/shipping', handle('ebay shipping', async () => {
+  const [discounts, policies] = await Promise.allSettled([ebay.shippingDiscounts(), ebay.fulfillmentPolicies()])
+  const said = (r) => (r.status === 'fulfilled' ? r.value : { error: r.reason.message })
+  return { discounts: said(discounts), policies: said(policies) }
+}))
+// Square answers without the database: it holds nothing there yet.
+const square = createSquare()
+router.get('/square', async (_req, res) => {
+  if (!square.configured()) return res.json({ configured: false, environment: square.environment })
+  try {
+    res.json({ configured: true, ...(await square.check()) })
+  } catch (err) {
+    console.error('[marketplace] square check failed:', err.message)
+    res.json({ configured: true, environment: square.environment, error: err.message })
+  }
+})
 const only = (req) => (Array.isArray(req.body?.only) && req.body.only.length ? req.body.only.filter((p) => p === 'etsy' || p === 'ebay') : ['etsy', 'ebay'])
 router.post('/listings/:docId/check', handle('check listing', (req) => sync.pushListing(req.params.docId, { check: true, only: only(req) })))
 // The gate: a push changes the live shop, so it is sent only with confirm: true.
@@ -78,6 +101,8 @@ router.get('/snapshots/ebay', handle('read ebay snapshots', () => sync.ebaySnaps
 router.post('/import/ebay', handle('import ebay listings', (req) => sync.importEbayListings(req.editor)))
 router.get('/suggestions/:provider', handle('read suggestions', (req) => sync.suggestions(req.params.provider)))
 router.post('/pair', handle('pair listings', (req) => sync.pairListings(req.body?.pairs, req.editor)))
+router.get('/duplicates', handle('read duplicates', () => sync.duplicates()))
+router.post('/merge', handle('merge listings', (req) => sync.mergeListings(req.body?.merges, req.editor)))
 router.post('/listings/number', handle('number listings', () => sync.numberListings()))
 
 export default router
