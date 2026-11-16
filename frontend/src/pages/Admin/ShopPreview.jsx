@@ -25,7 +25,9 @@ const small = (src) => src.replace(/\/il_fullxfull\./, '/il_340x270.')
 // are uranium green. Blacklight shots are mostly black around a glow.
 async function readPhoto(src) {
   const res = await fetch(`${API_BASE}/api/marketplace/photo?src=${encodeURIComponent(small(src))}`,
-    { headers: { Authorization: `Bearer ${editorToken()}` } })
+    // Read once per run, so nothing to gain from the browser cache, and a bad
+    // response kept there would fail every later run.
+    { headers: { Authorization: `Bearer ${editorToken()}` }, cache: 'no-store' })
   if (!res.ok) throw new Error(`photo ${res.status}`)
   const bmp = await createImageBitmap(await res.blob())
   const canvas = new OffscreenCanvas(64, 64)
