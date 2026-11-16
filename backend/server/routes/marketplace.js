@@ -23,6 +23,7 @@
 //   GET  /etsy/categories        every Etsy category as its path, the same way
 //   GET  /ebay/shipping          eBay's combined-shipping rules and shipping policies as eBay holds them (read only)
 //   GET  /square                 Square set up or not, and (read only) its account's locations
+//   GET  /photo?src=             an Etsy or eBay listing photo, passed through so the admin page can read its pixels (Light or Dark guess)
 //
 // Each answers what it did, or, while MARKETPLACE_SYNC is not "on", what it
 // would have sent. Every route but the two /etsy/ choice lists needs a console
@@ -65,6 +66,24 @@ const handle = (label, fn) => async (req, res) => {
     res.status(500).json({ error: 'Marketplace request failed.' })
   }
 }
+
+// A Marketplace photo, same-origin, so the admin page can read its pixels:
+// Etsy's image host sends no CORS header. Only the two image hosts, nothing
+// else is fetched.
+const PHOTO_HOSTS = new Set(['i.etsystatic.com', 'i.ebayimg.com'])
+router.get('/photo', async (req, res) => {
+  let url
+  try { url = new URL(String(req.query.src ?? '')) } catch { return res.status(400).json({ error: 'src is not a URL.' }) }
+  if (url.protocol !== 'https:' || !PHOTO_HOSTS.has(url.hostname)) return res.status(400).json({ error: 'Only Etsy and eBay photos.' })
+  try {
+    const r = await fetch(url, { redirect: 'error' })
+    const type = r.headers.get('content-type') ?? ''
+    if (!r.ok || !type.startsWith('image/')) return res.status(502).json({ error: `The photo host answered ${r.status}.` })
+    res.set({ 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' }).send(Buffer.from(await r.arrayBuffer()))
+  } catch (err) {
+    res.status(502).json({ error: `The photo did not load: ${err.message}` })
+  }
+})
 
 router.get('/status', handle('status', () => sync.status()))
 router.get('/ebay/shipping', handle('ebay shipping', async () => {
