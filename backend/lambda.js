@@ -31,4 +31,6 @@ if (!process.env.DATABASE_URL && process.env.DATABASE_PARAM) {
 
 // After the connection is known: utils/db.js reads it when first imported.
 const { default: app } = await import('./server/server.js')
-export const handler = serverless(app)
+// Photos from /api/marketplace/photo go out base64-encoded; without this the
+// JPEG bytes are sent as text and arrive corrupted.
+export const handler = serverless(app, { binary: ['image/*'] })
