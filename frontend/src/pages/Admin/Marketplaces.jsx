@@ -36,7 +36,7 @@ function Outcome({ name, r }) {
 }
 
 // part: 'match' (the Etsy and eBay match review) or 'shops' (checks, pushes, sales, snapshots).
-export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
+export default function Marketplaces({ apiFetch, listings, part = 'shops', onSaved }) {
   const [status, setStatus] = useState(null)
   const [results, setResults] = useState({}) // doc id -> answer
   const [busy, setBusy] = useState('')
@@ -87,6 +87,8 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
   const [mergePick, setMergePick] = useState({}) // from number -> { from, into }
   const [mergeChoice, setMergeChoice] = useState({}) // from number -> into number, when not the best guess
   const [merged, setMerged] = useState(null)
+  const [doneRows, setDoneRows] = useState([]) // matched this visit: { s, l, result }, newest first
+  const [doneDups, setDoneDups] = useState([]) // merged this visit: { d, l, result }
   const loadDups = useCallback(() => {
     setBusy('dups')
     return apiFetch(`${API}/duplicates`)
@@ -97,6 +99,9 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
   const merge = (merges) => run('merge', async () => {
     const r = await apiFetch(`${API}/merge`, { method: 'POST', body: { merges } })
     setMerged(r.results)
+    const ok = new Map(r.results.filter((m) => !m.error).map((m) => [m.from, m]))
+    setDoneDups((was) => [...dupRows.filter((x) => ok.has(x.d.from.number)).map((x) => ({ ...x, result: ok.get(x.d.from.number) })), ...was])
+    onSaved?.()
     await loadDups()
     const failed = r.results.filter((m) => m.error).length
     setNote(`${r.merged} merged and saved${failed ? `, ${failed} not (below)` : ''}. The list is read back from the server.`)
@@ -104,6 +109,10 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
   const pair = (pairs) => run('pair', async () => {
     const r = await apiFetch(`${API}/pair`, { method: 'POST', body: { pairs } })
     setPaired(r.results)
+    const ok = new Map(r.results.filter((p) => !p.error).map((p) => [`${p.provider}:${p.externalId}`, p]))
+    setDoneRows((was) => [...rows.filter((x) => ok.has(`${x.s.provider}:${x.s.externalId}`))
+      .map((x) => ({ ...x, result: ok.get(`${x.s.provider}:${x.s.externalId}`) })), ...was])
+    onSaved?.()
     await loadSuggestions(reviewFrom)
     const failed = r.results.filter((p) => p.error).length
     setNote(`${r.paired} matched and saved${failed ? `, ${failed} not (below)` : ''}. The list is read back from the server.`)
@@ -181,7 +190,7 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
       </div>
       {busy === 'suggest' && !rows.length && <p className="ai-hint">Reading the eBay and Etsy listings…</p>}
       {busy !== 'suggest' && !rows.length && <p className="ai-hint">Nothing left to match: every eBay listing that looks like an Etsy one is matched.</p>}
-      {shownRows.length > 0 && (
+      {(shownRows.length > 0 || doneRows.length > 0) && (
         <div className="mk-scroll">
           <table className="ai-table mk-match">
             <thead><tr><th aria-label="Tick" /><th>Etsy</th><th>eBay</th><th>Why</th><th /></tr></thead>
@@ -219,6 +228,15 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
                   </tr>
                 )
               })}
+              {doneRows.map(({ s, l, result }) => (
+                <tr key={`done:${s.provider}:${s.externalId}`} className="mk-done">
+                  <td aria-label="Matched">✓</td>
+                  <td><code className="mk-id">{result.etsyListingId || byNumber.get(l.number)?.data?.etsyListingId || 'Etsy'}</code><div>{l.title || l.slug}</div><span className="ai-muted">Listing {l.number}</span></td>
+                  <td><code className="mk-id">{s.externalId}</code><div>{s.title}</div></td>
+                  <td>{result.differs?.length ? <span className="ai-muted">Differs on {result.differs.join(', ')}</span> : <span className="ai-muted">Same wording</span>}</td>
+                  <td><span className="mk-badge">Matched</span></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -238,7 +256,7 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
         <button type="button" disabled={busy === 'dups'} onClick={loadDups}>{busy === 'dups' ? 'Reading…' : 'Reload'}</button>
       </div>
       {busy !== 'dups' && !dupRows.length && <p className="ai-hint">No duplicates: no eBay-only Listing looks like an Etsy-only one.</p>}
-      {shownDups.length > 0 && (
+      {(shownDups.length > 0 || doneDups.length > 0) && (
         <div className="mk-scroll">
           <table className="ai-table mk-match">
             <thead><tr><th aria-label="Tick" /><th>Etsy Listing (keeps)</th><th>eBay-only Listing (merges in)</th><th>Why</th><th /></tr></thead>
@@ -276,6 +294,15 @@ export default function Marketplaces({ apiFetch, listings, part = 'shops' }) {
                   </tr>
                 )
               })}
+              {doneDups.map(({ d, l, result }) => (
+                <tr key={`done:${d.from.number}`} className="mk-done">
+                  <td aria-label="Merged">✓</td>
+                  <td><code className="mk-id">{l.etsyListingId}</code><div>{l.title || l.slug}</div><span className="ai-muted">Listing {l.number}, now eBay {result.ebayItemId}</span></td>
+                  <td><code className="mk-id">{d.from.ebayItemId}</code><div>{d.from.title || d.from.slug}</div><span className="ai-muted">Listing {d.from.number}, draft, eBay ID cleared</span></td>
+                  <td>{result.differs?.length ? <span className="ai-muted">Differs on {result.differs.join(', ')}</span> : <span className="ai-muted">Same wording</span>}</td>
+                  <td><span className="mk-badge">Merged</span></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

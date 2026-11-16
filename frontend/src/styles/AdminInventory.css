@@ -123,3 +123,18 @@
 .mk-flagged { box-shadow: inset 3px 0 0 var(--draft); }
 .mk-flag { color: var(--draft); font-size: 0.8rem; margin-top: 2px; }
 .mk-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 8px; border-radius: 999px; border: 1px solid currentColor; color: var(--uranium-dim); white-space: nowrap; }
+
+/* Matched or merged this visit: kept below the open rows, quieter. */
+.mk-done { opacity: 0.6; box-shadow: inset 3px 0 0 var(--uranium-dim); }
+.mk-done td:first-child { color: var(--uranium-dim); font-weight: 700; }
+
+/* Shop preview: matched Listings by shop section. */
+.sp-jump { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8rem; }
+.sp-section { margin-top: 2rem; scroll-margin-top: 4rem; }
+.sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.sp-card { margin: 0; background: var(--case-raised); border: 1px solid var(--case-line); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; }
+.sp-frame { aspect-ratio: 1; background: #000; display: grid; place-items: center; }
+.sp-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-card figcaption { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.sp-card .ai-muted { font-size: 0.75rem; }
+@media (max-width: 480px) { .sp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }

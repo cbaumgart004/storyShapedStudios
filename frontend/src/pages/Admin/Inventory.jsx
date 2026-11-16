@@ -12,6 +12,7 @@ import { apiFetch as rawFetch, HAS_BACKEND } from '@/lib/api'
 import { editorToken, CONSOLE_API } from '@/lib/siteConsole'
 import { openAccount } from '@/lib/account'
 import Marketplaces from './Marketplaces'
+import ShopPreview from './ShopPreview'
 import '@/styles/AdminInventory.css'
 
 const API = '/api/inventory/stock'
@@ -182,7 +183,7 @@ export default function AdminInventory() {
   const [listings, setListings] = useState(null) // Map sku -> [{ title, status, option }]
   const [listingDocs, setListingDocs] = useState(null)
   const [listingError, setListingError] = useState('')
-  const [view, setView] = useState('match') // match | stock | shops
+  const [view, setView] = useState('match') // match | preview | stock | shops
   onSignedOut = () => setSignedIn(false)
 
   const load = useCallback(async () => {
@@ -193,9 +194,9 @@ export default function AdminInventory() {
     }
   }, [])
   useEffect(() => { if (signedIn && HAS_BACKEND) load() }, [load, signedIn])
-  useEffect(() => {
-    if (signedIn) loadListings().then((l) => { setListings(l.bySku); setListingDocs(l.docs) }).catch((err) => setListingError(err.message))
-  }, [signedIn])
+  const reloadListings = useCallback(() => loadListings()
+    .then((l) => { setListings(l.bySku); setListingDocs(l.docs) }).catch((err) => setListingError(err.message)), [])
+  useEffect(() => { if (signedIn) reloadListings() }, [signedIn, reloadListings])
   // Listing doc id -> the Etsy and eBay IDs that Listing holds (its own fields).
   const marketIds = new Map((listingDocs ?? []).map((d) => [String(d.id), { etsy: d.data?.etsyListingId, ebay: d.data?.ebayItemId }]))
   const known = new Set(stock.map((s) => s.sku).filter(Boolean))
@@ -258,12 +259,13 @@ export default function AdminInventory() {
       )}
 
       <nav className="mk-tabs ai-views" aria-label="Stock page">
-        {[['match', 'Match Etsy and eBay'], ['stock', 'Stock'], ['shops', 'Etsy and eBay listings']].map(([k, label]) => (
+        {[['match', 'Match Etsy and eBay'], ['preview', 'Shop preview'], ['stock', 'Stock'], ['shops', 'Etsy and eBay listings']].map(([k, label]) => (
           <button key={k} type="button" className={view === k ? 'is-on' : ''} aria-pressed={view === k} onClick={() => setView(k)}>{label}</button>
         ))}
       </nav>
 
-      {view === 'match' && <Marketplaces apiFetch={apiFetch} listings={listingDocs} part="match" />}
+      {view === 'match' && <Marketplaces apiFetch={apiFetch} listings={listingDocs} part="match" onSaved={reloadListings} />}
+      {view === 'preview' && <ShopPreview docs={listingDocs} reload={reloadListings} />}
       {view === 'shops' && <Marketplaces apiFetch={apiFetch} listings={listingDocs} />}
       {view === 'stock' && (
       <section className="ai-section">
