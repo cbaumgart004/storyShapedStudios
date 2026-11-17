@@ -1,16 +1,52 @@
 # Current Work
 
-Last updated: 2026-09-29
+Last updated: 2026-11-16
 
 ## Work Tracks
 
+A to D are closed: each branch is merged into `preview` (checked 2026-11-16). Their notes further
+down are history.
+
 | Track | Focus | Branch | Status |
 |---|---|---|---|
-| A | Inventory Phase 1 (items, components, BOM, decrement) | merged to `main` (`292741b`) | Built; needs end-to-end DB verification + admin auth |
-| B | Splash page redesign (per Whitney's notes doc) | `home-page-layout` (`f406e03`, pushed) | Shipped bar #22 |
-| C | Library mobile layout | `library-mobile-update` (off `home-page-layout`) | #25, #26 shipped; signed off by Whitney |
-| D | Customer layout revision (her 2026-08-03 review) | `260803_Customer_Layout_Revision` (off `library-mobile-update`) | Content chunk shipped; visual tweaks open |
-| E | Go-Live 2026-10-01: hosting, inventory, marketplace, editor | `preview` | Plan settled; execution starts next session (below) |
+| A | Inventory Phase 1 (items, components, BOM, decrement) | merged | Built; end-to-end DB verification still open |
+| B | Splash page redesign (per Whitney's notes doc) | merged | Done |
+| C | Library mobile layout | merged | Done; signed off by Whitney |
+| D | Customer layout revision (her 2026-08-03 review) | merged | Content done; visual tweaks not re-checked |
+| E | Go-Live: hosting, inventory, marketplace, editor | `preview`, `production` | Hosting live (Amplify, Lambda, Neon); marketplace push gated |
+| F | Listings: Etsy and eBay matching, Shop preview, photo guess and review | `preview` | **Active.** See NEXT CRITICAL below |
+
+## NEXT CRITICAL (set 2026-11-16): review the Shop preview and the photo guess
+
+Where: `https://preview.storyshapedstudios.com/admin/inventory`, tab **Shop preview**
+(`frontend/src/pages/Admin/ShopPreview.jsx`). Everything below is a **draft**; nothing was published.
+
+1. **Photo guess results, unverified.** The run marked 1,109 of 4,831 photos `Dark` (blacklight) on
+   585 Listings. Check with the Daylight/Blacklight switch: a dark photo under Daylight, or
+   "(no blacklight photo yet)" on a Listing that has one, is a miss. Thresholds (`isBlacklight`)
+   were tuned on about 90 eBay photos only. Fix misses in the editor; rerunning never turns Dark
+   back to Light. Track it with the review status: each card shows **New** (amber) or **✓ Reviewed**
+   (green, with the date), with a "x of y reviewed" bar, a New / Reviewed filter, and "All with
+   photos" to reach the guessed Listings that are not matched. Status is saved on the Listing draft
+   (`data.photoReview`), so it holds before anything is published or pushed. The 585 Listings the
+   first run changed read New, since that run saved no status.
+2. **Five Listings not saved** by the guess: the console rejected existing data, not the guess.
+   Listings 610, 659, 713, 720 have `condition: "2990"` (not an allowed option, likely an eBay
+   condition code from import); Listing 685's description is over 10,000 characters. Fix the field,
+   then rerun the guess. One photo did not load and stays Light.
+3. **Sections as shop categories.** 17 Etsy shop sections, A to Z, 348 matched Listings. Decide
+   which become site categories; several are tiny (Vintage Items 2, Uranium Glass Rings 2, three
+   "Vintage" sections). Section names come from `data.section`, trimmed.
+4. **Layout** at desktop, tablet and phone: cards two across on phone, no sideways scroll, section
+   jump links land correctly.
+
+Still open from the same session:
+
+- **Matching:** 410 sure matches saved (348 Listings hold both IDs); 66 suggestions and 106
+  duplicates remain on the Match tab. Matched rows now stay at the bottom, marked, until reload.
+- **Deployed this session:** `GET /api/marketplace/photo` (production `9550aad`) and the Lambda
+  binary fix `serverless(app, { binary: ['image/*'] })` in `backend/lambda.js` (production
+  `e7a43b4`, preview `b6db348`); frontend on preview `00d4fe0`, `e4419f6`.
 
 **One preview branch.** Whitney reviews a single preview site, so front-end work
 stacks onto the current head of that chain rather than branching off `main` — do
